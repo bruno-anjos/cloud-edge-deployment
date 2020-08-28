@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="5271c906-0556-48fb-94b9-7ee1cd9c0ecb" name="Default Changelist" comment="" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Go File" />
+      </list>
+    </option>
+  </component>
+  <component name="GOROOT" path="/usr/local/Cellar/go/1.15/libexec" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GoLibraries">
+    <option name="indexEntireGoPath" value="false" />
+  </component>
+  <component name="ProjectId" id="1gdov39BTXkC1kKSAwogO9KhJqU" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="ASKED_SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
+    <property name="DefaultGoTemplateProperty" value="Go File" />
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="go.import.settings.migrated" value="true" />
+    <property name="go.sdk.automatically.set" value="true" />
+    <property name="go.tried.to.enable.integration.vgo.integrator" value="true" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/cmd/deployer" />
+    <property name="run.code.analysis.last.selected.profile" value="pProject Default" />
+    <property name="settings.editor.selected.configurable" value="preferences.keymap" />
+  </component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/internal/archimedes" />
+      <recent name="$PROJECT_DIR$/api/archimedes" />
+      <recent name="$PROJECT_DIR$/pkg/archimedes" />
+      <recent name="$PROJECT_DIR$/internal/utils" />
+      <recent name="$PROJECT_DIR$/internal/scheduler" />
+    </key>
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/cmd/deployer" />
+      <recent name="$PROJECT_DIR$" />
+      <recent name="$PROJECT_DIR$/api/archimedes" />
+      <recent name="$PROJECT_DIR$/build/archimedes" />
+      <recent name="$PROJECT_DIR$/internal/archimedes" />
+    </key>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VgoProject">
+    <integration-enabled>true</integration-enabled>
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="826" y="-700" key="#Go_Modules" timestamp="1598454142202">
+      <screen x="66" y="-1080" width="1920" height="1080" />
+    </state>
+    <state x="826" y="-700" key="#Go_Modules/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598454142202" />
+    <state x="771" y="-731" key="#com.intellij.fileTypes.FileTypeChooser" timestamp="1598455020025">
+      <screen x="66" y="-1080" width="1920" height="1080" />
+    </state>
+    <state x="771" y="-731" key="#com.intellij.fileTypes.FileTypeChooser/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598455020025" />
+    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1" timestamp="1598639080396">
+      <screen x="66" y="-1080" width="1920" height="1080" />
+    </state>
+    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598639080396" />
+    <state x="572" y="-938" key="CommitChangelistDialog2" timestamp="1598638067431">
+      <screen x="66" y="-1080" width="1920" height="1080" />
+    </state>
+    <state x="572" y="-938" key="CommitChangelistDialog2/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598638067431" />
+    <state x="535" y="-901" key="SettingsEditor" timestamp="1598457338716">
+      <screen x="66" y="-1080" width="1920" height="1080" />
+    </state>
+    <state x="535" y="-901" key="SettingsEditor/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598457338716" />
+    <state x="733" y="-785" width="586" height="490" key="find.popup" timestamp="1598636188374">
+      <screen x="66" y="-1080" width="1920" height="1080" />
+    </state>
+    <state x="733" y="-785" width="586" height="490" key="find.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598636188374" />
+    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup" timestamp="1598634325124">
+      <screen x="66" y="-1080" width="1920" height="1080" />
+    </state>
+    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598634325124" />
+  </component>
+</project>
