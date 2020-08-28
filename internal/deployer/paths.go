@@ -2,7 +2,6 @@ package deployer
 
 import (
 	"fmt"
-	"strconv"
 )
 
 // Paths
@@ -28,15 +27,6 @@ const (
 	// scheduler
 	DeploymentInstanceAlivePath = "/deployments/%s/%s/alive"
 	DeploymentInstancePath      = "/deployments/%s/%s"
-)
-
-const (
-	Port = 50002
-)
-
-var (
-	DeployerServiceName = "deployer"
-	DefaultHostPort     = DeployerServiceName + ":" + strconv.Itoa(Port)
 )
 
 func GetDeploymentsPath() string {

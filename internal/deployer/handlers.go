@@ -11,12 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
-	scheduler2 "github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
 	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -47,8 +45,8 @@ const (
 )
 
 var (
-	archimedesClient = archimedes2.NewArchimedesClient(archimedes.ArchimedesServiceName)
-	schedulerClient  = scheduler2.NewSchedulerClient(scheduler.SchedulerServiceName)
+	archimedesClient = archimedes.NewArchimedesClient(archimedes.ArchimedesServiceName)
+	schedulerClient  = scheduler.NewSchedulerClient(scheduler.SchedulerServiceName)
 )
 
 var (
@@ -79,7 +77,7 @@ func init() {
 		panic(err)
 	}
 
-	hostname = aux + ":" + strconv.Itoa(Port)
+	hostname = aux + ":" + strconv.Itoa(deployer.Port)
 
 	deployerId := uuid.New()
 	myself = utils.NewNode(deployerId.String(), hostname)
@@ -368,7 +366,7 @@ func onNodeDown(addr string) {
 
 func addPortToAddr(addr string) string {
 	if !strings.Contains(addr, ":") {
-		return addr + ":" + strconv.Itoa(Port)
+		return addr + ":" + strconv.Itoa(deployer.Port)
 	}
 	return addr
 }

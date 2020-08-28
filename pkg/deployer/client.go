@@ -1,21 +1,30 @@
 package deployer
 
 import (
+	"fmt"
 	"net/http"
+	"os"
+	"time"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/docker/go-connections/nat"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 type DeployerClient struct {
 	*utils.GenericClient
 }
 
+const (
+	HeartbeatCheckerTimeout = 60
+)
+
 func NewDeployerClient(addr string) *DeployerClient {
 	return &DeployerClient{
-		GenericClient: utils.NewGenericClient(addr, deployer.Port),
+		GenericClient: utils.NewGenericClient(addr, Port),
 	}
 }
 
@@ -166,4 +175,33 @@ func (c *DeployerClient) AddNode(nodeAddr string) (status int) {
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
+}
+
+func (c *DeployerClient) SendInstanceHeartbeatToDeployerPeriodically() {
+	serviceId := os.Getenv(utils.ServiceEnvVarName)
+	instanceId := os.Getenv(utils.InstanceEnvVarName)
+
+	status := c.RegisterHearbeatServiceInstance(serviceId, instanceId)
+	switch status {
+	case http.StatusConflict:
+		log.Debugf("service %s instance %s already has a heartbeat sender", serviceId, instanceId)
+		return
+	case http.StatusOK:
+	default:
+		panic(errors.New(fmt.Sprintf("received unexpected status %d", status)))
+	}
+
+	ticker := time.NewTicker((HeartbeatCheckerTimeout / 3) * time.Second)
+	for {
+		<-ticker.C
+		log.Info("sending heartbeat to deployer")
+		status = c.SendHearbeatServiceInstance(serviceId, instanceId)
+		switch status {
+		case http.StatusNotFound:
+			log.Warnf("heartbeat to deployer retrieved not found")
+		case http.StatusOK:
+		default:
+			panic(errors.New(fmt.Sprintf("received unexpected status %d", status)))
+		}
+	}
 }

@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/deployer"
+	internal "github.com/bruno-anjos/cloud-edge-deployment/internal/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 )
 
 const (
@@ -10,5 +11,5 @@ const (
 )
 
 func main() {
-	utils.StartServer(serviceName, deployer.DefaultHostPort, deployer.Port, deployer.PrefixPath, deployer.Routes)
+	utils.StartServer(serviceName, deployer.DefaultHostPort, deployer.Port, internal.PrefixPath, internal.Routes)
 }

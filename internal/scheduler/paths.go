@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"fmt"
-	"strconv"
 )
 
 // Paths
@@ -11,15 +10,6 @@ const (
 
 	InstancesPath = "/instances"
 	InstancePath  = "/instances/%s"
-)
-
-const (
-	Port = 50001
-)
-
-var (
-	SchedulerServiceName = "scheduler"
-	DefaultHostPort      = SchedulerServiceName + ":" + strconv.Itoa(Port)
 )
 
 func GetInstancesPath() string {

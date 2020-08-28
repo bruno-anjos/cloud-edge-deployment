@@ -2,7 +2,6 @@ package archimedes
 
 import (
 	"fmt"
-	"strconv"
 )
 
 // Paths
@@ -19,15 +18,6 @@ const (
 	WhoAreYouPath       = "/who"
 	TablePath           = "/table"
 	ResolvePath         = "/resolve"
-)
-
-const (
-	ArchimedesServiceName = "archimedes"
-	Port                  = 50000
-)
-
-var (
-	DefaultHostPort = ArchimedesServiceName + ":" + strconv.Itoa(Port)
 )
 
 func GetServicesPath() string {

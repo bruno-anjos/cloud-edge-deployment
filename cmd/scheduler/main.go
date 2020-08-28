@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/scheduler"
+	internal "github.com/bruno-anjos/cloud-edge-deployment/internal/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
 )
 
 const (
@@ -10,6 +11,6 @@ const (
 )
 
 func main() {
-	utils.StartServer(serviceName, scheduler.DefaultHostPort, scheduler.Port, scheduler.PrefixPath,
-		scheduler.Routes)
+	utils.StartServer(serviceName, scheduler.DefaultHostPort, scheduler.Port, internal.PrefixPath,
+		internal.Routes)
 }

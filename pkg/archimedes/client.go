@@ -15,7 +15,7 @@ type ArchimedesClient struct {
 
 func NewArchimedesClient(addr string) *ArchimedesClient {
 	return &ArchimedesClient{
-		GenericClient: utils.NewGenericClient(addr, archimedes.Port),
+		GenericClient: utils.NewGenericClient(addr, Port),
 	}
 }
 
@@ -113,7 +113,6 @@ func (c *ArchimedesClient) Resolve(host string, port nat.Port) (rHost, rPort str
 
 	var resp api.ResolveResponseBody
 	status, _ = utils.DoRequest(c.Client, req, &resp)
-
 	rHost = resp.Host
 	rPort = resp.Port
 

@@ -2,7 +2,26 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="5271c906-0556-48fb-94b9-7ee1cd9c0ecb" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/pkg/archimedes/server.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/pkg/deployer/server.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/pkg/scheduler/server.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmd/archimedes/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/cmd/archimedes/main.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmd/deployer/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/cmd/deployer/main.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmd/scheduler/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/cmd/scheduler/main.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/archimedes/handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/archimedes/handlers.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/archimedes/paths.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/archimedes/paths.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/archimedes/utils.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/deployer/handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/handlers.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/deployer/heartbeats.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/heartbeats.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/deployer/instances.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/instances.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/deployer/paths.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/paths.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/deployer/utils.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/scheduler/handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/scheduler/handlers.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/scheduler/paths.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/scheduler/paths.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/archimedes/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/archimedes/client.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/deployer/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/deployer/client.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/scheduler/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/scheduler/client.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -24,7 +43,9 @@
     <option name="indexEntireGoPath" value="false" />
   </component>
   <component name="ProjectId" id="1gdov39BTXkC1kKSAwogO9KhJqU" />
-  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -82,10 +103,10 @@
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
     <state x="771" y="-731" key="#com.intellij.fileTypes.FileTypeChooser/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598455020025" />
-    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1" timestamp="1598639080396">
+    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1" timestamp="1598641068198">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598639080396" />
+    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598641068198" />
     <state x="572" y="-938" key="CommitChangelistDialog2" timestamp="1598639310286">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
@@ -94,13 +115,13 @@
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
     <state x="535" y="-901" key="SettingsEditor/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598457338716" />
-    <state x="733" y="-785" width="586" height="490" key="find.popup" timestamp="1598639439083">
+    <state x="733" y="-785" width="586" height="490" key="find.popup" timestamp="1598640667927">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="733" y="-785" width="586" height="490" key="find.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598639439083" />
-    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup" timestamp="1598634325124">
+    <state x="733" y="-785" width="586" height="490" key="find.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598640667927" />
+    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup" timestamp="1598639930157">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598634325124" />
+    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598639930157" />
   </component>
 </project>

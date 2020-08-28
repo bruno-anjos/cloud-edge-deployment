@@ -61,7 +61,7 @@ func registerServiceHandler(w http.ResponseWriter, r *http.Request) {
 
 	newTableEntry := &archimedes.ServicesTableEntryDTO{
 		Host:         archimedesId,
-		HostAddr:     DefaultHostPort,
+		HostAddr:     archimedes.DefaultHostPort,
 		Service:      service,
 		Instances:    map[string]*archimedes.Instance{},
 		NumberOfHops: 0,

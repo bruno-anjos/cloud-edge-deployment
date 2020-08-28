@@ -11,9 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -35,7 +34,7 @@ const (
 )
 
 var (
-	deployerClient      = deployer2.NewDeployerClient(deployer.DeployerServiceName)
+	deployerClient      = deployer.NewDeployerClient(deployer.DeployerServiceName)
 	dockerClient        *client.Client
 	networkId           string
 	instanceToContainer sync.Map
