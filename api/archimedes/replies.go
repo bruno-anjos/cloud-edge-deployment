@@ -5,7 +5,7 @@ import (
 )
 
 type (
-	GetAllServicesReponseBody      = map[string]*archimedes.Service
+	GetAllServicesResponseBody     = map[string]*archimedes.Service
 	GetServiceInstanceResponseBody = archimedes.Instance
 	GetInstanceResponseBody        = archimedes.Instance
 	GetServicesTableResponseBody   = archimedes.DiscoverMsg

@@ -69,7 +69,7 @@ func (c *ArchimedesClient) DeleteServiceInstance(serviceId, instanceId string) (
 func (c *ArchimedesClient) GetServices() (services map[string]*Service, status int) {
 	req := utils.BuildRequest(http.MethodGet, c.HostPort, archimedes.GetServicesPath(), nil)
 
-	services = api.GetAllServicesReponseBody{}
+	services = api.GetAllServicesResponseBody{}
 	status, _ = utils.DoRequest(c.Client, req, &services)
 	return
 }

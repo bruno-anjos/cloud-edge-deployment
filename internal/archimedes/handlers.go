@@ -171,7 +171,7 @@ func deleteServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 func getAllServicesHandler(w http.ResponseWriter, _ *http.Request) {
 	log.Debug("handling request in getAllServices handler")
 
-	var resp api.GetAllServicesReponseBody
+	var resp api.GetAllServicesResponseBody
 	resp = servicesTable.GetAllServices()
 	utils.SendJSONReplyOK(w, resp)
 }

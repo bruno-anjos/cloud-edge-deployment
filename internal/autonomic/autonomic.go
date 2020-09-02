@@ -4,11 +4,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/pkg/errors"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/constraints"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/strategies"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -86,23 +88,9 @@ func registerMetricInLowerApi(metricId string) {
 
 }
 
-type AutonomicService struct {
-	Strategy *strategies.Strategy
-}
-
-func NewAutonomicService(strategy *strategies.Strategy) *AutonomicService {
-	return &AutonomicService{
-		Strategy: strategy,
-	}
-}
-
-func (a *AutonomicService) GenerateAction() actions.Action {
-	return a.Strategy.Optimize()
-}
-
 type (
 	servicesMapKey   = string
-	servicesMapValue = *AutonomicService
+	servicesMapValue = *autonomic.AutonomicService
 )
 
 const (
@@ -110,14 +98,16 @@ const (
 )
 
 type AutonomicSystem struct {
-	services *sync.Map
-	env      *Environment
+	services       *sync.Map
+	env            *Environment
+	deployerClient *deployer.DeployerClient
 }
 
 func NewAutonomicSystem() *AutonomicSystem {
 	return &AutonomicSystem{
-		services: &sync.Map{},
-		env:      NewEnvironment(),
+		services:       &sync.Map{},
+		env:            NewEnvironment(),
+		deployerClient: deployer.NewDeployerClient(deployer.DeployerServiceName),
 	}
 }
 
@@ -139,7 +129,7 @@ func (a *AutonomicSystem) AddService(serviceId, strategyId string) error {
 		}
 	}
 
-	service := NewAutonomicService(strategy)
+	service := autonomic.NewAutonomicService(strategy)
 	a.services.Store(serviceId, service)
 
 	return nil
@@ -149,8 +139,8 @@ func (a *AutonomicSystem) RemoveService(serviceId string) {
 	a.services.Delete(serviceId)
 }
 
-func (a *AutonomicSystem) GetServices() (services map[string]*AutonomicService) {
-	services = map[string]*AutonomicService{}
+func (a *AutonomicSystem) GetServices() (services map[string]*autonomic.AutonomicService) {
+	services = map[string]*autonomic.AutonomicService{}
 
 	a.services.Range(func(key, value interface{}) bool {
 		serviceId := key.(servicesMapKey)
