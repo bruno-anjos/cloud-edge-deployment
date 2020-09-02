@@ -9,6 +9,7 @@ set -e
 function build() {
 	env CGO_ENABLED=0 GOOS=linux go build -o "$SERVICE_NAME" .
 	docker build -t brunoanjos/"$SERVICE_NAME":latest "$BUILD_DIR"/"$SERVICE_NAME"
+	rm "$SERVICE_NAME"
 }
 
 SERVICE_NAME="archimedes"
