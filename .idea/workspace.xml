@@ -2,34 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="5271c906-0556-48fb-94b9-7ee1cd9c0ecb" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/api/autonomic/replies.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/api/autonomic/requests.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/autonomic/Dockerfile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/cmd/autonomic/main.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/actions/actions.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/actions/node_actions.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/actions/service_actions.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/autonomic.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/constraints/constraint.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/constraints/number_instances.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/goals/goal.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/goals/node_goals/global_load_balance.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/goals/service_goals/ideal_latency.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/goals/service_goals/load_balance.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/handlers.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/metrics.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/paths.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/routes.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/strategies/ideal_latency.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/strategies/load_balance.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/strategies/strategy.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/pkg/autonomic/dtos.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/pkg/autonomic/server.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/build.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/archimedes/handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/archimedes/handlers.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/deploy_stack.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/deploy_stack.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/push_stack.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/push_stack.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/build.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/build.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
