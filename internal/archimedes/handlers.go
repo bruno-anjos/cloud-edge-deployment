@@ -40,13 +40,15 @@ func registerServiceHandler(w http.ResponseWriter, r *http.Request) {
 
 	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
 
-	serviceDTO := archimedes.ServiceDTO{}
-	err := json.NewDecoder(r.Body).Decode(&serviceDTO)
+	req := api.RegisterServiceRequestBody{}
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		log.Error(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	serviceDTO := req
 
 	service := &archimedes.Service{
 		Id:    serviceId,
@@ -104,12 +106,14 @@ func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	instanceId := utils.ExtractPathVar(r, InstanceIdPathVar)
 
-	instanceDTO := archimedes.InstanceDTO{}
-	err := json.NewDecoder(r.Body).Decode(&instanceDTO)
+	req := api.RegisterServiceInstanceRequestBody{}
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	instanceDTO := req
 
 	ok = servicesTable.ServiceHasInstance(serviceId, instanceId)
 	if ok {
@@ -183,7 +187,9 @@ func getAllServiceInstancesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.SendJSONReplyOK(w, servicesTable.GetAllServiceInstances(serviceId))
+	var resp api.GetServiceResponseBody
+	resp = servicesTable.GetAllServiceInstances(serviceId)
+	utils.SendJSONReplyOK(w, resp)
 }
 
 func getServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
@@ -220,22 +226,29 @@ func getInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 func whoAreYouHandler(w http.ResponseWriter, _ *http.Request) {
 	log.Debug("handling whoAreYou request")
-	utils.SendJSONReplyOK(w, archimedesId)
+	var resp api.WhoAreYouResponseBody
+	resp = archimedesId
+	utils.SendJSONReplyOK(w, resp)
 }
 
 func getServicesTableHandler(w http.ResponseWriter, _ *http.Request) {
-	utils.SendJSONReplyOK(w, servicesTable.ToDiscoverMsg(archimedesId))
+	var resp api.GetServicesTableResponseBody
+	resp = *servicesTable.ToDiscoverMsg(archimedesId)
+
+	utils.SendJSONReplyOK(w, resp)
 }
 
 func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("handling resolve request")
 
-	toResolve := archimedes.ToResolveDTO{}
-	err := json.NewDecoder(r.Body).Decode(&toResolve)
+	var req api.ResolveRequestBody
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	toResolve := &req
 
 	service, sOk := servicesTable.GetService(toResolve.Host)
 	if !sOk {
@@ -281,22 +294,29 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("resolved %s:%s to %s:%s", toResolve.Host, toResolve.Port.Port(), resolved.Host, resolved.Port)
 
-	utils.SendJSONReplyOK(w, archimedes.ResolvedDTO{
+	resolvedDTO := archimedes.ResolvedDTO{
 		Host: resolved.Host,
 		Port: resolved.Port,
-	})
+	}
+
+	var resp api.ResolveResponseBody
+	resp = resolvedDTO
+
+	utils.SendJSONReplyOK(w, resp)
 }
 
 func discoverHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in discoverService handler")
 
-	discoverMsg := archimedes.DiscoverMsg{}
-	err := json.NewDecoder(r.Body).Decode(&discoverMsg)
+	req := api.DiscoverRequestBody{}
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Error(err)
 		return
 	}
+
+	discoverMsg := req
 
 	_, ok := messagesReceived.Load(discoverMsg.MessageId)
 	if ok {

@@ -2,17 +2,26 @@
 
 set -e
 
-cd archimedes || exit
-bash build.sh
-docker push brunoanjos/archimedes:latest
-cd ..
+REL_PATH="$(dirname "$0")"
+BUILD_DIR="$REL_PATH/../build"
+set -e
 
-cd scheduler || exit
-bash build.sh
-docker push brunoanjos/scheduler:latest
-cd ..
+bash "$REL_PATH"/build.sh
 
-cd deployer || exit
-bash build.sh
-docker push brunoanjos/deployer:latest
-cd ..
+function push() {
+	docker push -t brunoanjos/"$SERVICE_NAME":latest
+}
+
+SERVICE_NAME="archimedes"
+push &
+
+SERVICE_NAME="deployer"
+push &
+
+SERVICE_NAME="scheduler"
+push &
+
+SERVICE_NAME="autonomic"
+push &
+
+wait
