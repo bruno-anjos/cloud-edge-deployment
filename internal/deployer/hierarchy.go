@@ -7,7 +7,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/strategies"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	log "github.com/sirupsen/logrus"
 )
@@ -17,7 +19,8 @@ type (
 		DeploymentYAMLBytes []byte
 		Parent              *utils.Node
 		Grandparent         *utils.Node
-		Child               sync.Map
+		Children            sync.Map
+		NumChildren         int32
 		Static              bool
 		IsOrphan            bool
 		NewParentChan       chan<- string
@@ -27,7 +30,7 @@ type (
 func (e *HierarchyEntry) GetChildren() map[string]*utils.Node {
 	entryChildren := map[string]*utils.Node{}
 
-	e.Child.Range(func(key, value interface{}) bool {
+	e.Children.Range(func(key, value interface{}) bool {
 		childId := key.(typeChildMapKey)
 		child := value.(typeChildMapValue)
 		entryChildren[childId] = child
@@ -53,6 +56,7 @@ type (
 
 	HierarchyTable struct {
 		hierarchyEntries sync.Map
+		autonomicClient  *autonomic.Client
 	}
 
 	typeHierarchyEntriesMapKey   = string
@@ -62,6 +66,7 @@ type (
 func NewHierarchyTable() *HierarchyTable {
 	return &HierarchyTable{
 		hierarchyEntries: sync.Map{},
+		autonomicClient:  autonomic.NewAutonomicClient(autonomic.AutonomicServiceName),
 	}
 }
 
@@ -70,7 +75,7 @@ func (t *HierarchyTable) AddDeployment(dto *deployer.DeploymentDTO) bool {
 		DeploymentYAMLBytes: dto.DeploymentYAMLBytes,
 		Parent:              dto.Parent,
 		Grandparent:         dto.Grandparent,
-		Child:               sync.Map{},
+		Children:            sync.Map{},
 		Static:              dto.Static,
 		IsOrphan:            false,
 		NewParentChan:       nil,
@@ -125,28 +130,45 @@ func (t *HierarchyTable) SetDeploymentAsOrphan(deploymentId string) <-chan strin
 	return newParentChan
 }
 
-func (t *HierarchyTable) AddChild(deploymentId string, child *utils.Node) bool {
+func (t *HierarchyTable) AddChild(deploymentId string, child *utils.Node) {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
-		return false
+		return
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	entry.Child.Store(child.Id, child)
+	entry.Children.Store(child.Id, child)
+	wasZero := atomic.CompareAndSwapInt32(&entry.NumChildren, 0, 1)
+	if wasZero {
+		// TODO change this to read strategy
+		t.autonomicClient.RegisterService(deploymentId, strategies.StrategyIdealLatencyId)
+	} else {
+		atomic.AddInt32(&entry.NumChildren, 1)
+	}
 
-	return true
+	t.autonomicClient.AddServiceChild(deploymentId, child.Id)
+
+	return
 }
 
-func (t *HierarchyTable) RemoveChild(deploymentId, childId string) bool {
+func (t *HierarchyTable) RemoveChild(deploymentId, childId string) {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
-		return false
+		return
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	entry.Child.Delete(childId)
+	entry.Children.Delete(childId)
+	t.autonomicClient.RemoveServiceChild(deploymentId, childId)
 
-	return true
+	isZero := atomic.CompareAndSwapInt32(&entry.NumChildren, 1, 0)
+	if isZero {
+		t.autonomicClient.DeleteService(deploymentId)
+	} else {
+		atomic.AddInt32(&entry.NumChildren, -1)
+	}
+
+	return
 }
 
 func (t *HierarchyTable) GetChildren(deploymentId string) (children map[string]*utils.Node) {

@@ -1,9 +1,9 @@
 package autonomic
 
 import (
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 )
 
 type (
-	GetAllServicesResponseBody = map[string]*autonomic.AutonomicService
+	GetAllServicesResponseBody = map[string]*autonomic.Service
 )

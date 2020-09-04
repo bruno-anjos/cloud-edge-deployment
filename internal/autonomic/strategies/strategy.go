@@ -5,29 +5,35 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
 )
 
-type Strategy struct {
-	actionsStack []actions.Action
-	goals        []goals.Goal
+type Strategy interface {
+	Optimize() actions.Action
+	GetDependencies() (metricIds []string)
 }
 
-func NewStrategy(goals []goals.Goal) *Strategy {
-	return &Strategy{
+type BasicStrategy struct {
+	goals []goals.Goal
+}
+
+func NewBasicStrategy(goals []goals.Goal) *BasicStrategy {
+	return &BasicStrategy{
 		goals: goals,
 	}
 }
 
-func (b *Strategy) Optimize() actions.Action {
+func (b *BasicStrategy) Optimize() actions.Action {
 	var (
 		nextDomain             goals.Domain
 		goalToChooseActionFrom goals.Goal
+		goalActionArgs         []interface{}
 	)
 
 	for _, goal := range b.goals {
-		isAlreadyMax, optRange := goal.Optimize(nextDomain)
+		isAlreadyMax, optRange, actionArgs := goal.Optimize(nextDomain)
 		if isAlreadyMax {
 			nextDomain = optRange
 		} else {
 			goalToChooseActionFrom = goal
+			goalActionArgs = actionArgs
 		}
 	}
 
@@ -35,10 +41,10 @@ func (b *Strategy) Optimize() actions.Action {
 		return nil
 	}
 
-	return goalToChooseActionFrom.GenerateAction(nextDomain[0])
+	return goalToChooseActionFrom.GenerateAction(nextDomain[0], goalActionArgs)
 }
 
-func (b *Strategy) GetDependencies() (metricIds []string) {
+func (b *BasicStrategy) GetDependencies() (metricIds []string) {
 	for _, goal := range b.goals {
 		metricIds = append(metricIds, goal.GetDependencies()...)
 	}

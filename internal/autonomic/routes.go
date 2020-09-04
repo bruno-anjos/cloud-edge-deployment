@@ -9,24 +9,43 @@ import (
 
 // Route names
 const (
-	registerServiceName = "REGISTER_SERVICE"
-	deleteServiceName   = "DELETE_SERVICE"
-	getAllServicesName  = "GET_ALL_SERVICES"
+	registerServiceName    = "REGISTER_SERVICE"
+	deleteServiceName      = "DELETE_SERVICE"
+	getAllServicesName     = "GET_ALL_SERVICES"
+	addServiceChildName    = "ADD_SERVICE_CHILD"
+	removeServiceChildName = "REMOVE_SERVICE_CHILD"
 )
 
 // Path variables
 const (
 	ServiceIdPathVar = "serviceId"
+	ChildIdPathVar   = "childId"
 )
 
 var (
 	_serviceIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, ServiceIdPathVar)
+	_childIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, ChildIdPathVar)
 
-	servicesRoute = ServicesPath
-	serviceRoute  = fmt.Sprintf(ServicePath, _serviceIdPathVarFormatted)
+	servicesRoute     = ServicesPath
+	serviceRoute      = fmt.Sprintf(ServicePath, _serviceIdPathVarFormatted)
+	serviceChildRoute = fmt.Sprintf(ServiceChildPath, _serviceIdPathVarFormatted, _childIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        addServiceChildName,
+		Method:      http.MethodPost,
+		Pattern:     serviceChildRoute,
+		HandlerFunc: addServiceChildHandler,
+	},
+
+	{
+		Name:        removeServiceChildName,
+		Method:      http.MethodDelete,
+		Pattern:     serviceChildRoute,
+		HandlerFunc: removeServiceChildHandler,
+	},
+
 	{
 		Name:        registerServiceName,
 		Method:      http.MethodPost,

@@ -18,6 +18,8 @@ const (
 	WhoAreYouPath       = "/who"
 	TablePath           = "/table"
 	ResolvePath         = "/resolve"
+	RedirectPath        = "/services/%s/redirect"
+	RedirectedPath      = "/services/%s/redirected"
 )
 
 func GetServicesPath() string {
@@ -38,4 +40,12 @@ func GetServiceInstancePath(serviceId, instanceId string) string {
 
 func GetResolvePath() string {
 	return PrefixPath + ResolvePath
+}
+
+func GetRedirectPath(serviceId string) string {
+	return PrefixPath + fmt.Sprintf(RedirectPath, serviceId)
+}
+
+func GetRedirectedPath(serviceId string) string {
+	return PrefixPath + fmt.Sprintf(RedirectedPath, serviceId)
 }

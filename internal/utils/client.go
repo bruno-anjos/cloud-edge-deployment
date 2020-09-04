@@ -6,8 +6,13 @@ import (
 	"time"
 )
 
+type Client interface {
+	SetHostPort(addr string, port int)
+	GetHostPort() string
+}
+
 type GenericClient struct {
-	HostPort string
+	hostPort string
 	Client   *http.Client
 }
 
@@ -17,11 +22,15 @@ const (
 
 func NewGenericClient(addr string, port int) *GenericClient {
 	return &GenericClient{
-		HostPort: addr + ":" + strconv.Itoa(port),
+		hostPort: addr + ":" + strconv.Itoa(port),
 		Client:   &http.Client{Timeout: defaultTimeout},
 	}
 }
 
 func (c *GenericClient) SetHostPort(addr string, port int) {
-	c.HostPort = addr + ":" + strconv.Itoa(port)
+	c.hostPort = addr + ":" + strconv.Itoa(port)
+}
+
+func (c *GenericClient) GetHostPort() string {
+	return c.hostPort
 }

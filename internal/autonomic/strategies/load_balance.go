@@ -1,7 +1,7 @@
 package strategies
 
 import (
-	"time"
+	"sync"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
@@ -9,12 +9,20 @@ import (
 )
 
 const (
-	STRATEGY_LOAD_BALANCE_ID = "STRATEGY_LOAD_BALANCE"
-
-	defaultLoadBalanceInterval = 20 * time.Second
+	StrategyLoadBalanceId = "STRATEGY_LOAD_BALANCE"
 )
 
-func NewDefaultLoadBalanceStrategy(env *autonomic.Environment) *Strategy {
-	defaultGoals := []goals.Goal{service_goals.NewLoadBalance(env), service_goals.NewIdealLatency(env)}
-	return NewStrategy(defaultGoals)
+type loadBalanceStrategy struct {
+	*BasicStrategy
+}
+
+func NewDefaultLoadBalanceStrategy(serviceId string, serviceChildren *sync.Map,
+	env *autonomic.Environment) *loadBalanceStrategy {
+	defaultGoals := []goals.Goal{
+		service_goals.NewLoadBalance(serviceId, env),
+		service_goals.NewIdealLatency(serviceId, serviceChildren, env),
+	}
+	return &loadBalanceStrategy{
+		BasicStrategy: NewBasicStrategy(defaultGoals),
+	}
 }

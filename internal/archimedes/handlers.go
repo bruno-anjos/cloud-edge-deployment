@@ -5,7 +5,10 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"net/url"
+	"strconv"
 	"sync"
+	"sync/atomic"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -15,6 +18,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type (
+	redirectedConfig struct {
+		Target  string
+		Goal    int32
+		Current int32
+		Done    bool
+	}
+
+	redirectionsMapValue = *redirectedConfig
+)
+
 const (
 	maxHops = 2
 )
@@ -22,6 +36,7 @@ const (
 var (
 	messagesReceived sync.Map
 	servicesTable    *ServicesTable
+	redirectionsMap  sync.Map
 	archimedesId     string
 )
 
@@ -29,6 +44,7 @@ func init() {
 	messagesReceived = sync.Map{}
 
 	servicesTable = NewServicesTable()
+	redirectionsMap = sync.Map{}
 
 	archimedesId = uuid.New().String()
 
@@ -38,7 +54,7 @@ func init() {
 func registerServiceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in registerService handler")
 
-	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 
 	req := api.RegisterServiceRequestBody{}
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -80,7 +96,7 @@ func registerServiceHandler(w http.ResponseWriter, r *http.Request) {
 func deleteServiceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in deleteService handler")
 
-	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 
 	_, ok := servicesTable.GetService(serviceId)
 	if !ok {
@@ -96,7 +112,7 @@ func deleteServiceHandler(w http.ResponseWriter, r *http.Request) {
 func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in registerServiceInstance handler")
 
-	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 
 	_, ok := servicesTable.GetService(serviceId)
 	if !ok {
@@ -104,7 +120,7 @@ func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	instanceId := utils.ExtractPathVar(r, InstanceIdPathVar)
+	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
 
 	req := api.RegisterServiceInstanceRequestBody{}
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -149,14 +165,14 @@ func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 func deleteServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in deleteServiceInstance handler")
 
-	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 	_, ok := servicesTable.GetService(serviceId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	instanceId := utils.ExtractPathVar(r, InstanceIdPathVar)
+	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
 	instance, ok := servicesTable.GetServiceInstance(serviceId, instanceId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
@@ -179,7 +195,7 @@ func getAllServicesHandler(w http.ResponseWriter, _ *http.Request) {
 func getAllServiceInstancesHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in getAllServiceInstances handler")
 
-	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 
 	_, ok := servicesTable.GetService(serviceId)
 	if !ok {
@@ -195,8 +211,8 @@ func getAllServiceInstancesHandler(w http.ResponseWriter, r *http.Request) {
 func getServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in getServiceInstance handler")
 
-	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
-	instanceId := utils.ExtractPathVar(r, InstanceIdPathVar)
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
 
 	instance, ok := servicesTable.GetServiceInstance(serviceId, instanceId)
 	if !ok {
@@ -211,7 +227,7 @@ func getServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getInstanceHandler(w http.ResponseWriter, r *http.Request) {
-	instanceId := utils.ExtractPathVar(r, InstanceIdPathVar)
+	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
 
 	instance, ok := servicesTable.GetInstance(instanceId)
 	if !ok {
@@ -249,6 +265,26 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	toResolve := &req
+
+	value, ok := redirectionsMap.Load(toResolve.Host)
+	if ok {
+		redirectConfig := value.(redirectionsMapValue)
+		if !redirectConfig.Done {
+			reachedGoal := atomic.CompareAndSwapInt32(&redirectConfig.Current, redirectConfig.Goal-1,
+				redirectConfig.Goal)
+			if !reachedGoal {
+				targetUrl := url.URL{
+					Scheme: "http",
+					Host:   redirectConfig.Target + ":" + strconv.Itoa(archimedes.Port),
+					Path:   GetResolvePath(),
+				}
+				http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
+				return
+			} else {
+				redirectConfig.Done = true
+			}
+		}
+	}
 
 	service, sOk := servicesTable.GetService(toResolve.Host)
 	if !sOk {
@@ -339,6 +375,47 @@ func discoverHandler(w http.ResponseWriter, r *http.Request) {
 
 	postprocessMessage(&discoverMsg)
 	broadcastMsgWithHorizon(&discoverMsg, maxHops)
+}
+
+func redirectHandler(w http.ResponseWriter, r *http.Request) {
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+
+	var req api.RedirectRequestBody
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		log.Error(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	redirectConfig := &redirectedConfig{
+		Target:  req.Target,
+		Goal:    req.Amount,
+		Current: 0,
+		Done:    false,
+	}
+
+	redirectionsMap.Store(serviceId, redirectConfig)
+}
+
+func removeRedirectionHandler(w http.ResponseWriter, r *http.Request) {
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	redirectionsMap.Delete(serviceId)
+}
+
+func getRedirectedHandler(w http.ResponseWriter, r *http.Request) {
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+
+	value, ok := redirectionsMap.Load(serviceId)
+	if !ok {
+		log.Debugf("service %s is not being redirected", serviceId)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	redirected := value.(redirectionsMapValue)
+
+	utils.SendJSONReplyOK(w, redirected.Current)
 }
 
 func preprocessMessage(remoteAddr string, discoverMsg *archimedes.DiscoverMsg) {

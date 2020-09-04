@@ -1,7 +1,9 @@
 package service_goals
 
 import (
+	"math"
 	"sort"
+	"sync"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
@@ -14,6 +16,12 @@ const (
 
 	maximumDistancePercentage   = 1.1
 	equivalenDistancePercentage = 0.8
+	loadToAddServiceThreshold   = 0.7
+
+	ilArgsNum = 2
+
+	ilActionTypeArgIndex = iota
+	ilFromIndex
 )
 
 var (
@@ -27,24 +35,42 @@ var (
 	}
 )
 
-type NodeWithDistance struct {
+type (
+	serviceChildrenMapKey   = string
+	serviceChildrenMapValue = *nodeWithLocation
+)
+
+type nodeWithLocation struct {
 	NodeId   string
-	Distance float64
+	Location float64
+}
+
+type nodeWithDistance struct {
+	NodeId             string
+	DistancePercentage float64
 }
 
 type IdealLatency struct {
-	environment *autonomic.Environment
+	serviceId       string
+	serviceChildren *sync.Map
+	environment     *autonomic.Environment
 }
 
-func NewIdealLatency(env *autonomic.Environment) *IdealLatency {
-	return &IdealLatency{
-		environment: env,
+func NewIdealLatency(serviceId string, serviceChildren *sync.Map, env *autonomic.Environment) *IdealLatency {
+	goal := &IdealLatency{
+		serviceId:       serviceId,
+		serviceChildren: serviceChildren,
+		environment:     env,
 	}
+
+	return goal
 }
 
-func (i *IdealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRange goals.Range) {
+func (i *IdealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRange goals.Range,
+	actionArgs []interface{}) {
 	isAlreadyMax = false
 	optRange = nil
+	actionArgs = nil
 
 	if !i.TestDryRun() {
 		return
@@ -73,14 +99,6 @@ func (i *IdealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 		}
 	}
 
-	value, ok = i.environment.GetMetric(autonomic.METRIC_LOCATION)
-	if !ok {
-		log.Debugf("no value for metric %s", autonomic.METRIC_LOCATION)
-		return
-	}
-
-	myLocation := value.(float64)
-
 	value, ok = i.environment.GetMetric(autonomic.METRIC_AVERAGE_CLIENT_LOCATION)
 	if !ok {
 		log.Debugf("no value for metric %s", autonomic.METRIC_AVERAGE_CLIENT_LOCATION)
@@ -90,17 +108,26 @@ func (i *IdealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 	// TODO change this for actual location
 	avgClientLocation := value.(float64)
 
-	candidateIds, candidates, ok := i.GenerateDomain(avgClientLocation)
+	candidateIds, sortingCriteria, ok := i.GenerateDomain(avgClientLocation)
 	if !ok {
 		return
 	}
 
 	filtered := i.Filter(candidateIds, optDomain)
-	ordered := i.Order(filtered, candidates)
+	ordered := i.Order(filtered, sortingCriteria)
 
-	myDelta := myLocation - avgClientLocation
+	optRange, isAlreadyMax = i.Cutoff(ordered, sortingCriteria)
 
-	optRange, isAlreadyMax = i.Cutoff(ordered, myDelta, candidates)
+	furthestChild, _ := i.calcFurthestChildDistance(avgClientLocation)
+	actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
+
+	childMaxLoad := value.(float64)
+	if childMaxLoad > loadToAddServiceThreshold {
+		actionArgs[ilActionTypeArgIndex] = actions.ADD_SERVICE_ID
+	} else {
+		actionArgs[ilActionTypeArgIndex] = actions.MIGRATE_SERVICE_ID
+		actionArgs[ilFromIndex] = furthestChild
+	}
 
 	return
 }
@@ -108,10 +135,10 @@ func (i *IdealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 func (i *IdealLatency) Order(candidates goals.Domain, sortingCriteria map[string]interface{}) (ordered goals.Range) {
 	ordered = candidates
 	sort.Slice(ordered, func(i, j int) bool {
-		cI := sortingCriteria[ordered[i]].(*NodeWithDistance)
-		cJ := sortingCriteria[ordered[j]].(*NodeWithDistance)
+		cI := sortingCriteria[ordered[i]].(*nodeWithDistance)
+		cJ := sortingCriteria[ordered[j]].(*nodeWithDistance)
 
-		return cI.Distance < cJ.Distance
+		return cI.DistancePercentage < cJ.DistancePercentage
 	})
 
 	return
@@ -121,12 +148,12 @@ func (i *IdealLatency) Filter(candidates, domain goals.Domain) (filtered goals.R
 	return goals.DefaultFilter(candidates, domain)
 }
 
-func (i *IdealLatency) Cutoff(candidates goals.Domain, myCriteria interface{},
-	candidatesCriteria map[string]interface{}) (cutoff goals.Range, maxed bool) {
+func (i *IdealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[string]interface{}) (cutoff goals.Range,
+	maxed bool) {
 	maxed = true
 
 	for _, candidate := range candidates {
-		percentage := candidatesCriteria[candidate].(*NodeWithDistance).Distance / myCriteria.(float64)
+		percentage := candidatesCriteria[candidate].(*nodeWithDistance).DistancePercentage
 		if percentage < maximumDistancePercentage {
 			cutoff = append(cutoff, candidate)
 		}
@@ -149,11 +176,18 @@ func (i *IdealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 	candidates := map[string]interface{}{}
 	var candidateIds []string
 
+	avgClientLocation := arg.(float64)
+	_, furthestChildDistance := i.calcFurthestChildDistance(avgClientLocation)
+
 	for nodeId, location := range locationsInVicinity {
-		delta := location - arg.(float64)
-		candidates[nodeId] = &NodeWithDistance{
-			NodeId:   nodeId,
-			Distance: delta,
+		_, ok = i.serviceChildren.Load(nodeId)
+		if ok {
+			continue
+		}
+		delta := location - avgClientLocation
+		candidates[nodeId] = &nodeWithDistance{
+			NodeId:             nodeId,
+			DistancePercentage: delta / furthestChildDistance,
 		}
 		candidateIds = append(candidateIds, nodeId)
 	}
@@ -161,8 +195,16 @@ func (i *IdealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 	return candidateIds, candidates, true
 }
 
-func (i *IdealLatency) GenerateAction(target string) actions.Action {
-	return actions.NewMigrateAction(target)
+func (i *IdealLatency) GenerateAction(target string, args ...interface{}) actions.Action {
+	switch args[ilActionTypeArgIndex] {
+	case actions.ADD_SERVICE_ID:
+		return actions.NewAddServiceAction(i.serviceId, target)
+	case actions.MIGRATE_SERVICE_ID:
+		from := args[ilFromIndex].(string)
+		return actions.NewMigrateAction(i.serviceId, from, target)
+	}
+
+	return nil
 }
 
 func (i *IdealLatency) TestDryRun() (valid bool) {
@@ -180,4 +222,28 @@ func (i *IdealLatency) TestDryRun() (valid bool) {
 
 func (i *IdealLatency) GetDependencies() (metrics []string) {
 	return idealLatencyDependencies
+}
+
+func (i *IdealLatency) calcFurthestChildDistance(avgLocation float64) (
+	furthestChild string, furthestChildDistance float64) {
+	furthestChildDistance = -1.0
+
+	i.serviceChildren.Range(func(key, value interface{}) bool {
+		childId := key.(serviceChildrenMapKey)
+		child := value.(serviceChildrenMapValue)
+		delta := child.Location - avgLocation
+
+		if delta > furthestChildDistance {
+			furthestChildDistance = delta
+			furthestChild = childId
+		}
+
+		return true
+	})
+
+	if furthestChildDistance == -1.0 {
+		furthestChildDistance = math.MaxFloat64
+	}
+
+	return
 }

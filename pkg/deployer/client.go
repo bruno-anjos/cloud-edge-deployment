@@ -14,7 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type DeployerClient struct {
+type Client struct {
 	*utils.GenericClient
 }
 
@@ -22,27 +22,27 @@ const (
 	HeartbeatCheckerTimeout = 60
 )
 
-func NewDeployerClient(addr string) *DeployerClient {
-	return &DeployerClient{
+func NewDeployerClient(addr string) *Client {
+	return &Client{
 		GenericClient: utils.NewGenericClient(addr, Port),
 	}
 }
 
-func (c *DeployerClient) ExpandTree(serviceId, location string) (status int) {
+func (c *Client) ExpandTree(serviceId, location string) (status int) {
 	var reqBody api.ExpandTreeRequestBody
 	reqBody = location
 
 	path := deployer.GetExpandTreePath(serviceId)
-	req := utils.BuildRequest(http.MethodPost, c.HostPort, path, reqBody)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
 
-func (c *DeployerClient) GetServices() (serviceIds []string, status int) {
+func (c *Client) GetServices() (serviceIds []string, status int) {
 	path := deployer.GetDeploymentsPath()
-	req := utils.BuildRequest(http.MethodGet, c.HostPort, path, nil)
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	var resp api.GetDeploymentsResponseBody
 	status, _ = utils.DoRequest(c.Client, req, &resp)
@@ -51,7 +51,7 @@ func (c *DeployerClient) GetServices() (serviceIds []string, status int) {
 	return
 }
 
-func (c *DeployerClient) RegisterService(serviceId string, static bool,
+func (c *Client) RegisterService(serviceId string, static bool,
 	deploymentYamlBytes []byte) (status int) {
 	reqBody := api.RegisterServiceRequestBody{
 		DeploymentId:        serviceId,
@@ -59,23 +59,23 @@ func (c *DeployerClient) RegisterService(serviceId string, static bool,
 		DeploymentYAMLBytes: deploymentYamlBytes,
 	}
 	path := deployer.GetServicePath(serviceId)
-	req := utils.BuildRequest(http.MethodPost, c.HostPort, path, reqBody)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
 
-func (c *DeployerClient) DeleteService(serviceId string) (status int) {
+func (c *Client) DeleteService(serviceId string) (status int) {
 	path := deployer.GetServicePath(serviceId)
-	req := utils.BuildRequest(http.MethodDelete, c.HostPort, path, nil)
+	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
 
-func (c *DeployerClient) RegisterServiceInstance(serviceId, instanceId string, static bool,
+func (c *Client) RegisterServiceInstance(serviceId, instanceId string, static bool,
 	portTranslation nat.PortMap, local bool) (status int) {
 	reqBody := api.RegisterServiceInstanceRequestBody{
 		Static:          static,
@@ -83,70 +83,70 @@ func (c *DeployerClient) RegisterServiceInstance(serviceId, instanceId string, s
 		Local:           local,
 	}
 	path := deployer.GetServiceInstancePath(serviceId, instanceId)
-	req := utils.BuildRequest(http.MethodPost, c.HostPort, path, reqBody)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
 
-func (c *DeployerClient) RegisterHearbeatServiceInstance(serviceId, instanceId string) (status int) {
+func (c *Client) RegisterHearbeatServiceInstance(serviceId, instanceId string) (status int) {
 	path := deployer.GetServiceInstanceAlivePath(serviceId, instanceId)
-	req := utils.BuildRequest(http.MethodPost, c.HostPort, path, nil)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
 
-func (c *DeployerClient) SendHearbeatServiceInstance(serviceId, instanceId string) (status int) {
+func (c *Client) SendHearbeatServiceInstance(serviceId, instanceId string) (status int) {
 	path := deployer.GetServiceInstanceAlivePath(serviceId, instanceId)
-	req := utils.BuildRequest(http.MethodPut, c.HostPort, path, nil)
+	req := utils.BuildRequest(http.MethodPut, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
 
-func (c *DeployerClient) WarnOfDeadChild(serviceId, deadChildId string, grandChild *utils.Node) (status int) {
+func (c *Client) WarnOfDeadChild(serviceId, deadChildId string, grandChild *utils.Node) (status int) {
 	var reqBody api.DeadChildRequestBody
 	reqBody = *grandChild
 
 	path := deployer.GetDeadChildPath(serviceId, deadChildId)
-	req := utils.BuildRequest(http.MethodPost, c.HostPort, path, reqBody)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
 
-func (c *DeployerClient) WarnToTakeChild(serviceId string, child *utils.Node) (status int) {
+func (c *Client) WarnToTakeChild(serviceId string, child *utils.Node) (status int) {
 	var reqBody api.TakeChildRequestBody
 	reqBody = *child
 
 	path := deployer.GetTakeChildPath(serviceId)
-	req := utils.BuildRequest(http.MethodPost, c.HostPort, path, reqBody)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
 
-func (c *DeployerClient) WarnThatIAmParent(serviceId string, parent *utils.Node) (status int) {
+func (c *Client) WarnThatIAmParent(serviceId string, parent *utils.Node) (status int) {
 	var reqBody api.IAmYourParentRequestBody
 	reqBody = *parent
 
 	path := deployer.GetImYourParentPath(serviceId)
-	req := utils.BuildRequest(http.MethodPost, c.HostPort, path, reqBody)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
 
-func (c *DeployerClient) GetHierarchyTable() (table map[string]*HierarchyEntryDTO, status int) {
+func (c *Client) GetHierarchyTable() (table map[string]*HierarchyEntryDTO, status int) {
 	path := deployer.GetHierarchyTablePath()
-	req := utils.BuildRequest(http.MethodGet, c.HostPort, path, nil)
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	var resp api.GetHierarchyTableResponseBody
 	status, _ = utils.DoRequest(c.Client, req, &resp)
@@ -156,28 +156,28 @@ func (c *DeployerClient) GetHierarchyTable() (table map[string]*HierarchyEntryDT
 	return
 }
 
-func (c *DeployerClient) SetParentAlive(parentId string) (status int) {
+func (c *Client) SetParentAlive(parentId string) (status int) {
 	path := deployer.GetParentAlivePath(parentId)
-	req := utils.BuildRequest(http.MethodPost, c.HostPort, path, nil)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
 
-func (c *DeployerClient) AddNode(nodeAddr string) (status int) {
+func (c *Client) AddNode(nodeAddr string) (status int) {
 	var reqBody api.AddNodeRequestBody
 	reqBody = nodeAddr
 
 	path := deployer.GetAddNodePath()
-	req := utils.BuildRequest(http.MethodPost, c.HostPort, path, reqBody)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
 
-func (c *DeployerClient) SendInstanceHeartbeatToDeployerPeriodically() {
+func (c *Client) SendInstanceHeartbeatToDeployerPeriodically() {
 	serviceId := os.Getenv(utils.ServiceEnvVarName)
 	instanceId := os.Getenv(utils.InstanceEnvVarName)
 

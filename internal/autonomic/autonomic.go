@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/pkg/errors"
 
@@ -90,34 +91,39 @@ func registerMetricInLowerApi(metricId string) {
 
 type (
 	servicesMapKey   = string
-	servicesMapValue = *autonomic.AutonomicService
+	servicesMapValue = *autonomic.Service
 )
 
 const (
 	defaultInterval = 20 * time.Second
 )
 
-type AutonomicSystem struct {
-	services       *sync.Map
-	env            *Environment
-	deployerClient *deployer.DeployerClient
+type System struct {
+	services *sync.Map
+	env      *Environment
+
+	deployerClient   *deployer.Client
+	archimedesClient *archimedes.Client
 }
 
-func NewAutonomicSystem() *AutonomicSystem {
-	return &AutonomicSystem{
-		services:       &sync.Map{},
-		env:            NewEnvironment(),
-		deployerClient: deployer.NewDeployerClient(deployer.DeployerServiceName),
+func NewAutonomicSystem() *System {
+	return &System{
+		services:         &sync.Map{},
+		env:              NewEnvironment(),
+		deployerClient:   deployer.NewDeployerClient(deployer.DeployerServiceName),
+		archimedesClient: archimedes.NewArchimedesClient(archimedes.ArchimedesServiceName),
 	}
 }
 
-func (a *AutonomicSystem) AddService(serviceId, strategyId string) error {
-	var strategy *strategies.Strategy
+func (a *System) AddService(serviceId, strategyId string) error {
+	childrenMap := &sync.Map{}
+
+	var strategy strategies.Strategy
 	switch strategyId {
-	case strategies.STRATEGY_LOAD_BALANCE_ID:
-		strategy = strategies.NewDefaultLoadBalanceStrategy(a.env)
-	case strategies.STRATEGY_IDEAL_LATENCY_ID:
-		strategy = strategies.NewDefaultIdealLatencyStrategy(a.env)
+	case strategies.StrategyLoadBalanceId:
+		strategy = strategies.NewDefaultLoadBalanceStrategy(serviceId, childrenMap, a.env)
+	case strategies.StrategyIdealLatencyId:
+		strategy = strategies.NewDefaultIdealLatencyStrategy(serviceId, childrenMap, a.env)
 	default:
 		return errors.Errorf("invalid strategy: %s", strategyId)
 	}
@@ -129,18 +135,38 @@ func (a *AutonomicSystem) AddService(serviceId, strategyId string) error {
 		}
 	}
 
-	service := autonomic.NewAutonomicService(strategy)
+	service := autonomic.NewAutonomicService(strategy, childrenMap)
 	a.services.Store(serviceId, service)
 
 	return nil
 }
 
-func (a *AutonomicSystem) RemoveService(serviceId string) {
+func (a *System) RemoveService(serviceId string) {
 	a.services.Delete(serviceId)
 }
 
-func (a *AutonomicSystem) GetServices() (services map[string]*autonomic.AutonomicService) {
-	services = map[string]*autonomic.AutonomicService{}
+func (a *System) AddServiceChild(serviceId, childId string) {
+	value, ok := a.services.Load(serviceId)
+	if !ok {
+		return
+	}
+
+	service := value.(servicesMapValue)
+	service.AddChild(childId)
+}
+
+func (a *System) RemoveServiceChild(serviceId, childId string) {
+	value, ok := a.services.Load(serviceId)
+	if !ok {
+		return
+	}
+
+	service := value.(servicesMapValue)
+	service.RemoveChild(childId)
+}
+
+func (a *System) GetServices() (services map[string]*autonomic.Service) {
+	services = map[string]*autonomic.Service{}
 
 	a.services.Range(func(key, value interface{}) bool {
 		serviceId := key.(servicesMapKey)
@@ -154,7 +180,7 @@ func (a *AutonomicSystem) GetServices() (services map[string]*autonomic.Autonomi
 	return
 }
 
-func (a *AutonomicSystem) Start() {
+func (a *System) Start() {
 	go func() {
 		timer := time.NewTimer(defaultInterval)
 
@@ -171,6 +197,9 @@ func (a *AutonomicSystem) Start() {
 	}()
 }
 
-func (a *AutonomicSystem) PerformAction(action actions.Action) {
-	// TODO execute the operation itself
+func (a *System) PerformAction(action actions.Action) {
+	switch assertedAction := action.(type) {
+	case *actions.RedirectAction:
+		assertedAction.Execute(a.archimedesClient)
+	}
 }

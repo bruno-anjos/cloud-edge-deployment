@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	autonomicSystem *AutonomicSystem
+	autonomicSystem *System
 )
 
 func init() {
@@ -44,4 +44,18 @@ func getAllServicesHandler(w http.ResponseWriter, _ *http.Request) {
 	resp = autonomicSystem.GetServices()
 
 	utils.SendJSONReplyOK(w, resp)
+}
+
+func addServiceChildHandler(_ http.ResponseWriter, r *http.Request) {
+	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
+	childId := utils.ExtractPathVar(r, ChildIdPathVar)
+
+	autonomicSystem.AddServiceChild(serviceId, childId)
+}
+
+func removeServiceChildHandler(_ http.ResponseWriter, r *http.Request) {
+	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
+	childId := utils.ExtractPathVar(r, ChildIdPathVar)
+
+	autonomicSystem.RemoveServiceChild(serviceId, childId)
 }

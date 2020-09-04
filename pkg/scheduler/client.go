@@ -9,17 +9,17 @@ import (
 	"github.com/docker/go-connections/nat"
 )
 
-type SchedulerClient struct {
+type Client struct {
 	*utils.GenericClient
 }
 
-func NewSchedulerClient(addr string) *SchedulerClient {
-	return &SchedulerClient{
+func NewSchedulerClient(addr string) *Client {
+	return &Client{
 		GenericClient: utils.NewGenericClient(addr, Port),
 	}
 }
 
-func (c *SchedulerClient) StartInstance(serviceName, imageName string, ports nat.PortSet, static bool,
+func (c *Client) StartInstance(serviceName, imageName string, ports nat.PortSet, static bool,
 	envVars []string) (status int) {
 	reqBody := api.StartInstanceRequestBody{
 		ServiceName: serviceName,
@@ -30,25 +30,25 @@ func (c *SchedulerClient) StartInstance(serviceName, imageName string, ports nat
 	}
 
 	path := scheduler.GetInstancesPath()
-	req := utils.BuildRequest(http.MethodPost, c.HostPort, path, reqBody)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
 
-func (c *SchedulerClient) StopInstance(instanceId string) (status int) {
+func (c *Client) StopInstance(instanceId string) (status int) {
 	path := scheduler.GetInstancePath(instanceId)
-	req := utils.BuildRequest(http.MethodDelete, c.HostPort, path, nil)
+	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
 
-func (c *SchedulerClient) StopAllInstances() (status int) {
+func (c *Client) StopAllInstances() (status int) {
 	path := scheduler.GetInstancesPath()
-	req := utils.BuildRequest(http.MethodDelete, c.HostPort, path, nil)
+	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 

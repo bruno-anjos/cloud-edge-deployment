@@ -44,3 +44,8 @@ type ToResolveDTO struct {
 	Host string
 	Port nat.Port
 }
+
+type RedirectDTO struct {
+	Amount int32
+	Target string
+}

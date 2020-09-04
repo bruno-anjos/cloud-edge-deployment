@@ -10,13 +10,12 @@ type (
 )
 
 type Goal interface {
-	Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range)
-	GenerateAction(target string) actions.Action
+	Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range, actionArgs []interface{})
+	GenerateAction(target string, args ...interface{}) actions.Action
 	GenerateDomain(arg interface{}) (domain Domain, info map[string]interface{}, success bool)
 	Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range)
 	Filter(candidates, domain Domain) (filtered Range)
-	Cutoff(candidates Domain, myCriteria interface{}, candidatesCriteria map[string]interface{}) (cutoff Range,
-		maxed bool)
+	Cutoff(candidates Domain, candidatesCriteria map[string]interface{}) (cutoff Range, maxed bool)
 	TestDryRun() bool
 	GetDependencies() (metrics []string)
 }

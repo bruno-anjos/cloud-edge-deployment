@@ -9,4 +9,5 @@ type (
 	RegisterServiceInstanceRequestBody = archimedes.InstanceDTO
 	DiscoverRequestBody                = archimedes.DiscoverMsg
 	ResolveRequestBody                 = archimedes.ToResolveDTO
+	RedirectRequestBody                = archimedes.RedirectDTO
 )

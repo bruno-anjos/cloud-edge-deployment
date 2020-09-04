@@ -10,24 +10,25 @@ const (
 )
 
 type NumberOfInstances struct {
+	ServiceId            string
 	MaxNumberOfInstances int
 }
 
-func NewConstraintNumberOfInstances(maxNumInstances int) *NumberOfInstances {
+func NewConstraintNumberOfInstances(serviceId string, maxNumInstances int) *NumberOfInstances {
 	return &NumberOfInstances{
 		MaxNumberOfInstances: maxNumInstances,
 	}
 }
 
-func (n NumberOfInstances) GetConstraintId() string {
+func (n *NumberOfInstances) GetConstraintId() string {
 	return CONSTRAINT_NUMBER_OF_INSTANCES_ID
 }
 
-func (n NumberOfInstances) MetricId() string {
+func (n *NumberOfInstances) MetricId() string {
 	return autonomic.METRIC_NUMBER_OF_INSTANCES_ID
 }
 
-func (n NumberOfInstances) Validate(value interface{}) bool {
+func (n *NumberOfInstances) Validate(value interface{}) bool {
 	metric := value.(int)
 	if metric > n.MaxNumberOfInstances {
 		return false
@@ -36,6 +37,9 @@ func (n NumberOfInstances) Validate(value interface{}) bool {
 	return true
 }
 
-func (n NumberOfInstances) GenerateAction() actions.Action {
-	return actions.REMOVE_SERVICE_ACTION
+func (n *NumberOfInstances) GenerateAction() actions.Action {
+	// TODO take care of this
+
+	// return actions.NewRemoveServiceAction(n.ServiceId, )
+	return nil
 }

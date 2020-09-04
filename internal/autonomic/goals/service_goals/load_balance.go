@@ -10,48 +10,53 @@ import (
 )
 
 const (
-	maximumLoadPercentage    = 1.1
-	equivalentLoadPercentage = 0.8
+	maximumLoad        = 0.8
+	equivalentLoadDiff = 0.20
+
+	lbNumArgs         = 1
+	actionArgMostBusy = 0
+
+	defaultGroupSize = 0.10
 )
 
 var (
 	loadBalanceDependencies = []string{
-		autonomic.METRIC_LOAD,
-		autonomic.METRIC_LOAD_IN_VICINITY,
+		autonomic.METRIC_AGG_LOAD_PER_SERVICE_IN_CHILDREN,
 	}
+	migrationGroupSize = defaultGroupSize
 )
 
 type LoadBalance struct {
+	serviceId   string
 	environment *autonomic.Environment
 }
 
-func NewLoadBalance(env *autonomic.Environment) *LoadBalance {
+func NewLoadBalance(serviceId string, env *autonomic.Environment) *LoadBalance {
 	return &LoadBalance{
+		serviceId:   serviceId,
 		environment: env,
 	}
 }
 
-func (l *LoadBalance) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRange goals.Range) {
+func (l *LoadBalance) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRange goals.Range,
+	actionArgs []interface{}) {
 	isAlreadyMax = true
 	optRange = nil
+	actionArgs = nil
 
-	value, ok := l.environment.GetMetric(autonomic.METRIC_LOAD)
-	if !ok {
-		log.Debugf("no value for metric %s", autonomic.METRIC_LOAD)
-		return
-	}
-
-	myLoad := value.(float64)
-
-	candidateIds, candidates, ok := l.GenerateDomain(nil)
+	candidateIds, sortingCriteria, ok := l.GenerateDomain(nil)
 	if !ok {
 		return
 	}
 
 	filtered := l.Filter(candidateIds, optDomain)
-	ordered := l.Order(filtered, candidates)
+	ordered := l.Order(filtered, sortingCriteria)
 
-	optRange, isAlreadyMax = l.Cutoff(ordered, myLoad, candidates)
+	mostBusy := ordered[len(ordered)-1]
+
+	optRange, isAlreadyMax = l.Cutoff(ordered, sortingCriteria)
+	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
+	actionArgs[actionArgMostBusy] = mostBusy
 
 	return
 }
@@ -61,9 +66,10 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 	info = nil
 	success = false
 
-	value, ok := l.environment.GetMetric(autonomic.METRIC_LOAD_IN_VICINITY)
+	// TODO GET LOAD PER CHILD
+	value, ok := l.environment.GetMetric(autonomic.METRIC_LOAD_PER_SERVICE_IN_CHILD)
 	if !ok {
-		log.Debugf("no value for metric %s", autonomic.METRIC_LOAD_IN_VICINITY)
+		log.Debugf("no value for metric %s", autonomic.METRIC_LOAD_PER_SERVICE_IN_CHILD)
 		return
 	}
 
@@ -81,7 +87,6 @@ func (l *LoadBalance) Order(candidates goals.Domain, sortingCriteria map[string]
 	sort.Slice(ordered, func(i, j int) bool {
 		loadI := sortingCriteria[ordered[i]].(float64)
 		loadJ := sortingCriteria[ordered[j]].(float64)
-
 		return loadI < loadJ
 	})
 
@@ -92,24 +97,37 @@ func (l *LoadBalance) Filter(candidates, domain goals.Domain) (filtered goals.Ra
 	return goals.DefaultFilter(candidates, domain)
 }
 
-func (l *LoadBalance) Cutoff(candidates goals.Domain, myCriteria interface{},
-	candidatesCriteria map[string]interface{}) (cutoff goals.Range, maxed bool) {
+func (l *LoadBalance) Cutoff(candidates goals.Domain, candidatesCriteria map[string]interface{}) (cutoff goals.Range,
+	maxed bool) {
+
+	cutoff = nil
 	maxed = true
-	for _, candidate := range candidates {
-		percentage := candidatesCriteria[candidate].(float64) / myCriteria.(float64)
-		if percentage < maximumLoadPercentage {
-			cutoff = append(cutoff, candidate)
+
+	leastBusy := candidates[0]
+	if len(candidates)-1 < 1 {
+		return
+	}
+
+	mostBusy := candidates[len(candidates)-1]
+
+	if candidatesCriteria[mostBusy].(float64)-candidatesCriteria[leastBusy].(float64) < equivalentLoadDiff {
+		cutoff = nil
+		maxed = true
+	} else {
+		for _, candidate := range candidates {
+			if candidatesCriteria[candidate].(float64) <= maximumLoad {
+				cutoff = append(cutoff, candidate)
+			}
 		}
-		if percentage < equivalentLoadPercentage {
-			maxed = false
-		}
+		maxed = false
 	}
 
 	return
 }
 
-func (l *LoadBalance) GenerateAction(target string) actions.Action {
-	return actions.NewAddServiceAction(target)
+func (l *LoadBalance) GenerateAction(target string, args ...interface{}) actions.Action {
+	from := args[actionArgMostBusy].(string)
+	return actions.NewRedirectAction(l.serviceId, from, target, migrationGroupSize)
 }
 
 func (l *LoadBalance) TestDryRun() bool {
@@ -118,4 +136,16 @@ func (l *LoadBalance) TestDryRun() bool {
 
 func (l *LoadBalance) GetDependencies() (metrics []string) {
 	return loadBalanceDependencies
+}
+
+func (l *LoadBalance) IncreaseMigrationGroupSize() {
+	migrationGroupSize *= 2
+}
+
+func (l *LoadBalance) DecreaseMigrationGroupSize() {
+	migrationGroupSize /= 2.0
+}
+
+func (l *LoadBalance) ResetMigrationGroupSize() {
+	migrationGroupSize = defaultGroupSize
 }

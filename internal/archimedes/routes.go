@@ -21,30 +21,56 @@ const (
 	whoAreYouName               = "WHO_ARE_YOU"
 	getTableName                = "GET_TABLE"
 	resolveName                 = "RESOLVE"
+	redirectName                = "REDIRECT"
+	removeRedirectName          = "REMOVE_REDIRECT"
+	getRedirectedName           = "GET_REDIRECTED"
 )
 
 // Path variables
 const (
-	ServiceIdPathVar  = "serviceId"
-	InstanceIdPathVar = "instanceId"
+	serviceIdPathVar  = "serviceId"
+	instanceIdPathVar = "instanceId"
 )
 
 var (
-	_serviceIdPathVarFormatted  = fmt.Sprintf(utils.PathVarFormat, ServiceIdPathVar)
-	_instanceIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, InstanceIdPathVar)
+	_serviceIdPathVarFormatted  = fmt.Sprintf(utils.PathVarFormat, serviceIdPathVar)
+	_instanceIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, instanceIdPathVar)
 
 	servicesRoute        = ServicesPath
 	serviceRoute         = fmt.Sprintf(ServicePath, _serviceIdPathVarFormatted)
 	serviceInstanceRoute = fmt.Sprintf(ServiceInstancePath, _serviceIdPathVarFormatted,
 		_instanceIdPathVarFormatted)
-	instanceRoute  = fmt.Sprintf(InstancePath, _instanceIdPathVarFormatted)
-	discoverRoute  = DiscoverPath
-	whoAreYouRoute = WhoAreYouPath
-	tableRoute     = TablePath
-	resolveRoute   = ResolvePath
+	instanceRoute   = fmt.Sprintf(InstancePath, _instanceIdPathVarFormatted)
+	discoverRoute   = DiscoverPath
+	whoAreYouRoute  = WhoAreYouPath
+	tableRoute      = TablePath
+	resolveRoute    = ResolvePath
+	redirectRoute   = fmt.Sprintf(RedirectPath, _serviceIdPathVarFormatted)
+	redirectedRoute = fmt.Sprintf(RedirectedPath, _serviceIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        getRedirectedName,
+		Method:      http.MethodGet,
+		Pattern:     redirectedRoute,
+		HandlerFunc: getRedirectedHandler,
+	},
+
+	{
+		Name:        redirectName,
+		Method:      http.MethodPost,
+		Pattern:     redirectRoute,
+		HandlerFunc: redirectHandler,
+	},
+
+	{
+		Name:        removeRedirectName,
+		Method:      http.MethodDelete,
+		Pattern:     redirectRoute,
+		HandlerFunc: removeRedirectionHandler,
+	},
+
 	{
 		Name:        registerServiceName,
 		Method:      http.MethodPost,
