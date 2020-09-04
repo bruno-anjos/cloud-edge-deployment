@@ -1,14 +1,40 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
-    <list default="true" id="5271c906-0556-48fb-94b9-7ee1cd9c0ecb" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/pkg/autonomic/client.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/pkg/autonomic/types.go" afterDir="false" />
+    <list default="true" id="5271c906-0556-48fb-94b9-7ee1cd9c0ecb" name="Default Changelist" comment="update autonomic communication with remaining services and vice versa">
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/archimedes/replies.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/archimedes/replies.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/archimedes/requests.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/archimedes/requests.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/autonomic/replies.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/autonomic/replies.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/archimedes/handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/archimedes/handlers.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/archimedes/paths.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/archimedes/paths.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/archimedes/routes.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/archimedes/routes.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/actions/actions.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/actions/actions.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/actions/node_actions.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/actions/node_actions.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/actions/service_actions.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/actions/service_actions.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/autonomic/autonomic.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/autonomic.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/constraints/number_instances.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/constraints/number_instances.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/goals/goal.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/goals/goal.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/goals/service_goals/ideal_latency.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/goals/service_goals/ideal_latency.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/goals/service_goals/load_balance.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/goals/service_goals/load_balance.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/handlers.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/metrics.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/metrics.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/paths.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/paths.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/routes.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/routes.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/strategies/ideal_latency.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/strategies/ideal_latency.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/strategies/load_balance.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/strategies/load_balance.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/strategies/strategy.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/strategies/strategy.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/deployer/hierarchy.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/hierarchy.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/utils/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/utils/client.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pkg/archimedes/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/archimedes/client.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/archimedes/dtos.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/archimedes/dtos.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/autonomic/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/autonomic/client.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/autonomic/types.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/autonomic/types.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/deployer/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/deployer/client.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/scheduler/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/scheduler/client.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -43,12 +69,15 @@
     <property name="GO_FMT" value="true" />
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="configurable.Global.GOPATH.is.expanded" value="true" />
+    <property name="configurable.Module.GOPATH.is.expanded" value="false" />
+    <property name="configurable.Project.GOPATH.is.expanded" value="true" />
     <property name="go.import.settings.migrated" value="true" />
     <property name="go.sdk.automatically.set" value="true" />
     <property name="go.tried.to.enable.integration.vgo.integrator" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$/build/autonomic" />
     <property name="run.code.analysis.last.selected.profile" value="pProject Default" />
-    <property name="settings.editor.selected.configurable" value="preferences.pluginManager" />
+    <property name="settings.editor.selected.configurable" value="preferences.keymap" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
@@ -73,7 +102,8 @@
   <component name="VcsManagerConfiguration">
     <option name="CHECK_CODE_CLEANUP_BEFORE_PROJECT_COMMIT" value="true" />
     <MESSAGE value="add initial code" />
-    <option name="LAST_COMMIT_MESSAGE" value="add initial code" />
+    <MESSAGE value="update autonomic communication with remaining services and vice versa" />
+    <option name="LAST_COMMIT_MESSAGE" value="update autonomic communication with remaining services and vice versa" />
     <option name="OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT" value="true" />
     <option name="REFORMAT_BEFORE_PROJECT_COMMIT" value="true" />
     <option name="REARRANGE_BEFORE_PROJECT_COMMIT" value="true" />
@@ -90,30 +120,36 @@
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
     <state x="771" y="-731" key="#com.intellij.fileTypes.FileTypeChooser/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598455020025" />
-    <state x="839" y="-817" key="#com.intellij.ide.util.MemberChooser" timestamp="1599051249498">
+    <state x="839" y="-817" key="#com.intellij.ide.util.MemberChooser" timestamp="1599139344391">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="839" y="-817" key="#com.intellij.ide.util.MemberChooser/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599051249498" />
-    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1" timestamp="1598953130811">
+    <state x="839" y="-817" key="#com.intellij.ide.util.MemberChooser/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599139344391" />
+    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1" timestamp="1599245438827">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598953130811" />
-    <state x="572" y="-938" key="CommitChangelistDialog2" timestamp="1598639310286">
+    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599245438827" />
+    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1/66.-1080.1920.1080/0.23.2048.1257@66.-1080.1920.1080" timestamp="1599245193628" />
+    <state x="572" y="-938" key="CommitChangelistDialog2" timestamp="1599245460823">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="572" y="-938" key="CommitChangelistDialog2/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598639310286" />
-    <state x="535" y="-901" key="SettingsEditor" timestamp="1599053272936">
+    <state x="572" y="-938" key="CommitChangelistDialog2/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599245460823" />
+    <state x="535" y="-901" key="SettingsEditor" timestamp="1599243209407">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="535" y="-901" key="SettingsEditor/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599053272936" />
-    <state x="733" y="-785" width="586" height="490" key="find.popup" timestamp="1599059702982">
+    <state x="535" y="-901" key="SettingsEditor/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599243209407" />
+    <state x="733" y="-785" width="586" height="490" key="find.popup" timestamp="1599244464096">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="733" y="-785" width="586" height="490" key="find.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599059702982" />
-    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup" timestamp="1599052782223">
+    <state x="733" y="-785" width="586" height="490" key="find.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599242086144" />
+    <state x="733" y="-785" width="586" height="490" key="find.popup/66.-1080.1920.1080/0.23.2048.1257@66.-1080.1920.1080" timestamp="1599244464096" />
+    <state width="600" height="428" key="javadoc.popup" timestamp="1599232337681">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599052782223" />
+    <state width="600" height="428" key="javadoc.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599232337681" />
+    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup" timestamp="1599243279292">
+      <screen x="66" y="-1080" width="1920" height="1080" />
+    </state>
+    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599243279292" />
     <state x="756" y="-621" key="vcs.readOnlyHandler.ReadOnlyStatusDialog" timestamp="1598892858852">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
