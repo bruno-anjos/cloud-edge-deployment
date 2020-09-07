@@ -2,12 +2,11 @@ package utils
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 )
 
 type Client interface {
-	SetHostPort(addr string, port int)
+	SetHostPort(addr string)
 	GetHostPort() string
 }
 
@@ -20,15 +19,15 @@ const (
 	defaultTimeout = 10 * time.Second
 )
 
-func NewGenericClient(addr string, port int) *GenericClient {
+func NewGenericClient(addr string) *GenericClient {
 	return &GenericClient{
-		hostPort: addr + ":" + strconv.Itoa(port),
+		hostPort: addr,
 		Client:   &http.Client{Timeout: defaultTimeout},
 	}
 }
 
-func (c *GenericClient) SetHostPort(addr string, port int) {
-	c.hostPort = addr + ":" + strconv.Itoa(port)
+func (c *GenericClient) SetHostPort(addr string) {
+	c.hostPort = addr
 }
 
 func (c *GenericClient) GetHostPort() string {

@@ -105,6 +105,7 @@ func deleteServiceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	servicesTable.DeleteService(serviceId)
+	redirectionsMap.Delete(serviceId)
 
 	log.Debugf("deleted service %s", serviceId)
 }

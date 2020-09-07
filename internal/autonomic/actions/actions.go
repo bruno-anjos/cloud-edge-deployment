@@ -13,7 +13,7 @@ type basicAction struct {
 	ActionId string
 }
 
-func NewBasicAction(actionId string) *basicAction {
+func newBasicAction(actionId string) *basicAction {
 	return &basicAction{
 		ActionId: actionId,
 	}
@@ -23,48 +23,48 @@ func (b *basicAction) GetActionId() string {
 	return b.ActionId
 }
 
-type ActionWithArgs struct {
+type actionWithArgs struct {
 	*basicAction
 	Args []interface{}
 }
 
-func NewActionWithArgs(actionId string, args ...interface{}) *ActionWithArgs {
-	return &ActionWithArgs{
-		basicAction: NewBasicAction(actionId),
+func newActionWithArgs(actionId string, args ...interface{}) *actionWithArgs {
+	return &actionWithArgs{
+		basicAction: newBasicAction(actionId),
 		Args:        args,
 	}
 }
 
-type ActionWithServiceTarget struct {
-	*ActionWithArgs
+type actionWithServiceTarget struct {
+	*actionWithArgs
 }
 
-func NewActionWithServiceTarget(actionId, serviceId, target string,
-	args ...interface{}) *ActionWithServiceTarget {
-	return &ActionWithServiceTarget{
-		ActionWithArgs: NewActionWithArgs(actionId, serviceId, target, args),
+func newActionWithServiceTarget(actionId, serviceId, target string,
+	args ...interface{}) *actionWithServiceTarget {
+	return &actionWithServiceTarget{
+		actionWithArgs: newActionWithArgs(actionId, serviceId, target, args),
 	}
 }
 
-func (a *ActionWithServiceOriginTarget) GetServiceId() string {
+func (a *actionWithServiceTarget) GetServiceId() string {
 	return a.Args[0].(string)
 }
 
-func (a *ActionWithServiceOriginTarget) GetTarget() string {
+func (a *actionWithServiceTarget) GetTarget() string {
 	return a.Args[1].(string)
 }
 
-type ActionWithServiceOriginTarget struct {
-	*ActionWithServiceTarget
+type actionWithServiceOriginTarget struct {
+	*actionWithServiceTarget
 }
 
-func NewActionWithServiceOriginTarget(actionId, serviceId, origin, target string,
-	args ...interface{}) *ActionWithServiceOriginTarget {
-	return &ActionWithServiceOriginTarget{
-		ActionWithServiceTarget: NewActionWithServiceTarget(actionId, serviceId, target, origin, args),
+func newActionWithServiceOriginTarget(actionId, serviceId, origin, target string,
+	args ...interface{}) *actionWithServiceOriginTarget {
+	return &actionWithServiceOriginTarget{
+		actionWithServiceTarget: newActionWithServiceTarget(actionId, serviceId, target, origin, args),
 	}
 }
 
-func (a *ActionWithServiceOriginTarget) GetOrigin() string {
+func (a *actionWithServiceOriginTarget) GetOrigin() string {
 	return a.Args[2].(string)
 }

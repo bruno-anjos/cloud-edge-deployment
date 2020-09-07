@@ -17,12 +17,15 @@ const (
 
 	SetAlternativesPath = "/alternatives/%s"
 
-	DeploymentQualityPath = "/deployments/%s/quality"
-	DeadChildPath         = "/deployments/%s/deadchild/%s"
-	TakeChildPath         = "/deployments/%s/child"
-	IAmYourParentPath     = "/deployments/%s/parent"
-	HierarchyTablePath    = "/table"
-	ParentAlivePath       = "/parent/%s/up"
+	DeploymentQualityPath  = "/deployments/%s/quality"
+	DeadChildPath          = "/deployments/%s/deadchild/%s"
+	IAmYourParentPath      = "/deployments/%s/parent"
+	HierarchyTablePath     = "/table"
+	ParentAlivePath        = "/parent/%s/up"
+	DeploymentChildPath    = "/deployments/%s/child/%s"
+	MigrateDeploymentPath  = "/deployments/%s/migrate"
+	ExtendServiceToPath    = "/deployments/%s/extend/%s"
+	ShortenServiceFromPath = "/deployments/%s/shorten/%s"
 
 	// scheduler
 	DeploymentInstanceAlivePath = "/deployments/%s/%s/alive"
@@ -39,10 +42,6 @@ func GetServicePath(serviceId string) string {
 
 func GetExpandTreePath(serviceId string) string {
 	return PrefixPath + fmt.Sprintf(DeploymentQualityPath, serviceId)
-}
-
-func GetTakeChildPath(serviceId string) string {
-	return PrefixPath + fmt.Sprintf(TakeChildPath, serviceId)
 }
 
 func GetImYourParentPath(serviceId string) string {
@@ -79,4 +78,20 @@ func GetWhoAreYouPath() string {
 
 func GetServiceInstanceAlivePath(serviceId, instanceId string) string {
 	return PrefixPath + fmt.Sprintf(DeploymentInstanceAlivePath, serviceId, instanceId)
+}
+
+func GetDeploymentChildPath(deploymentId, childId string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentChildPath, deploymentId, childId)
+}
+
+func GetMigrateDeploymentPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(MigrateDeploymentPath, deploymentId)
+}
+
+func GetExtendServicePath(serviceId, targetId string) string {
+	return PrefixPath + fmt.Sprintf(ExtendServiceToPath, serviceId, targetId)
+}
+
+func GetShortenServicePath(serviceId, targetId string) string {
+	return PrefixPath + fmt.Sprintf(ShortenServiceFromPath, serviceId, targetId)
 }

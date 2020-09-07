@@ -19,9 +19,13 @@ const (
 	qualityNotAssuredName       = "QUALITY_NOT_ASSURED"
 	deadChildName               = "DEAD_CHILD"
 	takeChildName               = "TAKE_CHILD"
+	deleteDeploymentChildName   = "DELETE_DEPLOYMENT_CHILD"
 	iAmYourParentName           = "I_AM_YOUR_PARENT"
 	getHierarchyTableName       = "GET_TABLE"
 	parentAliveName             = "PARENT_ALIVE"
+	migrateDeploymentName       = "MIGRATE_DEPLOYMENT"
+	extendDeploymentToName      = "EXTEND_DEPLOYMENT_TO"
+	shortenDeploymentFromName   = "SHORTEN_DEPLOYMENT_FROM"
 
 	// scheduler
 	heartbeatServiceInstanceName         = "HEARTBEAT_SERVICE_INSTANCE"
@@ -40,16 +44,20 @@ var (
 	_instanceIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, InstanceIdPathVar)
 	_deployerIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, DeployerIdPathVar)
 
-	deploymentsRoute       = DeploymentsPath
-	deploymentRoute        = fmt.Sprintf(DeploymentPath, _deploymentIdPathVarFormatted)
-	addNodeRoute           = AddNodePath
-	whoAreYouRoute         = WhoAreYouPath
-	setAlternativesRoute   = fmt.Sprintf(SetAlternativesPath, _deployerIdPathVarFormatted)
-	deploymentQualityRoute = fmt.Sprintf(DeploymentQualityPath, _deploymentIdPathVarFormatted)
-	deadChildRoute         = fmt.Sprintf(DeadChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
-	takeChildRoute         = fmt.Sprintf(TakeChildPath, _deploymentIdPathVarFormatted)
-	iAmYourParentRoute     = fmt.Sprintf(IAmYourParentPath, _deploymentIdPathVarFormatted)
-	hierarchyTableRoute    = HierarchyTablePath
+	deploymentsRoute           = DeploymentsPath
+	deploymentRoute            = fmt.Sprintf(DeploymentPath, _deploymentIdPathVarFormatted)
+	addNodeRoute               = AddNodePath
+	whoAreYouRoute             = WhoAreYouPath
+	setAlternativesRoute       = fmt.Sprintf(SetAlternativesPath, _deployerIdPathVarFormatted)
+	deploymentQualityRoute     = fmt.Sprintf(DeploymentQualityPath, _deploymentIdPathVarFormatted)
+	deadChildRoute             = fmt.Sprintf(DeadChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	deploymentChildRoute       = fmt.Sprintf(DeploymentChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	iAmYourParentRoute         = fmt.Sprintf(IAmYourParentPath, _deploymentIdPathVarFormatted)
+	hierarchyTableRoute        = HierarchyTablePath
+	migrateDeploymentRoute     = fmt.Sprintf(MigrateDeploymentPath, _deploymentIdPathVarFormatted)
+	extendDeploymentToRoute    = fmt.Sprintf(ExtendServiceToPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	shortenDeploymentFromRoute = fmt.Sprintf(ShortenServiceFromPath, _deploymentIdPathVarFormatted,
+		_deployerIdPathVarFormatted)
 
 	// scheduler
 	deploymentInstanceAliveRoute = fmt.Sprintf(DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
@@ -75,6 +83,20 @@ var Routes = []utils.Route{
 	},
 
 	{
+		Name:        shortenDeploymentFromName,
+		Method:      http.MethodPost,
+		Pattern:     shortenDeploymentFromRoute,
+		HandlerFunc: shortenDeploymentFromHandler,
+	},
+
+	{
+		Name:        extendDeploymentToName,
+		Method:      http.MethodPost,
+		Pattern:     extendDeploymentToRoute,
+		HandlerFunc: extendDeploymentToHandler,
+	},
+
+	{
 		Name:        deadChildName,
 		Method:      http.MethodPost,
 		Pattern:     deadChildRoute,
@@ -82,10 +104,24 @@ var Routes = []utils.Route{
 	},
 
 	{
+		Name:        migrateDeploymentName,
+		Method:      http.MethodPost,
+		Pattern:     migrateDeploymentRoute,
+		HandlerFunc: migrateDeploymentHandler,
+	},
+
+	{
 		Name:        takeChildName,
 		Method:      http.MethodPost,
-		Pattern:     takeChildRoute,
+		Pattern:     deploymentChildRoute,
 		HandlerFunc: takeChildHandler,
+	},
+
+	{
+		Name:        deleteDeploymentChildName,
+		Method:      http.MethodDelete,
+		Pattern:     deploymentChildRoute,
+		HandlerFunc: childDeletedDeploymentHandler,
 	},
 
 	{

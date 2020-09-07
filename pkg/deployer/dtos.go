@@ -12,31 +12,38 @@ type HierarchyEntryDTO struct {
 	IsOrphan    bool
 }
 
-type DeploymentDTO struct {
-	Parent              *utils.Node
-	Grandparent         *utils.Node
-	DeploymentId        string
-	Static              bool
-	DeploymentYAMLBytes []byte
-}
+type (
+	DeploymentDTO struct {
+		Parent              *utils.Node
+		Grandparent         *utils.Node
+		DeploymentId        string
+		Static              bool
+		DeploymentYAMLBytes []byte
+	}
 
-type DeploymentYAML struct {
-	Spec struct {
-		Replicas    int
-		ServiceName string `yaml:"serviceName"`
-		Template    struct {
-			Spec struct {
-				Containers []struct {
-					Image string
-					Env   []struct {
-						Name  string
-						Value string
-					}
-					Ports []struct {
-						ContainerPort string `yaml:"containerPort"`
+	DeploymentYAML struct {
+		Spec struct {
+			Replicas    int
+			ServiceName string `yaml:"serviceName"`
+			Template    struct {
+				Spec struct {
+					Containers []struct {
+						Image string
+						Env   []struct {
+							Name  string
+							Value string
+						}
+						Ports []struct {
+							ContainerPort string `yaml:"containerPort"`
+						}
 					}
 				}
 			}
 		}
 	}
-}
+
+	MigrateDTO struct {
+		Origin string
+		Target string
+	}
+)

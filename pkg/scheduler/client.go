@@ -15,7 +15,7 @@ type Client struct {
 
 func NewSchedulerClient(addr string) *Client {
 	return &Client{
-		GenericClient: utils.NewGenericClient(addr, Port),
+		GenericClient: utils.NewGenericClient(addr),
 	}
 }
 

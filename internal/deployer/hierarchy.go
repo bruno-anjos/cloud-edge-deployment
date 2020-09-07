@@ -24,6 +24,7 @@ type (
 		Static              bool
 		IsOrphan            bool
 		NewParentChan       chan<- string
+		LinkOnly            bool
 	}
 )
 
@@ -79,6 +80,7 @@ func (t *HierarchyTable) AddDeployment(dto *deployer.DeploymentDTO) bool {
 		Static:              dto.Static,
 		IsOrphan:            false,
 		NewParentChan:       nil,
+		LinkOnly:            true,
 	}
 
 	_, loaded := t.hierarchyEntries.LoadOrStore(dto.DeploymentId, entry)
@@ -86,11 +88,31 @@ func (t *HierarchyTable) AddDeployment(dto *deployer.DeploymentDTO) bool {
 		return false
 	}
 
+	t.autonomicClient.RegisterService(dto.DeploymentId, strategies.StrategyIdealLatencyId)
 	return true
 }
 
 func (t *HierarchyTable) RemoveDeployment(deploymentId string) {
-	t.hierarchyEntries.Delete(deploymentId)
+	value, ok := t.hierarchyEntries.Load(deploymentId)
+	if !ok {
+		return
+	}
+
+	entry := value.(typeHierarchyEntriesMapValue)
+	if entry.NumChildren > 0 {
+		log.Debugf("setting deployment %s as linkonly", deploymentId)
+		entry.LinkOnly = true
+		deploymentChildren := entry.GetChildren()
+		for childId := range deploymentChildren {
+			log.Debugf("redirecting %s linkonly to %s", deploymentId, childId)
+			archimedesClient.Redirect(deploymentId, childId, -1)
+			break
+		}
+	} else {
+		archimedesClient.DeleteService(deploymentId)
+		t.hierarchyEntries.Delete(deploymentId)
+		t.autonomicClient.DeleteService(deploymentId)
+	}
 }
 
 func (t *HierarchyTable) HasDeployment(deploymentId string) bool {
@@ -138,13 +160,7 @@ func (t *HierarchyTable) AddChild(deploymentId string, child *utils.Node) {
 
 	entry := value.(typeHierarchyEntriesMapValue)
 	entry.Children.Store(child.Id, child)
-	wasZero := atomic.CompareAndSwapInt32(&entry.NumChildren, 0, 1)
-	if wasZero {
-		// TODO change this to read strategy
-		t.autonomicClient.RegisterService(deploymentId, strategies.StrategyIdealLatencyId)
-	} else {
-		atomic.AddInt32(&entry.NumChildren, 1)
-	}
+	atomic.AddInt32(&entry.NumChildren, 1)
 
 	t.autonomicClient.AddServiceChild(deploymentId, child.Id)
 
@@ -163,7 +179,9 @@ func (t *HierarchyTable) RemoveChild(deploymentId, childId string) {
 
 	isZero := atomic.CompareAndSwapInt32(&entry.NumChildren, 1, 0)
 	if isZero {
-		t.autonomicClient.DeleteService(deploymentId)
+		if entry.LinkOnly {
+			t.RemoveDeployment(deploymentId)
+		}
 	} else {
 		atomic.AddInt32(&entry.NumChildren, -1)
 	}
@@ -209,14 +227,14 @@ func (t *HierarchyTable) DeploymentToDTO(deploymentId string) (*deployer.Deploym
 	}, true
 }
 
-func (t *HierarchyTable) IsStatic(deploymentId string) (bool, bool) {
+func (t *HierarchyTable) IsStatic(deploymentId string) bool {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
-		return false, false
+		return false
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	return entry.Static, true
+	return entry.Static
 }
 
 func (t *HierarchyTable) RemoveParent(deploymentId string) bool {
@@ -289,6 +307,31 @@ func (t *HierarchyTable) GetDeploymentsWithParent(parentId string) (deploymentId
 	return
 }
 
+func (t *HierarchyTable) SetLinkOnly(deploymentId string, linkOnly bool) {
+	value, ok := t.hierarchyEntries.Load(deploymentId)
+	if !ok {
+		return
+	}
+
+	entry := value.(typeHierarchyEntriesMapValue)
+	entry.LinkOnly = linkOnly
+}
+
+func (t *HierarchyTable) IsLinkOnly(deploymentId string) (linkOnly bool) {
+	linkOnly = false
+
+	value, ok := t.hierarchyEntries.Load(deploymentId)
+	if !ok {
+		return
+	}
+
+	ok = true
+
+	entry := value.(typeHierarchyEntriesMapValue)
+	linkOnly = entry.LinkOnly
+	return
+}
+
 func (t *HierarchyTable) ToDTO() map[string]*deployer.HierarchyEntryDTO {
 	entries := map[string]*deployer.HierarchyEntryDTO{}
 
@@ -342,15 +385,20 @@ func (t *ParentsTable) HasParent(parentId string) bool {
 	return ok
 }
 
-func (t *ParentsTable) DecreaseParentCount(parentId string) (isZero bool) {
-	isZero = false
+func (t *ParentsTable) DecreaseParentCount(parentId string) {
 	value, ok := t.parentEntries.Load(parentId)
 	if !ok {
 		return
 	}
 
 	parentEntry := value.(typeParentEntriesMapValue)
-	atomic.AddInt32(&parentEntry.NumOfDeployments, -1)
+	isZero := atomic.CompareAndSwapInt32(&parentEntry.NumOfDeployments, 1, 0)
+	if isZero {
+		t.RemoveParent(parentId)
+	} else {
+		atomic.AddInt32(&parentEntry.NumOfDeployments, -1)
+	}
+
 	return
 }
 
@@ -494,7 +542,7 @@ func extendDeployment(deploymentId, childAddr string, grandChild *utils.Node) bo
 
 	if grandChild != nil {
 		log.Debugf("telling %s to take grandchild %s for deployment %s", childId, grandChild.Id, deploymentId)
-		req = utils.BuildRequest(http.MethodPost, deployerHostPort, GetTakeChildPath(deploymentId),
+		req = utils.BuildRequest(http.MethodPost, deployerHostPort, GetDeploymentChildPath(deploymentId, grandChild.Id),
 			grandChild)
 		status, _ = utils.DoRequest(httpClient, req, nil)
 		if status != http.StatusOK {

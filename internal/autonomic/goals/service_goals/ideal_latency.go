@@ -50,14 +50,14 @@ type nodeWithDistance struct {
 	DistancePercentage float64
 }
 
-type IdealLatency struct {
+type idealLatency struct {
 	serviceId       string
 	serviceChildren *sync.Map
 	environment     *autonomic.Environment
 }
 
-func NewIdealLatency(serviceId string, serviceChildren *sync.Map, env *autonomic.Environment) *IdealLatency {
-	goal := &IdealLatency{
+func NewIdealLatency(serviceId string, serviceChildren *sync.Map, env *autonomic.Environment) *idealLatency {
+	goal := &idealLatency{
 		serviceId:       serviceId,
 		serviceChildren: serviceChildren,
 		environment:     env,
@@ -66,7 +66,7 @@ func NewIdealLatency(serviceId string, serviceChildren *sync.Map, env *autonomic
 	return goal
 }
 
-func (i *IdealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRange goals.Range,
+func (i *idealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRange goals.Range,
 	actionArgs []interface{}) {
 	isAlreadyMax = false
 	optRange = nil
@@ -132,7 +132,7 @@ func (i *IdealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 	return
 }
 
-func (i *IdealLatency) Order(candidates goals.Domain, sortingCriteria map[string]interface{}) (ordered goals.Range) {
+func (i *idealLatency) Order(candidates goals.Domain, sortingCriteria map[string]interface{}) (ordered goals.Range) {
 	ordered = candidates
 	sort.Slice(ordered, func(i, j int) bool {
 		cI := sortingCriteria[ordered[i]].(*nodeWithDistance)
@@ -144,11 +144,11 @@ func (i *IdealLatency) Order(candidates goals.Domain, sortingCriteria map[string
 	return
 }
 
-func (i *IdealLatency) Filter(candidates, domain goals.Domain) (filtered goals.Range) {
+func (i *idealLatency) Filter(candidates, domain goals.Domain) (filtered goals.Range) {
 	return goals.DefaultFilter(candidates, domain)
 }
 
-func (i *IdealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[string]interface{}) (cutoff goals.Range,
+func (i *idealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[string]interface{}) (cutoff goals.Range,
 	maxed bool) {
 	maxed = true
 
@@ -165,7 +165,7 @@ func (i *IdealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[st
 	return
 }
 
-func (i *IdealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, info map[string]interface{}, success bool) {
+func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, info map[string]interface{}, success bool) {
 	value, ok := i.environment.GetMetric(autonomic.METRIC_LOCATION_IN_VICINITY)
 	if !ok {
 		log.Debugf("no value for metric %s", autonomic.METRIC_LOCATION_IN_VICINITY)
@@ -195,7 +195,7 @@ func (i *IdealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 	return candidateIds, candidates, true
 }
 
-func (i *IdealLatency) GenerateAction(target string, args ...interface{}) actions.Action {
+func (i *idealLatency) GenerateAction(target string, args ...interface{}) actions.Action {
 	switch args[ilActionTypeArgIndex] {
 	case actions.ADD_SERVICE_ID:
 		return actions.NewAddServiceAction(i.serviceId, target)
@@ -207,7 +207,7 @@ func (i *IdealLatency) GenerateAction(target string, args ...interface{}) action
 	return nil
 }
 
-func (i *IdealLatency) TestDryRun() (valid bool) {
+func (i *idealLatency) TestDryRun() (valid bool) {
 	envCopy := i.environment.Copy()
 	value, ok := envCopy.GetMetric(autonomic.METRIC_NUMBER_OF_INSTANCES_ID)
 	if !ok {
@@ -220,11 +220,11 @@ func (i *IdealLatency) TestDryRun() (valid bool) {
 	return envCopy.CheckConstraints() == nil
 }
 
-func (i *IdealLatency) GetDependencies() (metrics []string) {
+func (i *idealLatency) GetDependencies() (metrics []string) {
 	return idealLatencyDependencies
 }
 
-func (i *IdealLatency) calcFurthestChildDistance(avgLocation float64) (
+func (i *idealLatency) calcFurthestChildDistance(avgLocation float64) (
 	furthestChild string, furthestChildDistance float64) {
 	furthestChildDistance = -1.0
 

@@ -98,7 +98,7 @@ const (
 	defaultInterval = 20 * time.Second
 )
 
-type System struct {
+type system struct {
 	services *sync.Map
 	env      *Environment
 
@@ -106,8 +106,8 @@ type System struct {
 	archimedesClient *archimedes.Client
 }
 
-func NewAutonomicSystem() *System {
-	return &System{
+func newSystem() *system {
+	return &system{
 		services:         &sync.Map{},
 		env:              NewEnvironment(),
 		deployerClient:   deployer.NewDeployerClient(deployer.DeployerServiceName),
@@ -115,7 +115,7 @@ func NewAutonomicSystem() *System {
 	}
 }
 
-func (a *System) AddService(serviceId, strategyId string) error {
+func (a *system) addService(serviceId, strategyId string) error {
 	childrenMap := &sync.Map{}
 
 	var strategy strategies.Strategy
@@ -141,11 +141,11 @@ func (a *System) AddService(serviceId, strategyId string) error {
 	return nil
 }
 
-func (a *System) RemoveService(serviceId string) {
+func (a *system) removeService(serviceId string) {
 	a.services.Delete(serviceId)
 }
 
-func (a *System) AddServiceChild(serviceId, childId string) {
+func (a *system) addServiceChild(serviceId, childId string) {
 	value, ok := a.services.Load(serviceId)
 	if !ok {
 		return
@@ -155,7 +155,7 @@ func (a *System) AddServiceChild(serviceId, childId string) {
 	service.AddChild(childId)
 }
 
-func (a *System) RemoveServiceChild(serviceId, childId string) {
+func (a *system) removeServiceChild(serviceId, childId string) {
 	value, ok := a.services.Load(serviceId)
 	if !ok {
 		return
@@ -165,7 +165,7 @@ func (a *System) RemoveServiceChild(serviceId, childId string) {
 	service.RemoveChild(childId)
 }
 
-func (a *System) GetServices() (services map[string]*autonomic.Service) {
+func (a *system) getServices() (services map[string]*autonomic.Service) {
 	services = map[string]*autonomic.Service{}
 
 	a.services.Range(func(key, value interface{}) bool {
@@ -180,7 +180,7 @@ func (a *System) GetServices() (services map[string]*autonomic.Service) {
 	return
 }
 
-func (a *System) Start() {
+func (a *system) start() {
 	go func() {
 		timer := time.NewTimer(defaultInterval)
 
@@ -189,7 +189,7 @@ func (a *System) Start() {
 			a.services.Range(func(key, value interface{}) bool {
 				service := value.(servicesMapValue)
 				action := service.GenerateAction()
-				a.PerformAction(action)
+				a.performAction(action)
 				return true
 			})
 			timer.Reset(defaultInterval)
@@ -197,9 +197,11 @@ func (a *System) Start() {
 	}()
 }
 
-func (a *System) PerformAction(action actions.Action) {
+func (a *system) performAction(action actions.Action) {
 	switch assertedAction := action.(type) {
 	case *actions.RedirectAction:
 		assertedAction.Execute(a.archimedesClient)
+	case *actions.MigrateAction:
+		assertedAction.Execute(a.deployerClient)
 	}
 }

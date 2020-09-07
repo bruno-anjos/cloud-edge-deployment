@@ -14,7 +14,7 @@ type Client struct {
 
 func NewAutonomicClient(addr string) *Client {
 	return &Client{
-		GenericClient: utils.NewGenericClient(addr, Port),
+		GenericClient: utils.NewGenericClient(addr),
 	}
 }
 

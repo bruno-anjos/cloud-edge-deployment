@@ -1,9 +1,7 @@
 package archimedes
 
 import (
-	"net"
 	"net/http"
-	"strconv"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
@@ -17,7 +15,7 @@ type Client struct {
 }
 
 func NewArchimedesClient(addr string) *Client {
-	newClient := utils.NewGenericClient(addr, Port)
+	newClient := utils.NewGenericClient(addr)
 	archClient := &Client{
 		GenericClient: newClient,
 	}
@@ -157,20 +155,8 @@ func (c *Client) GetRedirected(serviceId string) (redirected int32, status int) 
 }
 
 func (c *Client) handleRedirect(req *http.Request, via []*http.Request) error {
-	host, portString, err := net.SplitHostPort(req.URL.Host)
-	if err != nil {
-		log.Error("error handling redirect: ", err)
-		return err
-	}
-
-	port, err := strconv.Atoi(portString)
-	if err != nil {
-		log.Error("error converting string port to int: ", err)
-		return err
-	}
-
 	log.Debugf("redirecting %s to %s", via[len(via)-1].URL.Host, req.URL.Host)
 
-	c.SetHostPort(host, port)
+	c.SetHostPort(req.URL.Host)
 	return nil
 }

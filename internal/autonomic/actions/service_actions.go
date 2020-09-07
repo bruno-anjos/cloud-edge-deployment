@@ -12,12 +12,12 @@ const (
 )
 
 type RedirectAction struct {
-	*ActionWithServiceOriginTarget
+	*actionWithServiceOriginTarget
 }
 
 func NewRedirectAction(serviceId, from, to string, amountPercentage float64) *RedirectAction {
 	return &RedirectAction{
-		ActionWithServiceOriginTarget: NewActionWithServiceOriginTarget(REDIRECT_CLIENTS_ID, serviceId, from, to,
+		actionWithServiceOriginTarget: newActionWithServiceOriginTarget(REDIRECT_CLIENTS_ID, serviceId, from, to,
 			amountPercentage),
 	}
 }

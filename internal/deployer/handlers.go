@@ -124,6 +124,101 @@ func expandTreeHandler(_ http.ResponseWriter, r *http.Request) {
 	go attemptToExtend(deploymentId, nil, reqLocation, maxHopsToLookFor)
 }
 
+func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
+	log.Debugf("handling migrate request")
+
+	serviceId := utils.ExtractPathVar(r, DeploymentIdPathVar)
+
+	var migrateDTO deployer.MigrateDTO
+	err := json.NewDecoder(r.Body).Decode(&migrateDTO)
+	if err != nil {
+		panic(err)
+		return
+	}
+
+	if !hierarchyTable.HasDeployment(serviceId) {
+		log.Debugf("deployment %s does not exist, ignoring migration request", serviceId)
+		return
+	}
+
+	deploymentChildren := hierarchyTable.GetChildren(serviceId)
+	origin, ok := deploymentChildren[migrateDTO.Origin]
+	if !ok {
+		log.Debugf("origin %s does not exist for service %s", migrateDTO.Origin, serviceId)
+		return
+	}
+
+	target, ok := deploymentChildren[migrateDTO.Target]
+	if !ok {
+		log.Debugf("target %s does not exist for service %s", migrateDTO.Target, serviceId)
+		return
+	}
+
+	client := deployer.NewDeployerClient(origin.Addr)
+	client.DeleteService(serviceId)
+
+	client.SetHostPort(target.Addr)
+	config := hierarchyTable.GetDeploymentConfig(serviceId)
+	isStatic := hierarchyTable.IsStatic(serviceId)
+	client.RegisterService(serviceId, isStatic, config)
+}
+
+func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
+	targetId := utils.ExtractPathVar(r, DeployerIdPathVar)
+
+	if !hierarchyTable.HasDeployment(deploymentId) {
+		log.Debugf("deployment %s does not exist, ignoring extension request", deploymentId)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	deploymentChildren := hierarchyTable.GetChildren(deploymentId)
+	_, ok := deploymentChildren[targetId]
+	if !ok {
+		log.Debugf("deployment %s does not have %s as its child, ignoring extension request", deploymentId,
+			targetId)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	config := hierarchyTable.GetDeploymentConfig(deploymentId)
+
+	client := deployer.NewDeployerClient(targetId)
+	isStatic := hierarchyTable.IsStatic(deploymentId)
+	client.RegisterService(deploymentId, isStatic, config)
+}
+
+func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
+	targetId := utils.ExtractPathVar(r, DeployerIdPathVar)
+
+	if !hierarchyTable.HasDeployment(deploymentId) {
+		log.Debugf("deployment %s does not exist, ignoring shortening request", deploymentId)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	deploymentChildren := hierarchyTable.GetChildren(deploymentId)
+	_, ok := deploymentChildren[targetId]
+	if !ok {
+		log.Debugf("deployment %s does not have %s as its child, ignoring shortening request", deploymentId,
+			targetId)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	client := deployer.NewDeployerClient(targetId)
+	client.DeleteService(deploymentId)
+}
+
+func childDeletedDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
+	serviceId := utils.ExtractPathVar(r, DeploymentIdPathVar)
+	childId := utils.ExtractPathVar(r, DeployerIdPathVar)
+
+	hierarchyTable.RemoveChild(serviceId, childId)
+}
+
 func getDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
 	deployments := hierarchyTable.GetDeployments()
 	utils.SendJSONReplyOK(w, deployments)
@@ -156,15 +251,19 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	go addDeploymentAsync(deployment, deploymentDTO.DeploymentId)
 }
 
-func deleteDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
+func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
 
 	parent := hierarchyTable.GetParent(deploymentId)
 	if parent != nil {
-		isZero := parentsTable.DecreaseParentCount(parent.Id)
-		if isZero {
-
+		client := deployer.NewDeployerClient(parent.Addr)
+		status := client.ChildDeletedDeployment(deploymentId, myself.Id)
+		if status != http.StatusOK {
+			log.Errorf("got status %d from child deleted deployment", status)
+			w.WriteHeader(status)
+			return
 		}
+		parentsTable.DecreaseParentCount(parent.Id)
 	}
 
 	hierarchyTable.RemoveDeployment(deploymentId)
@@ -233,6 +332,8 @@ func addDeploymentAsync(deployment *Deployment, deploymentId string) {
 			return
 		}
 	}
+
+	hierarchyTable.SetLinkOnly(deploymentId, false)
 }
 
 func deleteDeploymentAsync(deploymentId string) {

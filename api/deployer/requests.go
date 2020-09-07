@@ -14,4 +14,5 @@ type (
 	TakeChildRequestBody               = utils.Node
 	IAmYourParentRequestBody           = utils.Node
 	RegisterServiceInstanceRequestBody = archimedes.InstanceDTO
+	MigrateDeploymentBody              = deployer.MigrateDTO
 )

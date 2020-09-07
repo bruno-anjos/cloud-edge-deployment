@@ -24,7 +24,7 @@ const (
 
 func NewDeployerClient(addr string) *Client {
 	return &Client{
-		GenericClient: utils.NewGenericClient(addr, Port),
+		GenericClient: utils.NewGenericClient(addr),
 	}
 }
 
@@ -60,6 +60,24 @@ func (c *Client) RegisterService(serviceId string, static bool,
 	}
 	path := deployer.GetServicePath(serviceId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
+func (c *Client) ExtendDeploymentTo(serviceId, targetId string) (status int) {
+	path := deployer.GetExtendServicePath(serviceId, targetId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
+func (c *Client) ShortenDeploymentFrom(serviceId, targetId string) (status int) {
+	path := deployer.GetShortenServicePath(serviceId, targetId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
@@ -124,7 +142,7 @@ func (c *Client) WarnToTakeChild(serviceId string, child *utils.Node) (status in
 	var reqBody api.TakeChildRequestBody
 	reqBody = *child
 
-	path := deployer.GetTakeChildPath(serviceId)
+	path := deployer.GetDeploymentChildPath(serviceId, child.Id)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -139,6 +157,28 @@ func (c *Client) WarnThatIAmParent(serviceId string, parent *utils.Node) (status
 	path := deployer.GetImYourParentPath(serviceId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
+func (c *Client) ChildDeletedDeployment(serviceId, childId string) (status int) {
+	path := deployer.GetDeploymentChildPath(serviceId, childId)
+	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
+func (c *Client) MigrateDeployment(serviceId, origin, target string) (status int) {
+	path := deployer.GetMigrateDeploymentPath(serviceId)
+	reqBody := MigrateDTO{
+		Origin: origin,
+		Target: target,
+	}
+
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return

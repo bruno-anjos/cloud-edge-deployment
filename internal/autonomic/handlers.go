@@ -9,12 +9,12 @@ import (
 )
 
 var (
-	autonomicSystem *System
+	autonomicSystem *system
 )
 
 func init() {
-	autonomicSystem = NewAutonomicSystem()
-	autonomicSystem.Start()
+	autonomicSystem = newSystem()
+	autonomicSystem.start()
 }
 
 func addServiceHandler(_ http.ResponseWriter, r *http.Request) {
@@ -26,7 +26,7 @@ func addServiceHandler(_ http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	err = autonomicSystem.AddService(serviceId, serviceConfig.StrategyId)
+	err = autonomicSystem.addService(serviceId, serviceConfig.StrategyId)
 	if err != nil {
 		panic(err)
 	}
@@ -36,12 +36,12 @@ func addServiceHandler(_ http.ResponseWriter, r *http.Request) {
 
 func removeServiceHandler(_ http.ResponseWriter, r *http.Request) {
 	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
-	autonomicSystem.RemoveService(serviceId)
+	autonomicSystem.removeService(serviceId)
 }
 
 func getAllServicesHandler(w http.ResponseWriter, _ *http.Request) {
 	var resp api.GetAllServicesResponseBody
-	resp = autonomicSystem.GetServices()
+	resp = autonomicSystem.getServices()
 
 	utils.SendJSONReplyOK(w, resp)
 }
@@ -50,12 +50,12 @@ func addServiceChildHandler(_ http.ResponseWriter, r *http.Request) {
 	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
 	childId := utils.ExtractPathVar(r, ChildIdPathVar)
 
-	autonomicSystem.AddServiceChild(serviceId, childId)
+	autonomicSystem.addServiceChild(serviceId, childId)
 }
 
 func removeServiceChildHandler(_ http.ResponseWriter, r *http.Request) {
 	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
 	childId := utils.ExtractPathVar(r, ChildIdPathVar)
 
-	autonomicSystem.RemoveServiceChild(serviceId, childId)
+	autonomicSystem.removeServiceChild(serviceId, childId)
 }
