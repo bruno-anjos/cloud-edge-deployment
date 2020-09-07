@@ -7,10 +7,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/strategies"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -41,8 +41,8 @@ func (e *HierarchyEntry) GetChildren() map[string]*utils.Node {
 	return entryChildren
 }
 
-func (e *HierarchyEntry) ToDTO() *deployer.HierarchyEntryDTO {
-	return &deployer.HierarchyEntryDTO{
+func (e *HierarchyEntry) ToDTO() *deployer2.HierarchyEntryDTO {
+	return &deployer2.HierarchyEntryDTO{
 		Parent:      e.Parent,
 		Grandparent: e.Grandparent,
 		Child:       e.GetChildren(),
@@ -71,7 +71,7 @@ func NewHierarchyTable() *HierarchyTable {
 	}
 }
 
-func (t *HierarchyTable) AddDeployment(dto *deployer.DeploymentDTO) bool {
+func (t *HierarchyTable) AddDeployment(dto *deployer2.DeploymentDTO) bool {
 	entry := &HierarchyEntry{
 		DeploymentYAMLBytes: dto.DeploymentYAMLBytes,
 		Parent:              dto.Parent,
@@ -210,7 +210,7 @@ func (t *HierarchyTable) GetParent(deploymentId string) *utils.Node {
 	return entry.Parent
 }
 
-func (t *HierarchyTable) DeploymentToDTO(deploymentId string) (*deployer.DeploymentDTO, bool) {
+func (t *HierarchyTable) DeploymentToDTO(deploymentId string) (*deployer2.DeploymentDTO, bool) {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return nil, false
@@ -218,7 +218,7 @@ func (t *HierarchyTable) DeploymentToDTO(deploymentId string) (*deployer.Deploym
 
 	entry := value.(typeHierarchyEntriesMapValue)
 
-	return &deployer.DeploymentDTO{
+	return &deployer2.DeploymentDTO{
 		Parent:              entry.Parent,
 		Grandparent:         entry.Grandparent,
 		DeploymentId:        deploymentId,
@@ -332,8 +332,8 @@ func (t *HierarchyTable) IsLinkOnly(deploymentId string) (linkOnly bool) {
 	return
 }
 
-func (t *HierarchyTable) ToDTO() map[string]*deployer.HierarchyEntryDTO {
-	entries := map[string]*deployer.HierarchyEntryDTO{}
+func (t *HierarchyTable) ToDTO() map[string]*deployer2.HierarchyEntryDTO {
+	entries := map[string]*deployer2.HierarchyEntryDTO{}
 
 	t.hierarchyEntries.Range(func(key, value interface{}) bool {
 		deploymentId := key.(typeHierarchyEntriesMapKey)
@@ -448,7 +448,7 @@ func renegotiateParent(deadParent *utils.Node) {
 
 		newParentChan := hierarchyTable.SetDeploymentAsOrphan(deploymentId)
 
-		req := utils.BuildRequest(http.MethodPost, grandparent.Addr, GetDeadChildPath(deploymentId, deadParent.Id),
+		req := utils.BuildRequest(http.MethodPost, grandparent.Addr, deployer2.GetDeadChildPath(deploymentId, deadParent.Id),
 			myself)
 		status, _ := utils.DoRequest(httpClient, req, nil)
 		if status != http.StatusOK {
@@ -531,7 +531,7 @@ func extendDeployment(deploymentId, childAddr string, grandChild *utils.Node) bo
 
 	log.Debugf("extending deployment %s to %s", deploymentId, childId)
 
-	req := utils.BuildRequest(http.MethodPost, deployerHostPort, GetDeploymentsPath(), dto)
+	req := utils.BuildRequest(http.MethodPost, deployerHostPort, deployer2.GetDeploymentsPath(), dto)
 	status, _ := utils.DoRequest(httpClient, req, nil)
 	if status == http.StatusConflict {
 		log.Debugf("deployment %s is already present in %s", deploymentId, childId)
@@ -542,7 +542,7 @@ func extendDeployment(deploymentId, childAddr string, grandChild *utils.Node) bo
 
 	if grandChild != nil {
 		log.Debugf("telling %s to take grandchild %s for deployment %s", childId, grandChild.Id, deploymentId)
-		req = utils.BuildRequest(http.MethodPost, deployerHostPort, GetDeploymentChildPath(deploymentId, grandChild.Id),
+		req = utils.BuildRequest(http.MethodPost, deployerHostPort, deployer2.GetDeploymentChildPath(deploymentId, grandChild.Id),
 			grandChild)
 		status, _ = utils.DoRequest(httpClient, req, nil)
 		if status != http.StatusOK {

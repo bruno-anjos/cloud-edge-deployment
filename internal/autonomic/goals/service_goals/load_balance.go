@@ -3,9 +3,10 @@ package service_goals
 import (
 	"sort"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -20,21 +21,25 @@ const (
 )
 
 var (
-	loadBalanceDependencies = []string{
-		autonomic.METRIC_AGG_LOAD_PER_SERVICE_IN_CHILDREN,
-	}
 	migrationGroupSize = defaultGroupSize
 )
 
 type LoadBalance struct {
-	serviceId   string
-	environment *autonomic.Environment
+	serviceId    string
+	environment  *environment.Environment
+	dependencies []string
 }
 
-func NewLoadBalance(serviceId string, env *autonomic.Environment) *LoadBalance {
+func NewLoadBalance(serviceId string, env *environment.Environment) *LoadBalance {
+	dependencies := []string{
+		metrics.GetAggLoadPerServiceInChildrenMetricId(serviceId),
+		metrics.GetLoadPerServiceInChildrenMetricId(serviceId),
+	}
+
 	return &LoadBalance{
-		serviceId:   serviceId,
-		environment: env,
+		serviceId:    serviceId,
+		environment:  env,
+		dependencies: dependencies,
 	}
 }
 
@@ -67,9 +72,10 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 	success = false
 
 	// TODO GET LOAD PER CHILD
-	value, ok := l.environment.GetMetric(autonomic.METRIC_LOAD_PER_SERVICE_IN_CHILD)
+	loadPerServiceInChildren := metrics.GetLoadPerServiceInChildrenMetricId(l.serviceId)
+	value, ok := l.environment.GetMetric(loadPerServiceInChildren)
 	if !ok {
-		log.Debugf("no value for metric %s", autonomic.METRIC_LOAD_PER_SERVICE_IN_CHILD)
+		log.Debugf("no value for metric %s", loadPerServiceInChildren)
 		return
 	}
 
@@ -135,7 +141,7 @@ func (l *LoadBalance) TestDryRun() bool {
 }
 
 func (l *LoadBalance) GetDependencies() (metrics []string) {
-	return loadBalanceDependencies
+	return l.dependencies
 }
 
 func (l *LoadBalance) IncreaseMigrationGroupSize() {

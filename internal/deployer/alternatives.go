@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -94,7 +95,7 @@ func sendAlternatives() {
 }
 
 func sendAlternativesTo(neighbor *utils.Node, alternatives []*utils.Node) {
-	req := utils.BuildRequest(http.MethodPost, neighbor.Addr, GetSetAlternativesPath(myself.Id),
+	req := utils.BuildRequest(http.MethodPost, neighbor.Addr, deployer.GetSetAlternativesPath(myself.Id),
 		alternatives)
 
 	status, _ := utils.DoRequest(httpClient, req, nil)

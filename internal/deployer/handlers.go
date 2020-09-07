@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -129,7 +130,7 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 
 	serviceId := utils.ExtractPathVar(r, DeploymentIdPathVar)
 
-	var migrateDTO deployer.MigrateDTO
+	var migrateDTO api.MigrateDTO
 	err := json.NewDecoder(r.Body).Decode(&migrateDTO)
 	if err != nil {
 		panic(err)
@@ -227,13 +228,13 @@ func getDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
 func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling register deployment request")
 
-	var deploymentDTO deployer.DeploymentDTO
+	var deploymentDTO api.DeploymentDTO
 	err := json.NewDecoder(r.Body).Decode(&deploymentDTO)
 	if err != nil {
 		panic(err)
 	}
 
-	var deploymentYAML deployer.DeploymentYAML
+	var deploymentYAML api.DeploymentYAML
 	err = yaml.Unmarshal(deploymentDTO.DeploymentYAMLBytes, &deploymentYAML)
 	if err != nil {
 		panic(err)
@@ -358,7 +359,7 @@ func deleteDeploymentAsync(deploymentId string) {
 	}
 }
 
-func deploymentYAMLToDeployment(deploymentYAML *deployer.DeploymentYAML, static bool) *Deployment {
+func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool) *Deployment {
 	log.Debugf("%+v", deploymentYAML)
 
 	numContainers := len(deploymentYAML.Spec.Template.Spec.Containers)
@@ -405,7 +406,7 @@ func getDeployerIdFromAddr(addr string) (string, error) {
 
 	otherDeployerAddr := addPortToAddr(addr)
 
-	req := utils.BuildRequest(http.MethodGet, otherDeployerAddr, GetWhoAreYouPath(), nil)
+	req := utils.BuildRequest(http.MethodGet, otherDeployerAddr, api.GetWhoAreYouPath(), nil)
 	status, _ := utils.DoRequest(httpClient, req, &nodeDeployerId)
 
 	if status != http.StatusOK {

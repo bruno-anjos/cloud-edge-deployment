@@ -4,10 +4,11 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals/service_goals"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 )
 
@@ -23,12 +24,12 @@ type idealLatencyStrategy struct {
 	redirectInitialLoad float64
 	lbGoal              *service_goals.LoadBalance
 	archClient          *archimedes.Client
-	env                 *autonomic.Environment
+	env                 *environment.Environment
 	serviceId           string
 }
 
 func NewDefaultIdealLatencyStrategy(serviceId string, serviceChildren *sync.Map,
-	env *autonomic.Environment) *idealLatencyStrategy {
+	env *environment.Environment) *idealLatencyStrategy {
 	lbGoal := service_goals.NewLoadBalance(serviceId, env)
 
 	defaultGoals := []goals.Goal{
@@ -78,7 +79,8 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 			}
 			i.redirected = int(redirected)
 
-			value, _ := i.env.GetMetric(autonomic.METRIC_LOAD_PER_SERVICE_IN_CHILD)
+			loadPerServiceChild := metrics.GetLoadPerServiceInChildMetricId(i.serviceId, i.redirectingTo)
+			value, _ := i.env.GetMetric(loadPerServiceChild)
 			currLoad := value.(float64)
 			loadDiff := currLoad - i.redirectInitialLoad
 
@@ -94,7 +96,8 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 			i.redirectingTo = nextDomain[0]
 			i.redirected = 0
 			i.redirecting = true
-			value, _ := i.env.GetMetric(autonomic.METRIC_LOAD_PER_SERVICE_IN_CHILD)
+			loadPerServiceChild := metrics.GetLoadPerServiceInChildMetricId(i.serviceId, i.redirectingTo)
+			value, _ := i.env.GetMetric(loadPerServiceChild)
 			i.redirectInitialLoad = value.(float64)
 			i.lbGoal.ResetMigrationGroupSize()
 		}

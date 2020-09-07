@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
+	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	log "github.com/sirupsen/logrus"
 )
@@ -33,7 +33,7 @@ func init() {
 	go instanceHeartbeatChecker()
 }
 
-func cleanUnresponsiveInstance(serviceId, instanceId string, instanceDTO *archimedes.InstanceDTO,
+func cleanUnresponsiveInstance(serviceId, instanceId string, instanceDTO *archimedes2.InstanceDTO,
 	alive <-chan struct{}) {
 	unresponsiveTimer := time.NewTimer(initInstanceTimeout)
 

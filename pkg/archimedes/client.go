@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/docker/go-connections/nat"
 	log "github.com/sirupsen/logrus"
@@ -30,7 +29,7 @@ func (c *Client) RegisterService(serviceId string, ports nat.PortSet) (status in
 		Ports: ports,
 	}
 
-	path := archimedes.GetServicePath(serviceId)
+	path := api.GetServicePath(serviceId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -46,7 +45,7 @@ func (c *Client) RegisterServiceInstance(serviceId, instanceId string, static bo
 		Local:           local,
 	}
 
-	path := archimedes.GetServiceInstancePath(serviceId, instanceId)
+	path := api.GetServiceInstancePath(serviceId, instanceId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -55,7 +54,7 @@ func (c *Client) RegisterServiceInstance(serviceId, instanceId string, static bo
 }
 
 func (c *Client) DeleteService(serviceId string) (status int) {
-	path := archimedes.GetServicePath(serviceId)
+	path := api.GetServicePath(serviceId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -64,7 +63,7 @@ func (c *Client) DeleteService(serviceId string) (status int) {
 }
 
 func (c *Client) DeleteServiceInstance(serviceId, instanceId string) (status int) {
-	path := archimedes.GetServiceInstancePath(serviceId, instanceId)
+	path := api.GetServiceInstancePath(serviceId, instanceId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -72,24 +71,24 @@ func (c *Client) DeleteServiceInstance(serviceId, instanceId string) (status int
 	return
 }
 
-func (c *Client) GetServices() (services map[string]*Service, status int) {
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), archimedes.GetServicesPath(), nil)
+func (c *Client) GetServices() (services map[string]*api.Service, status int) {
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), api.GetServicesPath(), nil)
 
 	services = api.GetAllServicesResponseBody{}
 	status, _ = utils.DoRequest(c.Client, req, &services)
 	return
 }
 
-func (c *Client) GetService(serviceId string) (instances map[string]*Instance, status int) {
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), archimedes.GetServicePath(serviceId), nil)
+func (c *Client) GetService(serviceId string) (instances map[string]*api.Instance, status int) {
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), api.GetServicePath(serviceId), nil)
 
 	instances = api.GetServiceResponseBody{}
 	status, _ = utils.DoRequest(c.Client, req, &instances)
 	return
 }
 
-func (c *Client) GetServiceInstance(serviceId, instanceId string) (instance *Instance, status int) {
-	path := archimedes.GetServiceInstancePath(serviceId, instanceId)
+func (c *Client) GetServiceInstance(serviceId, instanceId string) (instance *api.Instance, status int) {
+	path := api.GetServiceInstancePath(serviceId, instanceId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	instance = &api.GetServiceInstanceResponseBody{}
@@ -98,8 +97,8 @@ func (c *Client) GetServiceInstance(serviceId, instanceId string) (instance *Ins
 	return
 }
 
-func (c *Client) GetInstance(instanceId string) (instance *Instance, status int) {
-	path := archimedes.GetInstancePath(instanceId)
+func (c *Client) GetInstance(instanceId string) (instance *api.Instance, status int) {
+	path := api.GetInstancePath(instanceId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	instance = &api.GetInstanceResponseBody{}
@@ -114,7 +113,7 @@ func (c *Client) Resolve(host string, port nat.Port) (rHost, rPort string, statu
 		Port: port,
 	}
 
-	path := archimedes.GetResolvePath()
+	path := api.GetResolvePath()
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	var resp api.ResolveResponseBody
@@ -131,7 +130,7 @@ func (c *Client) Redirect(serviceId, target string, amount int) (status int) {
 		Target: target,
 	}
 
-	path := archimedes.GetRedirectPath(serviceId)
+	path := api.GetRedirectPath(serviceId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -139,7 +138,7 @@ func (c *Client) Redirect(serviceId, target string, amount int) (status int) {
 }
 
 func (c *Client) RemoveRedirect(serviceId string) (status int) {
-	path := archimedes.GetRedirectPath(serviceId)
+	path := api.GetRedirectPath(serviceId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -147,7 +146,7 @@ func (c *Client) RemoveRedirect(serviceId string) (status int) {
 }
 
 func (c *Client) GetRedirected(serviceId string) (redirected int32, status int) {
-	path := archimedes.GetRedirectedPath(serviceId)
+	path := api.GetRedirectedPath(serviceId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, redirected)

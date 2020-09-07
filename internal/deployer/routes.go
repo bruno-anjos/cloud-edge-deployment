@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 )
 
@@ -44,27 +45,27 @@ var (
 	_instanceIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, InstanceIdPathVar)
 	_deployerIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, DeployerIdPathVar)
 
-	deploymentsRoute           = DeploymentsPath
-	deploymentRoute            = fmt.Sprintf(DeploymentPath, _deploymentIdPathVarFormatted)
-	addNodeRoute               = AddNodePath
-	whoAreYouRoute             = WhoAreYouPath
-	setAlternativesRoute       = fmt.Sprintf(SetAlternativesPath, _deployerIdPathVarFormatted)
-	deploymentQualityRoute     = fmt.Sprintf(DeploymentQualityPath, _deploymentIdPathVarFormatted)
-	deadChildRoute             = fmt.Sprintf(DeadChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
-	deploymentChildRoute       = fmt.Sprintf(DeploymentChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
-	iAmYourParentRoute         = fmt.Sprintf(IAmYourParentPath, _deploymentIdPathVarFormatted)
-	hierarchyTableRoute        = HierarchyTablePath
-	migrateDeploymentRoute     = fmt.Sprintf(MigrateDeploymentPath, _deploymentIdPathVarFormatted)
-	extendDeploymentToRoute    = fmt.Sprintf(ExtendServiceToPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
-	shortenDeploymentFromRoute = fmt.Sprintf(ShortenServiceFromPath, _deploymentIdPathVarFormatted,
+	deploymentsRoute           = deployer.DeploymentsPath
+	deploymentRoute            = fmt.Sprintf(deployer.DeploymentPath, _deploymentIdPathVarFormatted)
+	addNodeRoute               = deployer.AddNodePath
+	whoAreYouRoute             = deployer.WhoAreYouPath
+	setAlternativesRoute       = fmt.Sprintf(deployer.SetAlternativesPath, _deployerIdPathVarFormatted)
+	deploymentQualityRoute     = fmt.Sprintf(deployer.DeploymentQualityPath, _deploymentIdPathVarFormatted)
+	deadChildRoute             = fmt.Sprintf(deployer.DeadChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	deploymentChildRoute       = fmt.Sprintf(deployer.DeploymentChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	iAmYourParentRoute         = fmt.Sprintf(deployer.IAmYourParentPath, _deploymentIdPathVarFormatted)
+	hierarchyTableRoute        = deployer.HierarchyTablePath
+	migrateDeploymentRoute     = fmt.Sprintf(deployer.MigrateDeploymentPath, _deploymentIdPathVarFormatted)
+	extendDeploymentToRoute    = fmt.Sprintf(deployer.ExtendServiceToPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	shortenDeploymentFromRoute = fmt.Sprintf(deployer.ShortenServiceFromPath, _deploymentIdPathVarFormatted,
 		_deployerIdPathVarFormatted)
 
 	// scheduler
-	deploymentInstanceAliveRoute = fmt.Sprintf(DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
+	deploymentInstanceAliveRoute = fmt.Sprintf(deployer.DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
 		_instanceIdPathVarFormatted)
-	deploymentInstanceRoute = fmt.Sprintf(DeploymentInstancePath, _deploymentIdPathVarFormatted,
+	deploymentInstanceRoute = fmt.Sprintf(deployer.DeploymentInstancePath, _deploymentIdPathVarFormatted,
 		_instanceIdPathVarFormatted)
-	parentAliveRoute = fmt.Sprintf(ParentAlivePath, _deployerIdPathVarFormatted)
+	parentAliveRoute = fmt.Sprintf(deployer.ParentAlivePath, _deployerIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{

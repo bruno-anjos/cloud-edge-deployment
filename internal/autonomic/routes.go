@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 )
 
@@ -26,9 +27,9 @@ var (
 	_serviceIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, ServiceIdPathVar)
 	_childIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, ChildIdPathVar)
 
-	servicesRoute     = ServicesPath
-	serviceRoute      = fmt.Sprintf(ServicePath, _serviceIdPathVarFormatted)
-	serviceChildRoute = fmt.Sprintf(ServiceChildPath, _serviceIdPathVarFormatted, _childIdPathVarFormatted)
+	servicesRoute     = autonomic.ServicesPath
+	serviceRoute      = fmt.Sprintf(autonomic.ServicePath, _serviceIdPathVarFormatted)
+	serviceChildRoute = fmt.Sprintf(autonomic.ServiceChildPath, _serviceIdPathVarFormatted, _childIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{

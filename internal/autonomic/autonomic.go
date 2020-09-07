@@ -4,94 +4,19 @@ import (
 	"sync"
 	"time"
 
+	autonomic2 "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/pkg/errors"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/constraints"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/strategies"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
-	log "github.com/sirupsen/logrus"
 )
-
-type Environment struct {
-	trackedMetrics *sync.Map
-	metrics        *sync.Map
-	constraints    []constraints.Constraint
-}
-
-func NewEnvironment() *Environment {
-	return &Environment{
-		trackedMetrics: &sync.Map{},
-		metrics:        &sync.Map{},
-		constraints:    []constraints.Constraint{},
-	}
-}
-
-func (e *Environment) TrackMetric(metricId string) {
-	_, loaded := e.trackedMetrics.LoadOrStore(metricId, nil)
-	if loaded {
-		return
-	}
-
-	registerMetricInLowerApi(metricId)
-}
-
-func (e *Environment) GetMetric(metricId string) (value interface{}, ok bool) {
-	return e.metrics.Load(metricId)
-}
-
-func (e *Environment) SetMetric(metricId string, value interface{}) {
-	e.metrics.Store(metricId, value)
-}
-
-func (e *Environment) DeleteMetric(metricId string) {
-	e.metrics.Delete(metricId)
-}
-
-func (e *Environment) AddConstraint(constraint constraints.Constraint) {
-	e.constraints = append(e.constraints, constraint)
-}
-
-func (e *Environment) Copy() (copy *Environment) {
-	newMap := &sync.Map{}
-	copy = &Environment{metrics: newMap}
-
-	e.metrics.Range(func(key, value interface{}) bool {
-		newMap.Store(key, value)
-		return true
-	})
-
-	return
-}
-
-func (e *Environment) CheckConstraints() (invalidConstraints []constraints.Constraint) {
-	for _, constraint := range e.constraints {
-		metricId := constraint.MetricId()
-		value, ok := e.GetMetric(metricId)
-		if !ok {
-			log.Debugf("metric %s is empty", metricId)
-			continue
-		}
-
-		valid := constraint.Validate(value)
-		if !valid {
-			invalidConstraints = append(invalidConstraints, constraint)
-		}
-	}
-
-	return
-}
-
-// TODO change this for lower API call
-func registerMetricInLowerApi(metricId string) {
-
-}
 
 type (
 	servicesMapKey   = string
-	servicesMapValue = *autonomic.Service
+	servicesMapValue = *autonomic2.Service
 )
 
 const (
@@ -100,7 +25,7 @@ const (
 
 type system struct {
 	services *sync.Map
-	env      *Environment
+	env      *environment.Environment
 
 	deployerClient   *deployer.Client
 	archimedesClient *archimedes.Client
@@ -109,7 +34,7 @@ type system struct {
 func newSystem() *system {
 	return &system{
 		services:         &sync.Map{},
-		env:              NewEnvironment(),
+		env:              environment.NewEnvironment(),
 		deployerClient:   deployer.NewDeployerClient(deployer.DeployerServiceName),
 		archimedesClient: archimedes.NewArchimedesClient(archimedes.ArchimedesServiceName),
 	}
@@ -135,7 +60,7 @@ func (a *system) addService(serviceId, strategyId string) error {
 		}
 	}
 
-	service := autonomic.NewAutonomicService(strategy, childrenMap)
+	service := autonomic2.NewAutonomicService(strategy, childrenMap)
 	a.services.Store(serviceId, service)
 
 	return nil
@@ -165,8 +90,8 @@ func (a *system) removeServiceChild(serviceId, childId string) {
 	service.RemoveChild(childId)
 }
 
-func (a *system) getServices() (services map[string]*autonomic.Service) {
-	services = map[string]*autonomic.Service{}
+func (a *system) getServices() (services map[string]*autonomic2.Service) {
+	services = map[string]*autonomic2.Service{}
 
 	a.services.Range(func(key, value interface{}) bool {
 		serviceId := key.(servicesMapKey)

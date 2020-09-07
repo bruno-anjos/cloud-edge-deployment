@@ -1,18 +1,17 @@
 package deployer
 
 import (
+	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 )
 
 type (
 	ExpandTreeRequestBody              = string
-	RegisterServiceRequestBody         = deployer.DeploymentDTO
+	RegisterServiceRequestBody         = DeploymentDTO
 	AddNodeRequestBody                 = string
 	DeadChildRequestBody               = utils.Node
 	TakeChildRequestBody               = utils.Node
 	IAmYourParentRequestBody           = utils.Node
-	RegisterServiceInstanceRequestBody = archimedes.InstanceDTO
-	MigrateDeploymentBody              = deployer.MigrateDTO
+	RegisterServiceInstanceRequestBody = archimedes2.InstanceDTO
+	MigrateDeploymentBody              = MigrateDTO
 )

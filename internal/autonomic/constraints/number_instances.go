@@ -1,8 +1,8 @@
 package constraints
 
 import (
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 )
 
 const (
@@ -25,7 +25,7 @@ func (n *NumberOfInstances) GetConstraintId() string {
 }
 
 func (n *NumberOfInstances) MetricId() string {
-	return autonomic.METRIC_NUMBER_OF_INSTANCES_ID
+	return metrics.GetNumInstancesMetricId(n.ServiceId)
 }
 
 func (n *NumberOfInstances) Validate(value interface{}) bool {

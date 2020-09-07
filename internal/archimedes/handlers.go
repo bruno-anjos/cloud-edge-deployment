@@ -66,7 +66,7 @@ func registerServiceHandler(w http.ResponseWriter, r *http.Request) {
 
 	serviceDTO := req
 
-	service := &archimedes.Service{
+	service := &api.Service{
 		Id:    serviceId,
 		Ports: serviceDTO.Ports,
 	}
@@ -77,11 +77,11 @@ func registerServiceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newTableEntry := &archimedes.ServicesTableEntryDTO{
+	newTableEntry := &api.ServicesTableEntryDTO{
 		Host:         archimedesId,
 		HostAddr:     archimedes.DefaultHostPort,
 		Service:      service,
-		Instances:    map[string]*archimedes.Instance{},
+		Instances:    map[string]*api.Instance{},
 		NumberOfHops: 0,
 		MaxHops:      0,
 		Version:      0,
@@ -148,7 +148,7 @@ func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	instance := &archimedes.Instance{
+	instance := &api.Instance{
 		Id:              instanceId,
 		Ip:              host,
 		ServiceId:       serviceId,
@@ -277,7 +277,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 				targetUrl := url.URL{
 					Scheme: "http",
 					Host:   redirectConfig.Target + ":" + strconv.Itoa(archimedes.Port),
-					Path:   GetResolvePath(),
+					Path:   api.GetResolvePath(),
 				}
 				http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
 				return
@@ -313,7 +313,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var randInstance *archimedes.Instance
+	var randInstance *api.Instance
 	randNum := rand.Intn(len(instances))
 	for _, instance := range instances {
 		if randNum == 0 {
@@ -331,7 +331,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("resolved %s:%s to %s:%s", toResolve.Host, toResolve.Port.Port(), resolved.Host, resolved.Port)
 
-	resolvedDTO := archimedes.ResolvedDTO{
+	resolvedDTO := api.ResolvedDTO{
 		Host: resolved.Host,
 		Port: resolved.Port,
 	}
@@ -419,7 +419,7 @@ func getRedirectedHandler(w http.ResponseWriter, r *http.Request) {
 	utils.SendJSONReplyOK(w, redirected.Current)
 }
 
-func preprocessMessage(remoteAddr string, discoverMsg *archimedes.DiscoverMsg) {
+func preprocessMessage(remoteAddr string, discoverMsg *api.DiscoverMsg) {
 	for _, entry := range discoverMsg.Entries {
 		if entry.Host == discoverMsg.NeighborSent {
 			entry.HostAddr = remoteAddr
@@ -430,7 +430,7 @@ func preprocessMessage(remoteAddr string, discoverMsg *archimedes.DiscoverMsg) {
 	}
 }
 
-func postprocessMessage(discoverMsg *archimedes.DiscoverMsg) {
+func postprocessMessage(discoverMsg *api.DiscoverMsg) {
 	var servicesToDelete []string
 
 	for serviceId, entry := range discoverMsg.Entries {
@@ -453,9 +453,9 @@ func sendServicesTable() {
 	broadcastMsgWithHorizon(discoverMsg, maxHops)
 }
 
-func resolveInstance(originalPort nat.Port, instance *archimedes.Instance) (*archimedes.ResolvedDTO, bool) {
+func resolveInstance(originalPort nat.Port, instance *api.Instance) (*api.ResolvedDTO, bool) {
 	if instance.Local {
-		return &archimedes.ResolvedDTO{
+		return &api.ResolvedDTO{
 			Host: instance.Id,
 			Port: originalPort.Port(),
 		}, true
@@ -465,14 +465,14 @@ func resolveInstance(originalPort nat.Port, instance *archimedes.Instance) (*arc
 			return nil, false
 		}
 
-		return &archimedes.ResolvedDTO{
+		return &api.ResolvedDTO{
 			Host: instance.Ip,
 			Port: portNatResolved[0].HostPort,
 		}, true
 	}
 }
 
-func broadcastMsgWithHorizon(discoverMsg *archimedes.DiscoverMsg, hops int) {
+func broadcastMsgWithHorizon(discoverMsg *api.DiscoverMsg, hops int) {
 	// TODO this simulates the lower level layer
 	return
 }

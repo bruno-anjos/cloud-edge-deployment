@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"sync"
 
+	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -23,7 +23,7 @@ func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	instanceId := utils.ExtractPathVar(r, InstanceIdPathVar)
 
-	instanceDTO := archimedes.InstanceDTO{}
+	instanceDTO := archimedes2.InstanceDTO{}
 	err := json.NewDecoder(r.Body).Decode(&instanceDTO)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)

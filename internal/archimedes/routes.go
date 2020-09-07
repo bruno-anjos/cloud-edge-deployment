@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 )
 
@@ -36,17 +37,17 @@ var (
 	_serviceIdPathVarFormatted  = fmt.Sprintf(utils.PathVarFormat, serviceIdPathVar)
 	_instanceIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, instanceIdPathVar)
 
-	servicesRoute        = ServicesPath
-	serviceRoute         = fmt.Sprintf(ServicePath, _serviceIdPathVarFormatted)
-	serviceInstanceRoute = fmt.Sprintf(ServiceInstancePath, _serviceIdPathVarFormatted,
+	servicesRoute        = archimedes.ServicesPath
+	serviceRoute         = fmt.Sprintf(archimedes.ServicePath, _serviceIdPathVarFormatted)
+	serviceInstanceRoute = fmt.Sprintf(archimedes.ServiceInstancePath, _serviceIdPathVarFormatted,
 		_instanceIdPathVarFormatted)
-	instanceRoute   = fmt.Sprintf(InstancePath, _instanceIdPathVarFormatted)
-	discoverRoute   = DiscoverPath
-	whoAreYouRoute  = WhoAreYouPath
-	tableRoute      = TablePath
-	resolveRoute    = ResolvePath
-	redirectRoute   = fmt.Sprintf(RedirectPath, _serviceIdPathVarFormatted)
-	redirectedRoute = fmt.Sprintf(RedirectedPath, _serviceIdPathVarFormatted)
+	instanceRoute   = fmt.Sprintf(archimedes.InstancePath, _instanceIdPathVarFormatted)
+	discoverRoute   = archimedes.DiscoverPath
+	whoAreYouRoute  = archimedes.WhoAreYouPath
+	tableRoute      = archimedes.TablePath
+	resolveRoute    = archimedes.ResolvePath
+	redirectRoute   = fmt.Sprintf(archimedes.RedirectPath, _serviceIdPathVarFormatted)
+	redirectedRoute = fmt.Sprintf(archimedes.RedirectedPath, _serviceIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 )
 
@@ -21,8 +22,8 @@ const (
 var (
 	_instanceIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, instanceIdPathVar)
 
-	instancesRoute = InstancesPath
-	instanceRoute  = fmt.Sprintf(InstancePath, _instanceIdPathVarFormatted)
+	instancesRoute = scheduler.InstancesPath
+	instanceRoute  = fmt.Sprintf(scheduler.InstancePath, _instanceIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{

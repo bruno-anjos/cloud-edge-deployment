@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -44,7 +45,7 @@ func takeChildHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("told to accept %s as child for deployment %s", child.Id, deploymentId)
 
-	req := utils.BuildRequest(http.MethodPost, child.Addr, GetImYourParentPath(deploymentId), myself)
+	req := utils.BuildRequest(http.MethodPost, child.Addr, deployer.GetImYourParentPath(deploymentId), myself)
 	status, _ := utils.DoRequest(httpClient, req, nil)
 	if status != http.StatusOK {
 		log.Errorf("got status %d while telling %s that im his parent", status, child.Id)

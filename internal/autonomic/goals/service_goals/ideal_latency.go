@@ -5,9 +5,10 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -22,17 +23,6 @@ const (
 
 	ilActionTypeArgIndex = iota
 	ilFromIndex
-)
-
-var (
-	idealLatencyDependencies = []string{
-		autonomic.METRIC_PROCESSING_TIME_PER_SERVICE,
-		autonomic.METRIC_CLIENT_LATENCY_PER_SERVICE,
-		autonomic.METRIC_LOCATION,
-		autonomic.METRIC_AVERAGE_CLIENT_LOCATION,
-		autonomic.METRIC_LOCATION_IN_VICINITY,
-		autonomic.METRIC_NUMBER_OF_INSTANCES_ID,
-	}
 )
 
 type (
@@ -53,14 +43,25 @@ type nodeWithDistance struct {
 type idealLatency struct {
 	serviceId       string
 	serviceChildren *sync.Map
-	environment     *autonomic.Environment
+	environment     *environment.Environment
+	dependencies    []string
 }
 
-func NewIdealLatency(serviceId string, serviceChildren *sync.Map, env *autonomic.Environment) *idealLatency {
+func NewIdealLatency(serviceId string, serviceChildren *sync.Map, env *environment.Environment) *idealLatency {
+	dependencies := []string{
+		metrics.GetProcessingTimePerServiceMetricId(serviceId),
+		metrics.GetClientLatencyPerServiceMetricId(serviceId),
+		metrics.MetricLocation,
+		metrics.GetAverageClientLocationPerServiceMetricId(serviceId),
+		metrics.MetricLocationInVicinity,
+		metrics.GetNumInstancesMetricId(serviceId),
+	}
+
 	goal := &idealLatency{
 		serviceId:       serviceId,
 		serviceChildren: serviceChildren,
 		environment:     env,
+		dependencies:    dependencies,
 	}
 
 	return goal
@@ -77,15 +78,17 @@ func (i *idealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 	}
 
 	// check if processing time is the main reason for latency
-	value, ok := i.environment.GetMetric(autonomic.METRIC_PROCESSING_TIME_PER_SERVICE)
+	processintTimeMetric := metrics.GetProcessingTimePerServiceMetricId(i.serviceId)
+	value, ok := i.environment.GetMetric(processintTimeMetric)
 	if !ok {
-		log.Debugf("no value for metric %s", autonomic.METRIC_PROCESSING_TIME_PER_SERVICE)
+		log.Debugf("no value for metric %s", processintTimeMetric)
 	} else {
 		processingTime := value.(int)
 
-		value, ok = i.environment.GetMetric(autonomic.METRIC_CLIENT_LATENCY_PER_SERVICE)
+		clientLatencyMetric := metrics.GetClientLatencyPerServiceMetricId(i.serviceId)
+		value, ok = i.environment.GetMetric(clientLatencyMetric)
 		if !ok {
-			log.Debugf("no value for metric %s", autonomic.METRIC_CLIENT_LATENCY_PER_SERVICE)
+			log.Debugf("no value for metric %s", clientLatencyMetric)
 			return
 		}
 
@@ -99,9 +102,10 @@ func (i *idealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 		}
 	}
 
-	value, ok = i.environment.GetMetric(autonomic.METRIC_AVERAGE_CLIENT_LOCATION)
+	avgClientLocMetric := metrics.GetAverageClientLocationPerServiceMetricId(i.serviceId)
+	value, ok = i.environment.GetMetric(avgClientLocMetric)
 	if !ok {
-		log.Debugf("no value for metric %s", autonomic.METRIC_AVERAGE_CLIENT_LOCATION)
+		log.Debugf("no value for metric %s", avgClientLocMetric)
 		return
 	}
 
@@ -166,9 +170,9 @@ func (i *idealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[st
 }
 
 func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, info map[string]interface{}, success bool) {
-	value, ok := i.environment.GetMetric(autonomic.METRIC_LOCATION_IN_VICINITY)
+	value, ok := i.environment.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
-		log.Debugf("no value for metric %s", autonomic.METRIC_LOCATION_IN_VICINITY)
+		log.Debugf("no value for metric %s", metrics.MetricLocationInVicinity)
 		return nil, nil, false
 	}
 
@@ -209,19 +213,21 @@ func (i *idealLatency) GenerateAction(target string, args ...interface{}) action
 
 func (i *idealLatency) TestDryRun() (valid bool) {
 	envCopy := i.environment.Copy()
-	value, ok := envCopy.GetMetric(autonomic.METRIC_NUMBER_OF_INSTANCES_ID)
+	numInstancesMetric := metrics.GetNumInstancesMetricId(i.serviceId)
+	value, ok := envCopy.GetMetric(numInstancesMetric)
 	if !ok {
+		log.Debugf("no value for metric %s", numInstancesMetric)
 		return false
 	}
 
 	numInstances := value.(int)
-	envCopy.SetMetric(autonomic.METRIC_NUMBER_OF_INSTANCES_ID, numInstances+1)
+	envCopy.SetMetric(numInstancesMetric, numInstances+1)
 
 	return envCopy.CheckConstraints() == nil
 }
 
 func (i *idealLatency) GetDependencies() (metrics []string) {
-	return idealLatencyDependencies
+	return i.dependencies
 }
 
 func (i *idealLatency) calcFurthestChildDistance(avgLocation float64) (

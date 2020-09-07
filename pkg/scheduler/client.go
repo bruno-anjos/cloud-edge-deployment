@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/docker/go-connections/nat"
 )
@@ -29,7 +28,7 @@ func (c *Client) StartInstance(serviceName, imageName string, ports nat.PortSet,
 		EnvVars:     envVars,
 	}
 
-	path := scheduler.GetInstancesPath()
+	path := api.GetInstancesPath()
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -38,7 +37,7 @@ func (c *Client) StartInstance(serviceName, imageName string, ports nat.PortSet,
 }
 
 func (c *Client) StopInstance(instanceId string) (status int) {
-	path := scheduler.GetInstancePath(instanceId)
+	path := api.GetInstancePath(instanceId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -47,7 +46,7 @@ func (c *Client) StopInstance(instanceId string) (status int) {
 }
 
 func (c *Client) StopAllInstances() (status int) {
-	path := scheduler.GetInstancesPath()
+	path := api.GetInstancesPath()
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)

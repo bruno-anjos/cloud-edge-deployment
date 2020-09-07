@@ -5,7 +5,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -15,7 +14,7 @@ func sendHeartbeatsPeriodically() {
 	for {
 		children.Range(func(key, value interface{}) bool {
 			child := value.(typeChildrenMapValue)
-			childrenClient.SetHostPort(child.Addr, deployer.Port)
+			childrenClient.SetHostPort(child.Addr)
 			status := childrenClient.SetParentAlive(myself.Id)
 			if status != http.StatusOK {
 				log.Errorf("got status %d while telling %s that i was alive", status, child.Id)

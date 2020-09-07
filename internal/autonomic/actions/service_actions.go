@@ -28,6 +28,6 @@ func (r *RedirectAction) GetAmount() int {
 
 func (r *RedirectAction) Execute(client utils.Client) {
 	assertedClient := client.(*archimedes.Client)
-	assertedClient.SetHostPort(r.GetOrigin(), archimedes.Port)
+	assertedClient.SetHostPort(r.GetOrigin())
 	assertedClient.Redirect(r.GetServiceId(), r.GetTarget(), r.GetAmount())
 }
