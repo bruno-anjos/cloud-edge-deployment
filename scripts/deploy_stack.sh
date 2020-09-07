@@ -31,7 +31,7 @@ run &
 
 SERVICE_NAME="deployer"
 PORT="50002"
-ALTERNATIVES_DIR="$REL_PATH/../build/deployer/alternatives"
+ALTERNATIVES_DIR="$(pwd)/$REL_PATH/../build/deployer/alternatives"
 OPTIONS="--mount type=bind,source=$ALTERNATIVES_DIR,target=/alternatives"
 run &
 
