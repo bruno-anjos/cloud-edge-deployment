@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -13,7 +14,7 @@ import (
 )
 
 var (
-	deployerClient = deployer.NewDeployerClient(utils.LocalhostAddr)
+	deployerClient = deployer.NewDeployerClient(utils.LocalhostAddr + ":" + strconv.Itoa(deployer.Port))
 )
 
 func main() {
