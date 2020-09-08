@@ -5,6 +5,7 @@ import (
 )
 
 const (
+	MetricNodeAddr           = "METRIC_NODE_ADDR"
 	MetricLocation           = "METRIC_LOCATION"
 	MetricLocationInVicinity = "METRIC_LOCATION_VICINITY"
 
