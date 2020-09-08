@@ -158,12 +158,20 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 	avgClientLocation := arg.(float64)
 	_, furthestChildDistance := i.calcFurthestChildDistance(avgClientLocation)
 
-	for nodeId, value := range locationsInVicinity {
+	value, ok = i.environment.GetMetric(metrics.MetricNodeAddr)
+	if !ok {
+		log.Debugf("no value for metric %s", metrics.MetricNodeAddr)
+		return nil, nil, false
+	}
+
+	myself := value.(string)
+
+	for nodeId, locationValue := range locationsInVicinity {
 		_, ok = i.serviceChildren.Load(nodeId)
-		if ok {
+		if ok || nodeId == myself {
 			continue
 		}
-		location := value.(float64)
+		location := locationValue.(float64)
 		delta := location - avgClientLocation
 		candidates[nodeId] = &nodeWithDistance{
 			NodeId:             nodeId,
