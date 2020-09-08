@@ -168,9 +168,9 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 
 func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
-	targetId := utils.ExtractPathVar(r, DeployerIdPathVar)
+	targetAddr := utils.ExtractPathVar(r, DeployerIdPathVar)
 
-	log.Debugf("handling request to extend deployment %s to %s", deploymentId, targetId)
+	log.Debugf("handling request to extend deployment %s to %s", deploymentId, targetAddr)
 
 	if !hierarchyTable.HasDeployment(deploymentId) {
 		log.Debugf("deployment %s does not exist, ignoring extension request", deploymentId)
@@ -178,20 +178,16 @@ func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deploymentChildren := hierarchyTable.GetChildren(deploymentId)
-	_, ok := deploymentChildren[targetId]
-	if !ok {
-		log.Debugf("deployment %s does not have %s as its child, ignoring extension request", deploymentId,
-			targetId)
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
 	config := hierarchyTable.GetDeploymentConfig(deploymentId)
 
-	client := deployer.NewDeployerClient(targetId)
+	client := deployer.NewDeployerClient(targetAddr + ":" + strconv.Itoa(deployer.Port))
 	isStatic := hierarchyTable.IsStatic(deploymentId)
-	client.RegisterService(deploymentId, isStatic, config)
+	status := client.RegisterService(deploymentId, isStatic, config)
+	if status != http.StatusOK {
+		log.Debugf("got status %d while attempting to register %s in %s", status, deploymentId, targetAddr)
+		w.WriteHeader(status)
+		return
+	}
 }
 
 func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
