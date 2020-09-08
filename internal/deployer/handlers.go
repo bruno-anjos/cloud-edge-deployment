@@ -46,8 +46,8 @@ const (
 )
 
 var (
-	archimedesClient = archimedes.NewArchimedesClient(archimedes.ArchimedesServiceName)
-	schedulerClient  = scheduler.NewSchedulerClient(scheduler.SchedulerServiceName)
+	archimedesClient = archimedes.NewArchimedesClient(archimedes.DefaultHostPort)
+	schedulerClient  = scheduler.NewSchedulerClient(scheduler.DefaultHostPort)
 )
 
 var (
@@ -112,6 +112,8 @@ func init() {
 }
 
 func expandTreeHandler(_ http.ResponseWriter, r *http.Request) {
+	log.Debugf("handling expand tree request")
+
 	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
 
 	log.Debugf("quality not assured for %s", deploymentId)
@@ -155,7 +157,7 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := deployer.NewDeployerClient(origin.Addr)
+	client := deployer.NewDeployerClient(origin.Addr + ":" + strconv.Itoa(deployer.Port))
 	client.DeleteService(serviceId)
 
 	client.SetHostPort(target.Addr)
@@ -167,6 +169,8 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
 	targetId := utils.ExtractPathVar(r, DeployerIdPathVar)
+
+	log.Debugf("handling request to extend deployment %s to %s", deploymentId, targetId)
 
 	if !hierarchyTable.HasDeployment(deploymentId) {
 		log.Debugf("deployment %s does not exist, ignoring extension request", deploymentId)
@@ -194,6 +198,8 @@ func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
 	targetId := utils.ExtractPathVar(r, DeployerIdPathVar)
 
+	log.Debugf("handling shorten deployment %s from %s", deploymentId, targetId)
+
 	if !hierarchyTable.HasDeployment(deploymentId) {
 		log.Debugf("deployment %s does not exist, ignoring shortening request", deploymentId)
 		w.WriteHeader(http.StatusNotFound)
@@ -214,6 +220,7 @@ func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func childDeletedDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
+	log.Debugf("handling child deleted request")
 	serviceId := utils.ExtractPathVar(r, DeploymentIdPathVar)
 	childId := utils.ExtractPathVar(r, DeployerIdPathVar)
 
@@ -257,7 +264,7 @@ func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	parent := hierarchyTable.GetParent(deploymentId)
 	if parent != nil {
-		client := deployer.NewDeployerClient(parent.Addr)
+		client := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
 		status := client.ChildDeletedDeployment(deploymentId, myself.Id)
 		if status != http.StatusOK {
 			log.Errorf("got status %d from child deleted deployment", status)

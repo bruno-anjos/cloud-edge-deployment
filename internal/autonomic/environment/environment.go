@@ -51,7 +51,7 @@ func (e *Environment) loadSimFile() {
 	}
 
 	for metricId, metricValue := range metrics {
-		log.Debugf("loaded metric %d with value %v", metricId, metricValue)
+		log.Debugf("loaded metric %s with value %v", metricId, metricValue)
 		e.TrackMetric(metricId)
 		e.SetMetric(metricId, metricValue)
 	}

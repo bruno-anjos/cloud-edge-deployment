@@ -34,7 +34,7 @@ const (
 )
 
 var (
-	deployerClient      = deployer.NewDeployerClient(deployer.DeployerServiceName)
+	deployerClient      = deployer.NewDeployerClient(deployer.DefaultHostPort)
 	dockerClient        *client.Client
 	networkId           string
 	instanceToContainer sync.Map

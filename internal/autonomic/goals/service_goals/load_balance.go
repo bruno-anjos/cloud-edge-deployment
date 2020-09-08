@@ -18,6 +18,8 @@ const (
 	actionArgMostBusy = 0
 
 	defaultGroupSize = 0.10
+
+	loadBalanceGoalId = "GOAL_LOAD_BALANCE"
 )
 
 var (
@@ -46,20 +48,30 @@ func NewLoadBalance(serviceId string, env *environment.Environment) *LoadBalance
 func (l *LoadBalance) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRange goals.Range,
 	actionArgs []interface{}) {
 	isAlreadyMax = true
-	optRange = nil
+	optRange = optDomain
 	actionArgs = nil
 
 	candidateIds, sortingCriteria, ok := l.GenerateDomain(nil)
 	if !ok {
 		return
 	}
+	log.Debugf("%s generated domain %+v", loadBalanceGoalId, candidateIds)
 
 	filtered := l.Filter(candidateIds, optDomain)
+	log.Debugf("%s filtered result %+v", loadBalanceGoalId, filtered)
+
 	ordered := l.Order(filtered, sortingCriteria)
+	log.Debugf("%s ordered result %+v", loadBalanceGoalId, ordered)
+
+	if len(ordered) < 2 {
+		return
+	}
 
 	mostBusy := ordered[len(ordered)-1]
 
 	optRange, isAlreadyMax = l.Cutoff(ordered, sortingCriteria)
+	log.Debugf("%s cutoff result %+v", loadBalanceGoalId, optRange)
+
 	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
 	actionArgs[actionArgMostBusy] = mostBusy
 
@@ -154,4 +166,8 @@ func (l *LoadBalance) DecreaseMigrationGroupSize() {
 
 func (l *LoadBalance) ResetMigrationGroupSize() {
 	migrationGroupSize = defaultGroupSize
+}
+
+func (l *LoadBalance) GetId() string {
+	return loadBalanceGoalId
 }

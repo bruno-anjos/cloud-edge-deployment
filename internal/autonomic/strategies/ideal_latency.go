@@ -10,6 +10,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals/service_goals"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -40,7 +41,7 @@ func NewDefaultIdealLatencyStrategy(serviceId string, serviceChildren *sync.Map,
 	return &idealLatencyStrategy{
 		BasicStrategy: NewBasicStrategy(defaultGoals),
 		redirected:    0,
-		archClient:    archimedes.NewArchimedesClient(archimedes.ArchimedesServiceName),
+		archClient:    archimedes.NewArchimedesClient(archimedes.DefaultHostPort),
 		serviceId:     serviceId,
 		env:           env,
 		lbGoal:        lbGoal,
@@ -55,12 +56,19 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 	)
 
 	for _, goal := range i.goals {
+		log.Debugf("optimizing %s", goal.GetId())
 		isAlreadyMax, optRange, actionArgs := goal.Optimize(nextDomain)
+		log.Debugf("%s generated optRange %+v", goal.GetId(), optRange)
 		if isAlreadyMax {
-			nextDomain = optRange
+			log.Debugf("%s is already maximized", goal.GetId())
 		} else {
+			log.Debugf("%s not maximized", goal.GetId())
 			goalToChooseActionFrom = goal
 			goalActionArgs = actionArgs
+		}
+
+		if optRange != nil {
+			nextDomain = optRange
 		}
 	}
 
@@ -68,7 +76,8 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 		return nil
 	}
 
-	action := goalToChooseActionFrom.GenerateAction(nextDomain[0], goalActionArgs)
+	action := goalToChooseActionFrom.GenerateAction(nextDomain[0], goalActionArgs...)
+	log.Debugf("generated action of type %s", action.GetActionId())
 	if action.GetActionId() == actions.REDIRECT_CLIENTS_ID {
 		if i.redirecting {
 			// case where i WAS already redirecting

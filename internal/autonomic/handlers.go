@@ -6,6 +6,7 @@ import (
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -13,8 +14,12 @@ var (
 )
 
 func init() {
+	log.SetLevel(log.DebugLevel)
+
 	autonomicSystem = newSystem()
 	autonomicSystem.start()
+
+	log.SetLevel(log.InfoLevel)
 }
 
 func addServiceHandler(_ http.ResponseWriter, r *http.Request) {

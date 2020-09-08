@@ -57,7 +57,7 @@ func (c *Client) RegisterService(serviceId string, static bool,
 		Static:              static,
 		DeploymentYAMLBytes: deploymentYamlBytes,
 	}
-	path := api.GetServicePath(serviceId)
+	path := api.GetDeploymentsPath()
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)

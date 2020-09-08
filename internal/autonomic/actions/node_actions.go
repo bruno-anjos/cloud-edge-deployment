@@ -1,8 +1,11 @@
 package actions
 
 import (
+	"net/http"
+
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -37,8 +40,12 @@ func NewAddServiceAction(serviceId, target string) *AddServiceAction {
 }
 
 func (m *AddServiceAction) Execute(client utils.Client) {
-	deployerClient := client.(deployer.Client)
-	deployerClient.ExtendDeploymentTo(m.GetServiceId(), m.GetTarget())
+	log.Debugf("executing %s", ADD_SERVICE_ID)
+	deployerClient := client.(*deployer.Client)
+	status := deployerClient.ExtendDeploymentTo(m.GetServiceId(), m.GetTarget())
+	if status != http.StatusOK {
+		log.Errorf("got status code %d while extending deployment", status)
+	}
 }
 
 type MigrateAction struct {
@@ -52,6 +59,10 @@ func NewMigrateAction(serviceId, from, to string) *MigrateAction {
 }
 
 func (m *MigrateAction) Execute(client utils.Client) {
+	log.Debugf("executing %s", MIGRATE_SERVICE_ID)
 	deployerClient := client.(deployer.Client)
-	deployerClient.MigrateDeployment(m.GetServiceId(), m.GetOrigin(), m.GetTarget())
+	status := deployerClient.MigrateDeployment(m.GetServiceId(), m.GetOrigin(), m.GetTarget())
+	if status == http.StatusOK {
+		log.Errorf("got status code %d while extending deployment", status)
+	}
 }

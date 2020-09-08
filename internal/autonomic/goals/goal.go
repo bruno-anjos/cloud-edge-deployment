@@ -18,6 +18,7 @@ type Goal interface {
 	Cutoff(candidates Domain, candidatesCriteria map[string]interface{}) (cutoff Range, maxed bool)
 	TestDryRun() bool
 	GetDependencies() (metrics []string)
+	GetId() string
 }
 
 func DefaultFilter(candidates, domain Domain) (filtered Range) {

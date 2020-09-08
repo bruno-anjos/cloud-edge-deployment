@@ -67,7 +67,7 @@ type (
 func NewHierarchyTable() *HierarchyTable {
 	return &HierarchyTable{
 		hierarchyEntries: sync.Map{},
-		autonomicClient:  autonomic.NewAutonomicClient(autonomic.AutonomicServiceName),
+		autonomicClient:  autonomic.NewAutonomicClient(autonomic.DefaultHostPort),
 	}
 }
 

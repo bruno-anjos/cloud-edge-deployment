@@ -9,6 +9,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/strategies"
@@ -35,8 +36,8 @@ func newSystem() *system {
 	return &system{
 		services:         &sync.Map{},
 		env:              environment.NewEnvironment(),
-		deployerClient:   deployer.NewDeployerClient(deployer.DeployerServiceName),
-		archimedesClient: archimedes.NewArchimedesClient(archimedes.ArchimedesServiceName),
+		deployerClient:   deployer.NewDeployerClient(deployer.DefaultHostPort),
+		archimedesClient: archimedes.NewArchimedesClient(archimedes.DefaultHostPort),
 	}
 }
 
@@ -112,8 +113,12 @@ func (a *system) start() {
 		for {
 			<-timer.C
 			a.services.Range(func(key, value interface{}) bool {
+				serviceId := key.(string)
 				service := value.(servicesMapValue)
 				action := service.GenerateAction()
+
+				log.Debugf("generated action of type %s for service %s", action.GetActionId(), serviceId)
+
 				a.performAction(action)
 				return true
 			})
@@ -126,7 +131,11 @@ func (a *system) performAction(action actions.Action) {
 	switch assertedAction := action.(type) {
 	case *actions.RedirectAction:
 		assertedAction.Execute(a.archimedesClient)
+	case *actions.AddServiceAction:
+		assertedAction.Execute(a.deployerClient)
 	case *actions.MigrateAction:
 		assertedAction.Execute(a.deployerClient)
+	default:
+		log.Errorf("could not execute action of type %s", action.GetActionId())
 	}
 }
