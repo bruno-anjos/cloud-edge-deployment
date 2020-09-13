@@ -10,9 +10,10 @@ const (
 
 	PrefixPath = "/autonomic"
 
-	ServicesPath     = "/services"
-	ServicePath      = "/services/%s"
-	ServiceChildPath = "/services/%s/child/%s"
+	ServicesPath      = "/services"
+	ServicePath       = "/services/%s"
+	ServiceChildPath  = "/services/%s/child/%s"
+	ServiceParentPath = "/services/%s/parent/%s"
 )
 
 func GetServicesPath() string {
@@ -25,4 +26,8 @@ func GetServicePath(serviceId string) string {
 
 func GetServiceChildPath(serviceId, childId string) string {
 	return PrefixPath + fmt.Sprintf(ServiceChildPath, serviceId, childId)
+}
+
+func GetServiceParentPath(serviceId, parentId string) string {
+	return PrefixPath + fmt.Sprintf(ServiceParentPath, serviceId, parentId)
 }

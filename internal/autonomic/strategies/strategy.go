@@ -8,19 +8,22 @@ import (
 type Strategy interface {
 	Optimize() actions.Action
 	GetDependencies() (metricIds []string)
+	GetId() string
 }
 
-type BasicStrategy struct {
+type basicStrategy struct {
+	id    string
 	goals []goals.Goal
 }
 
-func NewBasicStrategy(goals []goals.Goal) *BasicStrategy {
-	return &BasicStrategy{
+func newBasicStrategy(id string, goals []goals.Goal) *basicStrategy {
+	return &basicStrategy{
+		id:    id,
 		goals: goals,
 	}
 }
 
-func (b *BasicStrategy) Optimize() actions.Action {
+func (b *basicStrategy) Optimize() actions.Action {
 	var (
 		nextDomain             goals.Domain
 		goalToChooseActionFrom goals.Goal
@@ -44,10 +47,14 @@ func (b *BasicStrategy) Optimize() actions.Action {
 	return goalToChooseActionFrom.GenerateAction(nextDomain[0], goalActionArgs)
 }
 
-func (b *BasicStrategy) GetDependencies() (metricIds []string) {
+func (b *basicStrategy) GetDependencies() (metricIds []string) {
 	for _, goal := range b.goals {
 		metricIds = append(metricIds, goal.GetDependencies()...)
 	}
 
 	return
+}
+
+func (b *basicStrategy) GetId() string {
+	return b.id
 }

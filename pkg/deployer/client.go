@@ -51,8 +51,10 @@ func (c *Client) GetServices() (serviceIds []string, status int) {
 }
 
 func (c *Client) RegisterService(serviceId string, static bool,
-	deploymentYamlBytes []byte) (status int) {
+	deploymentYamlBytes []byte, parent, grandparent *utils.Node) (status int) {
 	reqBody := api.RegisterServiceRequestBody{
+		Parent:              parent,
+		Grandparent:         grandparent,
 		DeploymentId:        serviceId,
 		Static:              static,
 		DeploymentYAMLBytes: deploymentYamlBytes,

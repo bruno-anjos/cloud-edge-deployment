@@ -1,5 +1,5 @@
 package autonomic
 
 type (
-	AddServiceRequestBody = ServiceConfig
+	AddServiceRequestBody = serviceConfig
 )

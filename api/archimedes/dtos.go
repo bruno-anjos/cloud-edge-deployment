@@ -10,7 +10,7 @@ type ResolvedDTO struct {
 	Port string
 }
 
-type ServiceDTO struct {
+type serviceDTO struct {
 	Ports nat.PortSet
 }
 
@@ -36,16 +36,16 @@ type DiscoverMsg struct {
 	Entries      map[string]*ServicesTableEntryDTO
 }
 
-type NeighborDTO struct {
+type neighborDTO struct {
 	Addr string
 }
 
-type ToResolveDTO struct {
+type toResolveDTO struct {
 	Host string
 	Port nat.Port
 }
 
-type RedirectDTO struct {
+type redirectDTO struct {
 	Amount int32
 	Target string
 }

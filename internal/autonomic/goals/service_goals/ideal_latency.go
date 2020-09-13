@@ -29,15 +29,15 @@ const (
 	ilFromIndex
 )
 
-type (
-	serviceChildrenMapKey   = string
-	serviceChildrenMapValue = *nodeWithLocation
-)
-
-type nodeWithLocation struct {
+type NodeWithLocation struct {
 	NodeId   string
 	Location float64
 }
+
+type (
+	serviceChildrenMapKey   = string
+	serviceChildrenMapValue = *NodeWithLocation
+)
 
 type nodeWithDistance struct {
 	NodeId             string
@@ -47,11 +47,14 @@ type nodeWithDistance struct {
 type idealLatency struct {
 	serviceId       string
 	serviceChildren *sync.Map
+	suspected       *sync.Map
 	environment     *environment.Environment
 	dependencies    []string
+	parentId        **string
 }
 
-func NewIdealLatency(serviceId string, serviceChildren *sync.Map, env *environment.Environment) *idealLatency {
+func NewIdealLatency(serviceId string, serviceChildren, suspected *sync.Map,
+	parentId **string, env *environment.Environment) *idealLatency {
 	dependencies := []string{
 		metrics.GetProcessingTimePerServiceMetricId(serviceId),
 		metrics.GetClientLatencyPerServiceMetricId(serviceId),
@@ -64,8 +67,10 @@ func NewIdealLatency(serviceId string, serviceChildren *sync.Map, env *environme
 	goal := &idealLatency{
 		serviceId:       serviceId,
 		serviceChildren: serviceChildren,
+		suspected:       suspected,
 		environment:     env,
 		dependencies:    dependencies,
+		parentId:        parentId,
 	}
 
 	return goal
@@ -166,9 +171,13 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 
 	myself := value.(string)
 
+	log.Debugf("nodes in vicinity: %+v", locationsInVicinity)
+	log.Debugf("i'm %s, my father is %s", myself, **i.parentId)
 	for nodeId, locationValue := range locationsInVicinity {
-		_, ok = i.serviceChildren.Load(nodeId)
-		if ok || nodeId == myself {
+		_, okC := i.serviceChildren.Load(nodeId)
+		_, okS := i.suspected.Load(nodeId)
+		if okC || okS || nodeId == myself || nodeId == **i.parentId {
+			log.Debugf("ignoring %s", nodeId)
 			continue
 		}
 		location := locationValue.(float64)

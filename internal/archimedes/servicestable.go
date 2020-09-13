@@ -3,16 +3,16 @@ package archimedes
 import (
 	"sync"
 
-	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
+	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
 type (
-	ServicesTableEntry struct {
+	servicesTableEntry struct {
 		Host         *utils.Node
-		Service      *archimedes2.Service
+		Service      *api.Service
 		Instances    *sync.Map
 		NumberOfHops int
 		MaxHops      int
@@ -21,8 +21,8 @@ type (
 	}
 )
 
-func NewTempServiceTableEntry() *ServicesTableEntry {
-	return &ServicesTableEntry{
+func newTempServiceTableEntry() *servicesTableEntry {
+	return &servicesTableEntry{
 		Host:         nil,
 		Service:      nil,
 		Instances:    nil,
@@ -33,8 +33,8 @@ func NewTempServiceTableEntry() *ServicesTableEntry {
 	}
 }
 
-func (se *ServicesTableEntry) ToDTO() *archimedes2.ServicesTableEntryDTO {
-	instances := map[string]*archimedes2.Instance{}
+func (se *servicesTableEntry) toChangedDTO() *api.ServicesTableEntryDTO {
+	instances := map[string]*api.Instance{}
 
 	se.EntryLock.RLock()
 	defer se.EntryLock.RUnlock()
@@ -50,7 +50,32 @@ func (se *ServicesTableEntry) ToDTO() *archimedes2.ServicesTableEntryDTO {
 		return true
 	})
 
-	return &archimedes2.ServicesTableEntryDTO{
+	return &api.ServicesTableEntryDTO{
+		Host:         se.Host.Id,
+		HostAddr:     se.Host.Addr,
+		Service:      se.Service,
+		Instances:    instances,
+		NumberOfHops: se.NumberOfHops,
+		MaxHops:      se.MaxHops,
+		Version:      se.Version,
+	}
+}
+
+func (se *servicesTableEntry) toDTO() *api.ServicesTableEntryDTO {
+	instances := map[string]*api.Instance{}
+
+	se.EntryLock.RLock()
+	defer se.EntryLock.RUnlock()
+
+	se.Instances.Range(func(key, value interface{}) bool {
+		instanceId := key.(typeInstancesMapKey)
+		instance := value.(typeInstancesMapValue)
+		instances[instanceId] = instance
+
+		return true
+	})
+
+	return &api.ServicesTableEntryDTO{
 		Host:         se.Host.Id,
 		HostAddr:     se.Host.Addr,
 		Service:      se.Service,
@@ -62,7 +87,7 @@ func (se *ServicesTableEntry) ToDTO() *archimedes2.ServicesTableEntryDTO {
 }
 
 type (
-	ServicesTable struct {
+	servicesTable struct {
 		addLock              sync.Mutex
 		servicesMap          sync.Map
 		instancesMap         sync.Map
@@ -70,17 +95,17 @@ type (
 	}
 
 	typeServicesTableMapKey   = string
-	typeServicesTableMapValue = *ServicesTableEntry
+	typeServicesTableMapValue = *servicesTableEntry
 
 	typeInstancesMapKey   = string
-	typeInstancesMapValue = *archimedes2.Instance
+	typeInstancesMapValue = *api.Instance
 
 	typeNeighborsServicesMapKey   = string
 	typeNeighborsServicesMapValue = *sync.Map
 )
 
-func NewServicesTable() *ServicesTable {
-	return &ServicesTable{
+func newServicesTable() *servicesTable {
+	return &servicesTable{
 		addLock:              sync.Mutex{},
 		servicesMap:          sync.Map{},
 		instancesMap:         sync.Map{},
@@ -88,7 +113,7 @@ func NewServicesTable() *ServicesTable {
 	}
 }
 
-func (st *ServicesTable) UpdateService(serviceId string, newEntry *archimedes2.ServicesTableEntryDTO) bool {
+func (st *servicesTable) updateService(serviceId string, newEntry *api.ServicesTableEntryDTO) bool {
 	value, ok := st.servicesMap.Load(serviceId)
 	if !ok {
 		log.Fatalf("service %s doesnt exist", serviceId)
@@ -140,7 +165,7 @@ func (st *ServicesTable) UpdateService(serviceId string, newEntry *archimedes2.S
 	return true
 }
 
-func (st *ServicesTable) AddService(serviceId string, newEntry *archimedes2.ServicesTableEntryDTO) (added bool) {
+func (st *servicesTable) addService(serviceId string, newEntry *api.ServicesTableEntryDTO) (added bool) {
 	_, ok := st.servicesMap.Load(serviceId)
 	if ok {
 		added = false
@@ -155,7 +180,7 @@ func (st *ServicesTable) AddService(serviceId string, newEntry *archimedes2.Serv
 		return
 	}
 
-	newTableEntry := NewTempServiceTableEntry()
+	newTableEntry := newTempServiceTableEntry()
 	newTableEntry.EntryLock.Lock()
 	defer newTableEntry.EntryLock.Unlock()
 	st.servicesMap.Store(serviceId, newTableEntry)
@@ -187,7 +212,7 @@ func (st *ServicesTable) AddService(serviceId string, newEntry *archimedes2.Serv
 	return
 }
 
-func (st *ServicesTable) GetService(serviceId string) (service *archimedes2.Service, ok bool) {
+func (st *servicesTable) getService(serviceId string) (service *api.Service, ok bool) {
 	value, ok := st.servicesMap.Load(serviceId)
 	if !ok {
 		return nil, false
@@ -200,8 +225,8 @@ func (st *ServicesTable) GetService(serviceId string) (service *archimedes2.Serv
 	return entry.Service, true
 }
 
-func (st *ServicesTable) GetAllServices() map[string]*archimedes2.Service {
-	services := map[string]*archimedes2.Service{}
+func (st *servicesTable) getAllServices() map[string]*api.Service {
+	services := map[string]*api.Service{}
 
 	st.servicesMap.Range(func(key, value interface{}) bool {
 		serviceId := key.(string)
@@ -217,8 +242,8 @@ func (st *ServicesTable) GetAllServices() map[string]*archimedes2.Service {
 	return services
 }
 
-func (st *ServicesTable) GetAllServiceInstances(serviceId string) map[string]*archimedes2.Instance {
-	instances := map[string]*archimedes2.Instance{}
+func (st *servicesTable) getAllServiceInstances(serviceId string) map[string]*api.Instance {
+	instances := map[string]*api.Instance{}
 
 	value, ok := st.servicesMap.Load(serviceId)
 	if !ok {
@@ -241,7 +266,7 @@ func (st *ServicesTable) GetAllServiceInstances(serviceId string) map[string]*ar
 	return instances
 }
 
-func (st *ServicesTable) AddInstance(serviceId, instanceId string, instance *archimedes2.Instance) (added bool) {
+func (st *servicesTable) addInstance(serviceId, instanceId string, instance *api.Instance) (added bool) {
 	value, ok := st.servicesMap.Load(serviceId)
 	if !ok {
 		added = false
@@ -261,7 +286,7 @@ func (st *ServicesTable) AddInstance(serviceId, instanceId string, instance *arc
 	return
 }
 
-func (st *ServicesTable) ServiceHasInstance(serviceId, instanceId string) bool {
+func (st *servicesTable) serviceHasInstance(serviceId, instanceId string) bool {
 	value, ok := st.servicesMap.Load(serviceId)
 	if !ok {
 		return false
@@ -277,7 +302,7 @@ func (st *ServicesTable) ServiceHasInstance(serviceId, instanceId string) bool {
 	return ok
 }
 
-func (st *ServicesTable) GetServiceInstance(serviceId, instanceId string) (*archimedes2.Instance, bool) {
+func (st *servicesTable) getServiceInstance(serviceId, instanceId string) (*api.Instance, bool) {
 	value, ok := st.servicesMap.Load(serviceId)
 	if !ok {
 		return nil, false
@@ -296,7 +321,7 @@ func (st *ServicesTable) GetServiceInstance(serviceId, instanceId string) (*arch
 	return value.(typeInstancesMapValue), ok
 }
 
-func (st *ServicesTable) GetInstance(instanceId string) (instance *archimedes2.Instance, ok bool) {
+func (st *servicesTable) getInstance(instanceId string) (instance *api.Instance, ok bool) {
 	value, ok := st.instancesMap.Load(instanceId)
 	if !ok {
 		return nil, false
@@ -305,7 +330,7 @@ func (st *ServicesTable) GetInstance(instanceId string) (instance *archimedes2.I
 	return value.(typeInstancesMapValue), true
 }
 
-func (st *ServicesTable) DeleteService(serviceId string) {
+func (st *servicesTable) deleteService(serviceId string) {
 	value, ok := st.servicesMap.Load(serviceId)
 	if !ok {
 		return
@@ -317,14 +342,14 @@ func (st *ServicesTable) DeleteService(serviceId string) {
 
 	entry.Instances.Range(func(key, _ interface{}) bool {
 		instanceId := key.(typeInstancesMapKey)
-		st.DeleteInstance(serviceId, instanceId)
+		st.deleteInstance(serviceId, instanceId)
 		return true
 	})
 
 	st.servicesMap.Delete(serviceId)
 }
 
-func (st *ServicesTable) DeleteInstance(serviceId, instanceId string) {
+func (st *servicesTable) deleteInstance(serviceId, instanceId string) {
 	value, ok := st.instancesMap.Load(serviceId)
 	if ok {
 		entry := value.(typeServicesTableMapValue)
@@ -338,7 +363,7 @@ func (st *ServicesTable) DeleteInstance(serviceId, instanceId string) {
 
 		if numInstances == 0 {
 			log.Debugf("no instances left, deleting service %s", serviceId)
-			defer st.DeleteService(serviceId)
+			defer st.deleteService(serviceId)
 		}
 
 		entry.EntryLock.RUnlock()
@@ -347,8 +372,8 @@ func (st *ServicesTable) DeleteInstance(serviceId, instanceId string) {
 	st.instancesMap.Delete(instanceId)
 }
 
-func (st *ServicesTable) UpdateTableWithDiscoverMessage(neighbor string,
-	discoverMsg *archimedes2.DiscoverMsg) (changed bool) {
+func (st *servicesTable) updateTableWithDiscoverMessage(neighbor string,
+	discoverMsg *api.DiscoverMsg) (changed bool) {
 	log.Debugf("updating table from message %s", discoverMsg.MessageId.String())
 
 	changed = false
@@ -363,22 +388,22 @@ func (st *ServicesTable) UpdateTableWithDiscoverMessage(neighbor string,
 		_, ok := st.servicesMap.Load(serviceId)
 		if ok {
 			log.Debugf("service %s already existed, updating", serviceId)
-			updated := st.UpdateService(serviceId, entry)
+			updated := st.updateService(serviceId, entry)
 			if updated {
 				changed = true
 			}
 			continue
 		}
 
-		st.AddService(serviceId, entry)
+		st.addService(serviceId, entry)
 		changed = true
 	}
 
 	return changed
 }
 
-func (st *ServicesTable) ToDiscoverMsg(archimedesId string) *archimedes2.DiscoverMsg {
-	entries := map[string]*archimedes2.ServicesTableEntryDTO{}
+func (st *servicesTable) toChangedDiscoverMsg() *api.DiscoverMsg {
+	entries := map[string]*api.ServicesTableEntryDTO{}
 
 	st.servicesMap.Range(func(key, value interface{}) bool {
 		serviceId := key.(typeServicesTableMapKey)
@@ -392,7 +417,7 @@ func (st *ServicesTable) ToDiscoverMsg(archimedesId string) *archimedes2.Discove
 
 		defer entry.EntryLock.RUnlock()
 
-		entryDTO := entry.ToDTO()
+		entryDTO := entry.toChangedDTO()
 		entryDTO.NumberOfHops++
 
 		entries[serviceId] = entryDTO
@@ -404,7 +429,7 @@ func (st *ServicesTable) ToDiscoverMsg(archimedesId string) *archimedes2.Discove
 		return nil
 	}
 
-	return &archimedes2.DiscoverMsg{
+	return &api.DiscoverMsg{
 		MessageId:    uuid.New(),
 		Origin:       archimedesId,
 		NeighborSent: archimedesId,
@@ -412,7 +437,32 @@ func (st *ServicesTable) ToDiscoverMsg(archimedesId string) *archimedes2.Discove
 	}
 }
 
-func (st *ServicesTable) DeleteNeighborServices(neighborId string) {
+func (st *servicesTable) toDiscoverMsg() *api.DiscoverMsg {
+	entries := map[string]*api.ServicesTableEntryDTO{}
+
+	st.servicesMap.Range(func(key, value interface{}) bool {
+		serviceId := key.(typeServicesTableMapKey)
+		entry := value.(typeServicesTableMapValue)
+
+		entryDTO := entry.toDTO()
+		entries[serviceId] = entryDTO
+
+		return true
+	})
+
+	if len(entries) == 0 {
+		return nil
+	}
+
+	return &api.DiscoverMsg{
+		MessageId:    uuid.New(),
+		Origin:       archimedesId,
+		NeighborSent: archimedesId,
+		Entries:      entries,
+	}
+}
+
+func (st *servicesTable) deleteNeighborServices(neighborId string) {
 	value, ok := st.neighborsServicesMap.Load(neighborId)
 	if !ok {
 		return
@@ -421,7 +471,7 @@ func (st *ServicesTable) DeleteNeighborServices(neighborId string) {
 	services := value.(typeNeighborsServicesMapValue)
 	services.Range(func(key, _ interface{}) bool {
 		serviceId := key.(typeNeighborsServicesMapKey)
-		servicesTable.DeleteService(serviceId)
+		sTable.deleteService(serviceId)
 		return true
 	})
 }

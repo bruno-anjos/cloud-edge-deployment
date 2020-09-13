@@ -3,15 +3,17 @@ package deployer
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
+	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	log "github.com/sirupsen/logrus"
 )
 
 func deadChildHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
-	deadChildId := utils.ExtractPathVar(r, DeployerIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deadChildId := utils.ExtractPathVar(r, nodeIdPathVar)
 
 	_, ok := suspectedChild.Load(deadChildId)
 	if ok {
@@ -28,14 +30,14 @@ func deadChildHandler(_ http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("grandchild %s reported deployment %s from %s as dead", grandchild.Id, deploymentId, deadChildId)
 	suspectedChild.Store(deadChildId, nil)
-	hierarchyTable.RemoveChild(deploymentId, deadChildId)
+	hTable.removeChild(deploymentId, deadChildId)
 	children.Delete(deadChildId)
 
-	go attemptToExtend(deploymentId, grandchild, "", 0)
+	go attemptToExtend(deploymentId, "", grandchild, 0)
 }
 
 func takeChildHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
 	child := &utils.Node{}
 	err := json.NewDecoder(r.Body).Decode(child)
@@ -45,7 +47,8 @@ func takeChildHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("told to accept %s as child for deployment %s", child.Id, deploymentId)
 
-	req := utils.BuildRequest(http.MethodPost, child.Addr, deployer.GetImYourParentPath(deploymentId), myself)
+	req := utils.BuildRequest(http.MethodPost, child.Addr+":"+strconv.Itoa(deployer.Port),
+		api.GetImYourParentPath(deploymentId), myself)
 	status, _ := utils.DoRequest(httpClient, req, nil)
 	if status != http.StatusOK {
 		log.Errorf("got status %d while telling %s that im his parent", status, child.Id)
@@ -53,12 +56,12 @@ func takeChildHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hierarchyTable.AddChild(deploymentId, child)
+	hTable.addChild(deploymentId, child)
 	children.Store(child.Id, child)
 }
 
 func iAmYourParentHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
 	parent := &utils.Node{}
 	err := json.NewDecoder(r.Body).Decode(parent)
@@ -68,14 +71,15 @@ func iAmYourParentHandler(_ http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("told to accept %s as parent for deployment %s", parent.Id, deploymentId)
 
-	hierarchyTable.SetDeploymentParent(deploymentId, parent)
+	hTable.setDeploymentParent(deploymentId, parent)
 }
 
 func getHierarchyTableHandler(w http.ResponseWriter, _ *http.Request) {
-	utils.SendJSONReplyOK(w, hierarchyTable.ToDTO())
+	utils.SendJSONReplyOK(w, hTable.toDTO())
 }
 
 func parentAliveHandler(_ http.ResponseWriter, r *http.Request) {
-	parentId := utils.ExtractPathVar(r, DeployerIdPathVar)
-	parentsTable.SetParentUp(parentId)
+	parentId := utils.ExtractPathVar(r, nodeIdPathVar)
+	log.Debugf("parent %s is alive", parentId)
+	pTable.setParentUp(parentId)
 }

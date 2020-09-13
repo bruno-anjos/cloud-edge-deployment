@@ -3,7 +3,6 @@
   "METRIC_LOCATION": 5000.0,
   "METRIC_LOCATION_VICINITY": {
     "node21": 5000.0,
-    "node22": 10000.0,
     "node23": 2000.0
   },
   "METRIC_NUMBER_OF_INSTANCES_PER_SERVICE_A": 0,

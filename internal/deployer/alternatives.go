@@ -13,7 +13,7 @@ import (
 )
 
 func setAlternativesHandler(_ http.ResponseWriter, r *http.Request) {
-	deployerId := utils.ExtractPathVar(r, DeployerIdPathVar)
+	deployerId := utils.ExtractPathVar(r, nodeIdPathVar)
 
 	alternatives := new([]*utils.Node)
 	err := json.NewDecoder(r.Body).Decode(alternatives)

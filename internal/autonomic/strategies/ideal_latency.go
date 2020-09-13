@@ -18,7 +18,7 @@ const (
 )
 
 type idealLatencyStrategy struct {
-	*BasicStrategy
+	*basicStrategy
 	redirected          int
 	redirecting         bool
 	redirectingTo       string
@@ -29,17 +29,17 @@ type idealLatencyStrategy struct {
 	serviceId           string
 }
 
-func NewDefaultIdealLatencyStrategy(serviceId string, serviceChildren *sync.Map,
+func NewDefaultIdealLatencyStrategy(serviceId string, serviceChildren, suspected *sync.Map, parentId **string,
 	env *environment.Environment) *idealLatencyStrategy {
-	lbGoal := service_goals.NewLoadBalance(serviceId, env)
+	lbGoal := service_goals.NewLoadBalance(serviceId, serviceChildren, suspected, parentId, env)
 
 	defaultGoals := []goals.Goal{
-		service_goals.NewIdealLatency(serviceId, serviceChildren, env),
+		service_goals.NewIdealLatency(serviceId, serviceChildren, suspected, parentId, env),
 		lbGoal,
 	}
 
 	return &idealLatencyStrategy{
-		BasicStrategy: NewBasicStrategy(defaultGoals),
+		basicStrategy: newBasicStrategy(StrategyIdealLatencyId, defaultGoals),
 		redirected:    0,
 		archClient:    archimedes.NewArchimedesClient(archimedes.DefaultHostPort),
 		serviceId:     serviceId,

@@ -5,10 +5,10 @@ import (
 )
 
 const (
-	AutonomicServiceName = "autonomic"
+	autonomicServiceName = "autonomic"
 	Port                 = 50003
 )
 
 var (
-	DefaultHostPort = AutonomicServiceName + ":" + strconv.Itoa(Port)
+	DefaultHostPort = autonomicServiceName + ":" + strconv.Itoa(Port)
 )

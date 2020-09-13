@@ -35,7 +35,7 @@ const (
 
 var (
 	messagesReceived sync.Map
-	servicesTable    *ServicesTable
+	sTable           *servicesTable
 	redirectionsMap  sync.Map
 	archimedesId     string
 )
@@ -43,7 +43,7 @@ var (
 func init() {
 	messagesReceived = sync.Map{}
 
-	servicesTable = NewServicesTable()
+	sTable = newServicesTable()
 	redirectionsMap = sync.Map{}
 
 	archimedesId = uuid.New().String()
@@ -71,7 +71,7 @@ func registerServiceHandler(w http.ResponseWriter, r *http.Request) {
 		Ports: serviceDTO.Ports,
 	}
 
-	_, ok := servicesTable.GetService(serviceId)
+	_, ok := sTable.getService(serviceId)
 	if ok {
 		w.WriteHeader(http.StatusConflict)
 		return
@@ -87,7 +87,7 @@ func registerServiceHandler(w http.ResponseWriter, r *http.Request) {
 		Version:      0,
 	}
 
-	servicesTable.AddService(serviceId, newTableEntry)
+	sTable.addService(serviceId, newTableEntry)
 	sendServicesTable()
 
 	log.Debugf("added service %s", serviceId)
@@ -98,13 +98,13 @@ func deleteServiceHandler(w http.ResponseWriter, r *http.Request) {
 
 	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 
-	_, ok := servicesTable.GetService(serviceId)
+	_, ok := sTable.getService(serviceId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	servicesTable.DeleteService(serviceId)
+	sTable.deleteService(serviceId)
 	redirectionsMap.Delete(serviceId)
 
 	log.Debugf("deleted service %s", serviceId)
@@ -115,7 +115,7 @@ func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 
-	_, ok := servicesTable.GetService(serviceId)
+	_, ok := sTable.getService(serviceId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -132,7 +132,7 @@ func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	instanceDTO := req
 
-	ok = servicesTable.ServiceHasInstance(serviceId, instanceId)
+	ok = sTable.serviceHasInstance(serviceId, instanceId)
 	if ok {
 		w.WriteHeader(http.StatusConflict)
 		return
@@ -154,11 +154,11 @@ func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		ServiceId:       serviceId,
 		PortTranslation: instanceDTO.PortTranslation,
 		Initialized:     instanceDTO.Static,
-		Static:          false,
+		Static:          instanceDTO.Static,
 		Local:           instanceDTO.Local,
 	}
 
-	servicesTable.AddInstance(serviceId, instanceId, instance)
+	sTable.addInstance(serviceId, instanceId, instance)
 	sendServicesTable()
 	log.Debugf("added instance %s to service %s", instanceId, serviceId)
 }
@@ -167,20 +167,20 @@ func deleteServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in deleteServiceInstance handler")
 
 	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
-	_, ok := servicesTable.GetService(serviceId)
+	_, ok := sTable.getService(serviceId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
-	instance, ok := servicesTable.GetServiceInstance(serviceId, instanceId)
+	instance, ok := sTable.getServiceInstance(serviceId, instanceId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	servicesTable.DeleteInstance(instance.ServiceId, instanceId)
+	sTable.deleteInstance(instance.ServiceId, instanceId)
 
 	log.Debugf("deleted instance %s from service %s", instanceId, serviceId)
 }
@@ -189,7 +189,7 @@ func getAllServicesHandler(w http.ResponseWriter, _ *http.Request) {
 	log.Debug("handling request in getAllServices handler")
 
 	var resp api.GetAllServicesResponseBody
-	resp = servicesTable.GetAllServices()
+	resp = sTable.getAllServices()
 	utils.SendJSONReplyOK(w, resp)
 }
 
@@ -198,14 +198,14 @@ func getAllServiceInstancesHandler(w http.ResponseWriter, r *http.Request) {
 
 	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 
-	_, ok := servicesTable.GetService(serviceId)
+	_, ok := sTable.getService(serviceId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	var resp api.GetServiceResponseBody
-	resp = servicesTable.GetAllServiceInstances(serviceId)
+	resp = sTable.getAllServiceInstances(serviceId)
 	utils.SendJSONReplyOK(w, resp)
 }
 
@@ -215,7 +215,7 @@ func getServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
 
-	instance, ok := servicesTable.GetServiceInstance(serviceId, instanceId)
+	instance, ok := sTable.getServiceInstance(serviceId, instanceId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -230,7 +230,7 @@ func getServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 func getInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
 
-	instance, ok := servicesTable.GetInstance(instanceId)
+	instance, ok := sTable.getInstance(instanceId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -250,7 +250,10 @@ func whoAreYouHandler(w http.ResponseWriter, _ *http.Request) {
 
 func getServicesTableHandler(w http.ResponseWriter, _ *http.Request) {
 	var resp api.GetServicesTableResponseBody
-	resp = *servicesTable.ToDiscoverMsg(archimedesId)
+	discoverMsg := sTable.toDiscoverMsg()
+	if discoverMsg != nil {
+		resp = *discoverMsg
+	}
 
 	utils.SendJSONReplyOK(w, resp)
 }
@@ -287,16 +290,16 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	service, sOk := servicesTable.GetService(toResolve.Host)
+	service, sOk := sTable.getService(toResolve.Host)
 	if !sOk {
-		instance, iOk := servicesTable.GetInstance(toResolve.Host)
+		instance, iOk := sTable.getInstance(toResolve.Host)
 		if !iOk {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		resolved, ok := resolveInstance(toResolve.Port, instance)
-		if !ok {
+		resolved, rOk := resolveInstance(toResolve.Port, instance)
+		if !rOk {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
@@ -305,7 +308,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	instances := servicesTable.GetAllServiceInstances(service.Id)
+	instances := sTable.getAllServiceInstances(service.Id)
 
 	if len(instances) == 0 {
 		log.Debugf("no instances for service %s", service.Id)
@@ -370,7 +373,7 @@ func discoverHandler(w http.ResponseWriter, r *http.Request) {
 
 	preprocessMessage(remoteAddr, &discoverMsg)
 
-	servicesTable.UpdateTableWithDiscoverMessage(discoverMsg.NeighborSent, &discoverMsg)
+	sTable.updateTableWithDiscoverMessage(discoverMsg.NeighborSent, &discoverMsg)
 
 	messagesReceived.Store(discoverMsg.MessageId, struct{}{})
 
@@ -445,7 +448,7 @@ func postprocessMessage(discoverMsg *api.DiscoverMsg) {
 }
 
 func sendServicesTable() {
-	discoverMsg := servicesTable.ToDiscoverMsg(archimedesId)
+	discoverMsg := sTable.toChangedDiscoverMsg()
 	if discoverMsg == nil {
 		return
 	}

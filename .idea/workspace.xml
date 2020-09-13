@@ -5,65 +5,45 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="5271c906-0556-48fb-94b9-7ee1cd9c0ecb" name="Default Changelist" comment="update IDE files">
-      <change afterPath="$PROJECT_DIR$/build/autonomic/metrics/node21.met" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/autonomic/metrics/node22.met" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/autonomic/metrics/node23.met" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/deployer/fallback.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/dummy_service/Dockerfile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/build/dummy_service/dummy.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/autonomic/environment/environment.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/visualizer/visualizer.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/visualizer/visualizer_daemon.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/archimedes/replies.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/archimedes/replies.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/archimedes/dtos.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/archimedes/dtos.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/api/archimedes/requests.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/archimedes/requests.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/autonomic/dtos.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/autonomic/dtos.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/autonomic/paths.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/autonomic/paths.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/api/autonomic/replies.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/autonomic/replies.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/api/autonomic/requests.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/autonomic/requests.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/deployer/replies.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/deployer/replies.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/deployer/requests.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/deployer/requests.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/scheduler/requests.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/scheduler/requests.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/autonomic/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/build/autonomic/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/deployer/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/build/deployer/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cmd/archimedes/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/cmd/archimedes/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cmd/autonomic/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/cmd/autonomic/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cmd/deployer/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/cmd/deployer/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cmd/scheduler/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/cmd/scheduler/main.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/autonomic/types.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/deployer/dtos.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/deployer/dtos.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/autonomic/metrics/node21.met" beforeDir="false" afterPath="$PROJECT_DIR$/build/autonomic/metrics/node21.met" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/autonomic/metrics/node22.met" beforeDir="false" afterPath="$PROJECT_DIR$/build/autonomic/metrics/node22.met" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/autonomic/metrics/node23.met" beforeDir="false" afterPath="$PROJECT_DIR$/build/autonomic/metrics/node23.met" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cmd/deployer-cli/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/cmd/deployer-cli/main.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/archimedes/handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/archimedes/handlers.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/archimedes/paths.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/archimedes/paths.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/archimedes/routes.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/archimedes/routes.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/archimedes/servicestable.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/archimedes/servicestable.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/autonomic/actions/service_actions.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/actions/service_actions.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/autonomic/autonomic.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/autonomic.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/autonomic/constraints/number_instances.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/constraints/number_instances.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/autonomic/goals/service_goals/ideal_latency.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/goals/service_goals/ideal_latency.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/autonomic/goals/service_goals/load_balance.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/goals/service_goals/load_balance.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/autonomic/metrics.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/metrics/metrics.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/autonomic/paths.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/autonomic/paths.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/handlers.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/autonomic/routes.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/routes.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/autonomic/strategies/ideal_latency.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/strategies/ideal_latency.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/autonomic/strategies/load_balance.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/strategies/load_balance.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/autonomic/strategies/strategy.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/strategies/strategy.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/deployer/alternatives.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/alternatives.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/deployer/handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/handlers.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/deployer/heartbeats.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/heartbeats.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/deployer/hierarchy.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/hierarchy.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/deployer/hierarchy_handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/hierarchy_handlers.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/deployer/instance_handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/instance_handlers.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/deployer/instances.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/instances.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/deployer/paths.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/deployer/paths.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/deployer/routes.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/routes.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/scheduler/handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/scheduler/handlers.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/scheduler/paths.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/scheduler/paths.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/scheduler/routes.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/scheduler/routes.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pkg/archimedes/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/archimedes/client.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pkg/archimedes/dtos.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/archimedes/dtos.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pkg/archimedes/types.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/archimedes/types.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/archimedes/server.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/archimedes/server.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pkg/autonomic/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/autonomic/client.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pkg/autonomic/dtos.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/autonomic/dtos.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pkg/autonomic/types.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/autonomic/types.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/autonomic/server.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/autonomic/server.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pkg/deployer/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/deployer/client.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pkg/deployer/dtos.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/deployer/dtos.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pkg/scheduler/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/scheduler/client.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pkg/scheduler/dtos.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/scheduler/dtos.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/build.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/build.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/deploy_stack.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/deploy_stack.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/deployer/server.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/deployer/server.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/scheduler/server.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/scheduler/server.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/deploy_cluster_stack.sh" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/deploy_cluster_stack.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -93,6 +73,7 @@
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">
+    <property name="ASKED_ADD_EXTERNAL_FILES" value="true" />
     <property name="ASKED_SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="DefaultGoTemplateProperty" value="Go File" />
     <property name="GO_FMT" value="true" />
@@ -106,7 +87,7 @@
     <property name="go.tried.to.enable.integration.vgo.integrator" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$/build/autonomic/metrics" />
     <property name="run.code.analysis.last.selected.profile" value="pProject Default" />
-    <property name="settings.editor.selected.configurable" value="preferences.fileTypes" />
+    <property name="settings.editor.selected.configurable" value="preferences.keymap" />
   </component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
@@ -146,31 +127,31 @@
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
     <state x="826" y="-700" key="#Go_Modules/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1598454142202" />
-    <state x="771" y="-731" key="#com.intellij.fileTypes.FileTypeChooser" timestamp="1599491450100">
+    <state x="771" y="-731" key="#com.intellij.fileTypes.FileTypeChooser" timestamp="1599571829083">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="771" y="-731" key="#com.intellij.fileTypes.FileTypeChooser/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599491450100" />
-    <state x="839" y="-817" key="#com.intellij.ide.util.MemberChooser" timestamp="1599139344391">
+    <state x="771" y="-731" key="#com.intellij.fileTypes.FileTypeChooser/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599571829083" />
+    <state x="839" y="-817" key="#com.intellij.ide.util.MemberChooser" timestamp="1599585688148">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="839" y="-817" key="#com.intellij.ide.util.MemberChooser/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599139344391" />
-    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1" timestamp="1599497454750">
+    <state x="839" y="-817" key="#com.intellij.ide.util.MemberChooser/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599585688148" />
+    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1" timestamp="1600012625953">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599497454750" />
+    <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1600012625953" />
     <state x="788" y="-663" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1/66.-1080.1920.1080/0.23.2048.1257@66.-1080.1920.1080" timestamp="1599245193628" />
-    <state x="572" y="-938" key="CommitChangelistDialog2" timestamp="1599491205242">
+    <state x="572" y="-938" key="CommitChangelistDialog2" timestamp="1599584070365">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="572" y="-938" key="CommitChangelistDialog2/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599491205242" />
+    <state x="572" y="-938" key="CommitChangelistDialog2/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599584070365" />
     <state x="166" y="-980" width="1720" height="880" key="DiffContextDialog" timestamp="1599469173707">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
     <state x="166" y="-980" width="1720" height="880" key="DiffContextDialog/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599469173707" />
-    <state x="535" y="-901" key="SettingsEditor" timestamp="1599491439360">
+    <state x="535" y="-901" key="SettingsEditor" timestamp="1600012241951">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="535" y="-901" key="SettingsEditor/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599491439360" />
+    <state x="535" y="-901" key="SettingsEditor/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1600012241951" />
     <state x="166" y="-980" width="1720" height="880" key="VCS.FileHistoryDialog" timestamp="1599469173708">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
@@ -179,19 +160,19 @@
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
     <state x="626" y="-800" key="Vcs.Push.Dialog.v2/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599245680209" />
-    <state x="733" y="-785" width="586" height="490" key="find.popup" timestamp="1599497146909">
+    <state x="733" y="-785" width="586" height="582" key="find.popup" timestamp="1600014250171">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="733" y="-785" width="586" height="490" key="find.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599497146909" />
+    <state x="733" y="-785" width="586" height="582" key="find.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1600014250171" />
     <state x="733" y="-785" width="586" height="490" key="find.popup/66.-1080.1920.1080/0.23.2048.1257@66.-1080.1920.1080" timestamp="1599244464096" />
-    <state width="600" height="428" key="javadoc.popup" timestamp="1599232337681">
+    <state width="600" height="428" key="javadoc.popup" timestamp="1599578653544">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state width="600" height="428" key="javadoc.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599232337681" />
-    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup" timestamp="1599476937922">
+    <state width="600" height="428" key="javadoc.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599578653544" />
+    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup" timestamp="1600012175165">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>
-    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1599476937922" />
+    <state x="691" y="-839" width="670" height="676" key="search.everywhere.popup/66.-1080.1920.1080/0.0.2048.1280@66.-1080.1920.1080" timestamp="1600012175165" />
     <state x="756" y="-621" key="vcs.readOnlyHandler.ReadOnlyStatusDialog" timestamp="1598892858852">
       <screen x="66" y="-1080" width="1920" height="1080" />
     </state>

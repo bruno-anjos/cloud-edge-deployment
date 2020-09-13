@@ -1,5 +1,5 @@
 package autonomic
 
 type (
-	GetAllServicesResponseBody = map[string]*Service
+	GetAllServicesResponseBody = map[string]*ServiceDTO
 )

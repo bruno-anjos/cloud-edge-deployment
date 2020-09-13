@@ -45,8 +45,11 @@ func removeServiceHandler(_ http.ResponseWriter, r *http.Request) {
 }
 
 func getAllServicesHandler(w http.ResponseWriter, _ *http.Request) {
-	var resp api.GetAllServicesResponseBody
-	resp = autonomicSystem.getServices()
+	resp := api.GetAllServicesResponseBody{}
+	services := autonomicSystem.getServices()
+	for serviceId, s := range services {
+		resp[serviceId] = s.toDTO()
+	}
 
 	utils.SendJSONReplyOK(w, resp)
 }
@@ -63,4 +66,11 @@ func removeServiceChildHandler(_ http.ResponseWriter, r *http.Request) {
 	childId := utils.ExtractPathVar(r, ChildIdPathVar)
 
 	autonomicSystem.removeServiceChild(serviceId, childId)
+}
+
+func setServiceParentHandler(_ http.ResponseWriter, r *http.Request) {
+	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
+	parentId := utils.ExtractPathVar(r, ParentIdPathVar)
+
+	autonomicSystem.setServiceParent(serviceId, parentId)
 }

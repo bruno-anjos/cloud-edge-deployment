@@ -7,7 +7,7 @@ import (
 type HierarchyEntryDTO struct {
 	Parent      *utils.Node
 	Grandparent *utils.Node
-	Child       map[string]*utils.Node
+	Children    map[string]*utils.Node
 	Static      bool
 	IsOrphan    bool
 }

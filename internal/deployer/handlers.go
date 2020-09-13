@@ -2,8 +2,8 @@ package deployer
 
 import (
 	"encoding/json"
-	"errors"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -17,7 +17,6 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
 	"github.com/docker/go-connections/nat"
-	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 
 	"gopkg.in/yaml.v3"
@@ -35,7 +34,7 @@ const (
 	sendAlternativesTimeout = 30
 	checkParentsTimeout     = 30
 	heartbeatTimeout        = 10
-	extendAttemptTimeout    = 10
+	extendAttemptTimeout    = 5
 	waitForNewParentTimeout = 60
 )
 
@@ -62,8 +61,8 @@ var (
 	nodeAlternatives     map[string][]*utils.Node
 	nodeAlternativesLock sync.RWMutex
 
-	hierarchyTable *HierarchyTable
-	parentsTable   *ParentsTable
+	hTable *hierarchyTable
+	pTable *parentsTable
 
 	suspectedChild sync.Map
 	children       sync.Map
@@ -73,17 +72,13 @@ var (
 )
 
 func init() {
-	aux, err := os.Hostname()
+	var err error
+	hostname, err = os.Hostname()
 	if err != nil {
 		panic(err)
 	}
 
-	hostname = aux + ":" + strconv.Itoa(deployer.Port)
-
-	deployerId := uuid.New()
-	myself = utils.NewNode(deployerId.String(), hostname)
-
-	log.Debugf("DEPLOYER_ID: %s", deployerId)
+	myself = utils.NewNode(hostname, hostname)
 
 	httpClient = &http.Client{
 		Timeout: 10 * time.Second,
@@ -92,8 +87,8 @@ func init() {
 	myAlternatives = sync.Map{}
 	nodeAlternatives = map[string][]*utils.Node{}
 	nodeAlternativesLock = sync.RWMutex{}
-	hierarchyTable = NewHierarchyTable()
-	parentsTable = NewParentsTable()
+	hTable = newHierarchyTable()
+	pTable = newParentsTable()
 
 	suspectedChild = sync.Map{}
 	children = sync.Map{}
@@ -111,26 +106,10 @@ func init() {
 	go checkParentHeartbeatsPeriodically()
 }
 
-func expandTreeHandler(_ http.ResponseWriter, r *http.Request) {
-	log.Debugf("handling expand tree request")
-
-	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
-
-	log.Debugf("quality not assured for %s", deploymentId)
-
-	reqLocation := ""
-	err := json.NewDecoder(r.Body).Decode(&location)
-	if err != nil {
-		panic(err)
-	}
-
-	go attemptToExtend(deploymentId, nil, reqLocation, maxHopsToLookFor)
-}
-
 func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	log.Debugf("handling migrate request")
 
-	serviceId := utils.ExtractPathVar(r, DeploymentIdPathVar)
+	serviceId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
 	var migrateDTO api.MigrateDTO
 	err := json.NewDecoder(r.Body).Decode(&migrateDTO)
@@ -139,12 +118,12 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !hierarchyTable.HasDeployment(serviceId) {
+	if !hTable.hasDeployment(serviceId) {
 		log.Debugf("deployment %s does not exist, ignoring migration request", serviceId)
 		return
 	}
 
-	deploymentChildren := hierarchyTable.GetChildren(serviceId)
+	deploymentChildren := hTable.getChildren(serviceId)
 	origin, ok := deploymentChildren[migrateDTO.Origin]
 	if !ok {
 		log.Debugf("origin %s does not exist for service %s", migrateDTO.Origin, serviceId)
@@ -161,48 +140,40 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	client.DeleteService(serviceId)
 
 	client.SetHostPort(target.Addr)
-	config := hierarchyTable.GetDeploymentConfig(serviceId)
-	isStatic := hierarchyTable.IsStatic(serviceId)
-	client.RegisterService(serviceId, isStatic, config)
+	config := hTable.getDeploymentConfig(serviceId)
+	isStatic := hTable.isStatic(serviceId)
+	parent := hTable.getParent(serviceId)
+	client.RegisterService(serviceId, isStatic, config, myself, parent)
 }
 
 func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
-	targetAddr := utils.ExtractPathVar(r, DeployerIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	targetAddr := utils.ExtractPathVar(r, nodeIdPathVar)
 
 	log.Debugf("handling request to extend deployment %s to %s", deploymentId, targetAddr)
 
-	if !hierarchyTable.HasDeployment(deploymentId) {
+	if !hTable.hasDeployment(deploymentId) {
 		log.Debugf("deployment %s does not exist, ignoring extension request", deploymentId)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	config := hierarchyTable.GetDeploymentConfig(deploymentId)
-
-	client := deployer.NewDeployerClient(targetAddr + ":" + strconv.Itoa(deployer.Port))
-	isStatic := hierarchyTable.IsStatic(deploymentId)
-	status := client.RegisterService(deploymentId, isStatic, config)
-	if status != http.StatusOK {
-		log.Debugf("got status %d while attempting to register %s in %s", status, deploymentId, targetAddr)
-		w.WriteHeader(status)
-		return
-	}
+	go attemptToExtend(deploymentId, targetAddr, nil, 0)
 }
 
 func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
-	targetId := utils.ExtractPathVar(r, DeployerIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	targetId := utils.ExtractPathVar(r, nodeIdPathVar)
 
 	log.Debugf("handling shorten deployment %s from %s", deploymentId, targetId)
 
-	if !hierarchyTable.HasDeployment(deploymentId) {
+	if !hTable.hasDeployment(deploymentId) {
 		log.Debugf("deployment %s does not exist, ignoring shortening request", deploymentId)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	deploymentChildren := hierarchyTable.GetChildren(deploymentId)
+	deploymentChildren := hTable.getChildren(deploymentId)
 	_, ok := deploymentChildren[targetId]
 	if !ok {
 		log.Debugf("deployment %s does not have %s as its child, ignoring shortening request", deploymentId,
@@ -217,14 +188,14 @@ func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
 
 func childDeletedDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	log.Debugf("handling child deleted request")
-	serviceId := utils.ExtractPathVar(r, DeploymentIdPathVar)
-	childId := utils.ExtractPathVar(r, DeployerIdPathVar)
+	serviceId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	childId := utils.ExtractPathVar(r, nodeIdPathVar)
 
-	hierarchyTable.RemoveChild(serviceId, childId)
+	hTable.removeChild(serviceId, childId)
 }
 
 func getDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
-	deployments := hierarchyTable.GetDeployments()
+	deployments := hTable.getDeployments()
 	utils.SendJSONReplyOK(w, deployments)
 }
 
@@ -243,12 +214,17 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	if hierarchyTable.HasDeployment(deploymentDTO.DeploymentId) {
+	if hTable.hasDeployment(deploymentDTO.DeploymentId) {
 		w.WriteHeader(http.StatusConflict)
 		return
 	}
 
-	hierarchyTable.AddDeployment(&deploymentDTO)
+	hTable.addDeployment(&deploymentDTO)
+	if deploymentDTO.Parent != nil {
+		if !pTable.hasParent(deploymentDTO.Parent.Id) {
+			pTable.addParent(deploymentDTO.Parent)
+		}
+	}
 
 	deployment := deploymentYAMLToDeployment(&deploymentYAML, deploymentDTO.Static)
 
@@ -256,9 +232,9 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	parent := hierarchyTable.GetParent(deploymentId)
+	parent := hTable.getParent(deploymentId)
 	if parent != nil {
 		client := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
 		status := client.ChildDeletedDeployment(deploymentId, myself.Id)
@@ -267,16 +243,12 @@ func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(status)
 			return
 		}
-		parentsTable.DecreaseParentCount(parent.Id)
+		pTable.decreaseParentCount(parent.Id)
 	}
 
-	hierarchyTable.RemoveDeployment(deploymentId)
+	hTable.removeDeployment(deploymentId)
 
 	go deleteDeploymentAsync(deploymentId)
-}
-
-func whoAreYouHandler(w http.ResponseWriter, _ *http.Request) {
-	utils.SendJSONReplyOK(w, myself.Id)
 }
 
 func addNodeHandler(_ http.ResponseWriter, r *http.Request) {
@@ -287,6 +259,10 @@ func addNodeHandler(_ http.ResponseWriter, r *http.Request) {
 	}
 
 	onNodeUp(nodeAddr)
+}
+
+func whoAreYouHandler(w http.ResponseWriter, _ *http.Request) {
+	utils.SendJSONReplyOK(w, myself.Id)
 }
 
 // TODO function simulating lower API
@@ -300,6 +276,7 @@ func getNodeCloserTo(location string, maxHopsToLookFor int, excludeNodes map[str
 		if _, ok := excludeNodes[node.Id]; ok {
 			return true
 		}
+		log.Debugf("adding %s", node)
 		alternatives = append(alternatives, node)
 		return true
 	})
@@ -332,12 +309,12 @@ func addDeploymentAsync(deployment *Deployment, deploymentId string) {
 				log.Error("error deleting service that failed initializing")
 			}
 
-			hierarchyTable.RemoveDeployment(deploymentId)
+			hTable.removeDeployment(deploymentId)
 			return
 		}
 	}
 
-	hierarchyTable.SetLinkOnly(deploymentId, false)
+	hTable.setLinkOnly(deploymentId, false)
 }
 
 func deleteDeploymentAsync(deploymentId string) {
@@ -404,29 +381,9 @@ func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool)
 	return &deployment
 }
 
-func getDeployerIdFromAddr(addr string) (string, error) {
-	var nodeDeployerId string
-
-	otherDeployerAddr := addPortToAddr(addr)
-
-	req := utils.BuildRequest(http.MethodGet, otherDeployerAddr, api.GetWhoAreYouPath(), nil)
-	status, _ := utils.DoRequest(httpClient, req, &nodeDeployerId)
-
-	if status != http.StatusOK {
-		log.Errorf("got status code %d from other deployer", status)
-		return "", errors.New("got status code %d from other deployer")
-	}
-
-	return nodeDeployerId, nil
-}
-
 func addNode(nodeDeployerId, addr string) bool {
 	if nodeDeployerId == "" {
-		var err error
-		nodeDeployerId, err = getDeployerIdFromAddr(addr)
-		if err != nil {
-			return false
-		}
+		panic("error while adding node up")
 	}
 
 	if nodeDeployerId == myself.Id {
@@ -451,19 +408,18 @@ func addNode(nodeDeployerId, addr string) bool {
 // TODO function simulation lower API
 // Node up is only triggered for nodes that appeared one hop away
 func onNodeUp(addr string) {
-	addNode("", addr)
+	id, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		panic(err)
+	}
+	addNode(id, addr)
 	sendAlternatives()
 	timer.Reset(sendAlternativesTimeout * time.Second)
 }
 
 // TODO function simulation lower API
 // Node down is only triggered for nodes that were one hop away
-func onNodeDown(addr string) {
-	id, err := getDeployerIdFromAddr(addr)
-	if err != nil {
-		return
-	}
-
+func onNodeDown(id string) {
 	myAlternatives.Delete(id)
 	sendAlternatives()
 	timer.Reset(sendAlternativesTimeout * time.Second)

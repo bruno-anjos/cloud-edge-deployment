@@ -6,9 +6,9 @@ import (
 
 const (
 	Port                 = 50001
-	SchedulerServiceName = "scheduler"
+	schedulerServiceName = "scheduler"
 )
 
 var (
-	DefaultHostPort = SchedulerServiceName + ":" + strconv.Itoa(Port)
+	DefaultHostPort = schedulerServiceName + ":" + strconv.Itoa(Port)
 )

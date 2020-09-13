@@ -3,19 +3,21 @@ package deployer
 import (
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
+	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/strategies"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	log "github.com/sirupsen/logrus"
 )
 
 type (
-	HierarchyEntry struct {
+	hierarchyEntry struct {
 		DeploymentYAMLBytes []byte
 		Parent              *utils.Node
 		Grandparent         *utils.Node
@@ -28,7 +30,7 @@ type (
 	}
 )
 
-func (e *HierarchyEntry) GetChildren() map[string]*utils.Node {
+func (e *hierarchyEntry) getChildren() map[string]*utils.Node {
 	entryChildren := map[string]*utils.Node{}
 
 	e.Children.Range(func(key, value interface{}) bool {
@@ -41,11 +43,11 @@ func (e *HierarchyEntry) GetChildren() map[string]*utils.Node {
 	return entryChildren
 }
 
-func (e *HierarchyEntry) ToDTO() *deployer2.HierarchyEntryDTO {
-	return &deployer2.HierarchyEntryDTO{
+func (e *hierarchyEntry) toDTO() *api.HierarchyEntryDTO {
+	return &api.HierarchyEntryDTO{
 		Parent:      e.Parent,
 		Grandparent: e.Grandparent,
-		Child:       e.GetChildren(),
+		Children:    e.getChildren(),
 		Static:      e.Static,
 		IsOrphan:    e.IsOrphan,
 	}
@@ -55,24 +57,24 @@ type (
 	typeChildMapKey   = string
 	typeChildMapValue = *utils.Node
 
-	HierarchyTable struct {
+	hierarchyTable struct {
 		hierarchyEntries sync.Map
 		autonomicClient  *autonomic.Client
 	}
 
 	typeHierarchyEntriesMapKey   = string
-	typeHierarchyEntriesMapValue = *HierarchyEntry
+	typeHierarchyEntriesMapValue = *hierarchyEntry
 )
 
-func NewHierarchyTable() *HierarchyTable {
-	return &HierarchyTable{
+func newHierarchyTable() *hierarchyTable {
+	return &hierarchyTable{
 		hierarchyEntries: sync.Map{},
 		autonomicClient:  autonomic.NewAutonomicClient(autonomic.DefaultHostPort),
 	}
 }
 
-func (t *HierarchyTable) AddDeployment(dto *deployer2.DeploymentDTO) bool {
-	entry := &HierarchyEntry{
+func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO) bool {
+	entry := &hierarchyEntry{
 		DeploymentYAMLBytes: dto.DeploymentYAMLBytes,
 		Parent:              dto.Parent,
 		Grandparent:         dto.Grandparent,
@@ -89,10 +91,14 @@ func (t *HierarchyTable) AddDeployment(dto *deployer2.DeploymentDTO) bool {
 	}
 
 	t.autonomicClient.RegisterService(dto.DeploymentId, strategies.StrategyIdealLatencyId)
+	if dto.Parent != nil {
+		log.Debugf("will set my parent as %s", dto.Parent.Addr)
+		t.autonomicClient.SetServiceParent(dto.DeploymentId, dto.Parent.Addr)
+	}
 	return true
 }
 
-func (t *HierarchyTable) RemoveDeployment(deploymentId string) {
+func (t *hierarchyTable) removeDeployment(deploymentId string) {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return
@@ -102,7 +108,7 @@ func (t *HierarchyTable) RemoveDeployment(deploymentId string) {
 	if entry.NumChildren > 0 {
 		log.Debugf("setting deployment %s as linkonly", deploymentId)
 		entry.LinkOnly = true
-		deploymentChildren := entry.GetChildren()
+		deploymentChildren := entry.getChildren()
 		for childId := range deploymentChildren {
 			log.Debugf("redirecting %s linkonly to %s", deploymentId, childId)
 			archimedesClient.Redirect(deploymentId, childId, -1)
@@ -115,12 +121,12 @@ func (t *HierarchyTable) RemoveDeployment(deploymentId string) {
 	}
 }
 
-func (t *HierarchyTable) HasDeployment(deploymentId string) bool {
+func (t *hierarchyTable) hasDeployment(deploymentId string) bool {
 	_, ok := t.hierarchyEntries.Load(deploymentId)
 	return ok
 }
 
-func (t *HierarchyTable) SetDeploymentParent(deploymentId string, parent *utils.Node) {
+func (t *hierarchyTable) setDeploymentParent(deploymentId string, parent *utils.Node) {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return
@@ -138,7 +144,7 @@ func (t *HierarchyTable) SetDeploymentParent(deploymentId string, parent *utils.
 	entry.IsOrphan = false
 }
 
-func (t *HierarchyTable) SetDeploymentAsOrphan(deploymentId string) <-chan string {
+func (t *hierarchyTable) setDeploymentAsOrphan(deploymentId string) <-chan string {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return nil
@@ -152,7 +158,7 @@ func (t *HierarchyTable) SetDeploymentAsOrphan(deploymentId string) <-chan strin
 	return newParentChan
 }
 
-func (t *HierarchyTable) AddChild(deploymentId string, child *utils.Node) {
+func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node) {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return
@@ -167,7 +173,7 @@ func (t *HierarchyTable) AddChild(deploymentId string, child *utils.Node) {
 	return
 }
 
-func (t *HierarchyTable) RemoveChild(deploymentId, childId string) {
+func (t *hierarchyTable) removeChild(deploymentId, childId string) {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return
@@ -180,7 +186,7 @@ func (t *HierarchyTable) RemoveChild(deploymentId, childId string) {
 	isZero := atomic.CompareAndSwapInt32(&entry.NumChildren, 1, 0)
 	if isZero {
 		if entry.LinkOnly {
-			t.RemoveDeployment(deploymentId)
+			t.removeDeployment(deploymentId)
 		}
 	} else {
 		atomic.AddInt32(&entry.NumChildren, -1)
@@ -189,17 +195,17 @@ func (t *HierarchyTable) RemoveChild(deploymentId, childId string) {
 	return
 }
 
-func (t *HierarchyTable) GetChildren(deploymentId string) (children map[string]*utils.Node) {
+func (t *hierarchyTable) getChildren(deploymentId string) (children map[string]*utils.Node) {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return nil
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	return entry.GetChildren()
+	return entry.getChildren()
 }
 
-func (t *HierarchyTable) GetParent(deploymentId string) *utils.Node {
+func (t *hierarchyTable) getParent(deploymentId string) *utils.Node {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return nil
@@ -210,7 +216,7 @@ func (t *HierarchyTable) GetParent(deploymentId string) *utils.Node {
 	return entry.Parent
 }
 
-func (t *HierarchyTable) DeploymentToDTO(deploymentId string) (*deployer2.DeploymentDTO, bool) {
+func (t *hierarchyTable) deploymentToDTO(deploymentId string) (*api.DeploymentDTO, bool) {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return nil, false
@@ -218,7 +224,7 @@ func (t *HierarchyTable) DeploymentToDTO(deploymentId string) (*deployer2.Deploy
 
 	entry := value.(typeHierarchyEntriesMapValue)
 
-	return &deployer2.DeploymentDTO{
+	return &api.DeploymentDTO{
 		Parent:              entry.Parent,
 		Grandparent:         entry.Grandparent,
 		DeploymentId:        deploymentId,
@@ -227,7 +233,7 @@ func (t *HierarchyTable) DeploymentToDTO(deploymentId string) (*deployer2.Deploy
 	}, true
 }
 
-func (t *HierarchyTable) IsStatic(deploymentId string) bool {
+func (t *hierarchyTable) isStatic(deploymentId string) bool {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return false
@@ -237,7 +243,7 @@ func (t *HierarchyTable) IsStatic(deploymentId string) bool {
 	return entry.Static
 }
 
-func (t *HierarchyTable) RemoveParent(deploymentId string) bool {
+func (t *hierarchyTable) removeParent(deploymentId string) bool {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return false
@@ -249,7 +255,7 @@ func (t *HierarchyTable) RemoveParent(deploymentId string) bool {
 	return true
 }
 
-func (t *HierarchyTable) GetGrandparent(deploymentId string) *utils.Node {
+func (t *hierarchyTable) getGrandparent(deploymentId string) *utils.Node {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return nil
@@ -260,7 +266,7 @@ func (t *HierarchyTable) GetGrandparent(deploymentId string) *utils.Node {
 	return entry.Grandparent
 }
 
-func (t *HierarchyTable) RemoveGrandparent(deploymentId string) {
+func (t *hierarchyTable) removeGrandparent(deploymentId string) {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return
@@ -270,7 +276,7 @@ func (t *HierarchyTable) RemoveGrandparent(deploymentId string) {
 	entry.Grandparent = nil
 }
 
-func (t *HierarchyTable) GetDeployments() []string {
+func (t *hierarchyTable) getDeployments() []string {
 	var deploymentIds []string
 
 	t.hierarchyEntries.Range(func(key, value interface{}) bool {
@@ -282,7 +288,7 @@ func (t *HierarchyTable) GetDeployments() []string {
 	return deploymentIds
 }
 
-func (t *HierarchyTable) GetDeploymentConfig(deploymentId string) []byte {
+func (t *hierarchyTable) getDeploymentConfig(deploymentId string) []byte {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return nil
@@ -292,7 +298,7 @@ func (t *HierarchyTable) GetDeploymentConfig(deploymentId string) []byte {
 	return entry.DeploymentYAMLBytes
 }
 
-func (t *HierarchyTable) GetDeploymentsWithParent(parentId string) (deploymentIds []string) {
+func (t *hierarchyTable) getDeploymentsWithParent(parentId string) (deploymentIds []string) {
 	t.hierarchyEntries.Range(func(key, value interface{}) bool {
 		deploymentId := key.(typeHierarchyEntriesMapKey)
 		deployment := value.(typeHierarchyEntriesMapValue)
@@ -307,7 +313,7 @@ func (t *HierarchyTable) GetDeploymentsWithParent(parentId string) (deploymentId
 	return
 }
 
-func (t *HierarchyTable) SetLinkOnly(deploymentId string, linkOnly bool) {
+func (t *hierarchyTable) setLinkOnly(deploymentId string, linkOnly bool) {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return
@@ -317,7 +323,7 @@ func (t *HierarchyTable) SetLinkOnly(deploymentId string, linkOnly bool) {
 	entry.LinkOnly = linkOnly
 }
 
-func (t *HierarchyTable) IsLinkOnly(deploymentId string) (linkOnly bool) {
+func (t *hierarchyTable) isLinkOnly(deploymentId string) (linkOnly bool) {
 	linkOnly = false
 
 	value, ok := t.hierarchyEntries.Load(deploymentId)
@@ -332,13 +338,13 @@ func (t *HierarchyTable) IsLinkOnly(deploymentId string) (linkOnly bool) {
 	return
 }
 
-func (t *HierarchyTable) ToDTO() map[string]*deployer2.HierarchyEntryDTO {
-	entries := map[string]*deployer2.HierarchyEntryDTO{}
+func (t *hierarchyTable) toDTO() map[string]*api.HierarchyEntryDTO {
+	entries := map[string]*api.HierarchyEntryDTO{}
 
 	t.hierarchyEntries.Range(func(key, value interface{}) bool {
 		deploymentId := key.(typeHierarchyEntriesMapKey)
 		entry := value.(typeHierarchyEntriesMapValue)
-		entries[deploymentId] = entry.ToDTO()
+		entries[deploymentId] = entry.toDTO()
 		return true
 	})
 
@@ -351,27 +357,27 @@ const (
 )
 
 type (
-	ParentsEntry struct {
+	parentsEntry struct {
 		Parent           *utils.Node
 		NumOfDeployments int32
 		IsUp             int32
 	}
 
-	ParentsTable struct {
+	parentsTable struct {
 		parentEntries sync.Map
 	}
 
-	typeParentEntriesMapValue = *ParentsEntry
+	typeParentEntriesMapValue = *parentsEntry
 )
 
-func NewParentsTable() *ParentsTable {
-	return &ParentsTable{
+func newParentsTable() *parentsTable {
+	return &parentsTable{
 		parentEntries: sync.Map{},
 	}
 }
 
-func (t *ParentsTable) AddParent(parent *utils.Node) {
-	parentEntry := &ParentsEntry{
+func (t *parentsTable) addParent(parent *utils.Node) {
+	parentEntry := &parentsEntry{
 		Parent:           parent,
 		NumOfDeployments: 1,
 		IsUp:             alive,
@@ -380,12 +386,12 @@ func (t *ParentsTable) AddParent(parent *utils.Node) {
 	t.parentEntries.Store(parent.Id, parentEntry)
 }
 
-func (t *ParentsTable) HasParent(parentId string) bool {
+func (t *parentsTable) hasParent(parentId string) bool {
 	_, ok := t.parentEntries.Load(parentId)
 	return ok
 }
 
-func (t *ParentsTable) DecreaseParentCount(parentId string) {
+func (t *parentsTable) decreaseParentCount(parentId string) {
 	value, ok := t.parentEntries.Load(parentId)
 	if !ok {
 		return
@@ -394,7 +400,7 @@ func (t *ParentsTable) DecreaseParentCount(parentId string) {
 	parentEntry := value.(typeParentEntriesMapValue)
 	isZero := atomic.CompareAndSwapInt32(&parentEntry.NumOfDeployments, 1, 0)
 	if isZero {
-		t.RemoveParent(parentId)
+		t.removeParent(parentId)
 	} else {
 		atomic.AddInt32(&parentEntry.NumOfDeployments, -1)
 	}
@@ -402,11 +408,11 @@ func (t *ParentsTable) DecreaseParentCount(parentId string) {
 	return
 }
 
-func (t *ParentsTable) RemoveParent(parentId string) {
+func (t *parentsTable) removeParent(parentId string) {
 	t.parentEntries.Delete(parentId)
 }
 
-func (t *ParentsTable) SetParentUp(parentId string) {
+func (t *parentsTable) setParentUp(parentId string) {
 	value, ok := t.parentEntries.Load(parentId)
 	if !ok {
 		return
@@ -416,11 +422,12 @@ func (t *ParentsTable) SetParentUp(parentId string) {
 	atomic.StoreInt32(&parentEntry.IsUp, alive)
 }
 
-func (t *ParentsTable) CheckDeadParents() (deadParents []*utils.Node) {
+func (t *parentsTable) checkDeadParents() (deadParents []*utils.Node) {
 	t.parentEntries.Range(func(key, value interface{}) bool {
 		parentEntry := value.(typeParentEntriesMapValue)
 
 		isAlive := atomic.CompareAndSwapInt32(&parentEntry.IsUp, alive, suspected)
+		log.Debugf("setting parent %s as suspected", parentEntry.Parent.Id)
 		if !isAlive {
 			deadParents = append(deadParents, parentEntry.Parent)
 		}
@@ -436,19 +443,21 @@ func (t *ParentsTable) CheckDeadParents() (deadParents []*utils.Node) {
 */
 
 func renegotiateParent(deadParent *utils.Node) {
-	deploymentIds := hierarchyTable.GetDeploymentsWithParent(deadParent.Id)
+	deploymentIds := hTable.getDeploymentsWithParent(deadParent.Id)
 
 	log.Debugf("renegotiating deployments %+v with parent %s", deploymentIds, deadParent.Id)
 
 	for _, deploymentId := range deploymentIds {
-		grandparent := hierarchyTable.GetGrandparent(deploymentId)
+		grandparent := hTable.getGrandparent(deploymentId)
 		if grandparent == nil {
 			panic("TODO fallback")
 		}
 
-		newParentChan := hierarchyTable.SetDeploymentAsOrphan(deploymentId)
+		newParentChan := hTable.setDeploymentAsOrphan(deploymentId)
 
-		req := utils.BuildRequest(http.MethodPost, grandparent.Addr, deployer2.GetDeadChildPath(deploymentId, deadParent.Id),
+		req := utils.BuildRequest(http.MethodPost, grandparent.Addr+":"+strconv.Itoa(deployer.Port),
+			api.GetDeadChildPath(deploymentId,
+				deadParent.Id),
 			myself)
 		status, _ := utils.DoRequest(httpClient, req, nil)
 		if status != http.StatusOK {
@@ -475,10 +484,10 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 	}
 }
 
-func attemptToExtend(deploymentId string, grandchild *utils.Node, location string, maxHops int) {
-	extendTimer := time.NewTimer(extendAttemptTimeout * time.Second)
+func attemptToExtend(deploymentId string, target string, grandchild *utils.Node, maxHops int) {
+	var extendTimer *time.Timer
 
-	toExclude := map[string]struct{}{}
+	toExclude := map[string]struct{}{myself.Id: {}}
 	if grandchild != nil {
 		toExclude[grandchild.Id] = struct{}{}
 	}
@@ -488,40 +497,50 @@ func attemptToExtend(deploymentId string, grandchild *utils.Node, location strin
 		return true
 	})
 
+	log.Debugf("attempting to extend %s to %s excluding %+v", deploymentId, target, toExclude)
+
 	var (
 		success      bool
-		newChildAddr string
+		newChildAddr = target
 		tries        = 0
 	)
 	for !success {
-		newChildAddr = getNodeCloserTo(location, maxHops, toExclude)
-		success = extendDeployment(deploymentId, newChildAddr, grandchild)
-		tries++
-		if tries == 10 {
+		if newChildAddr == "" {
+			newChildAddr = getNodeCloserTo(location, maxHops, toExclude)
+			log.Debugf("trying %s", newChildAddr)
+		}
+
+		if newChildAddr != "" {
+			success = extendDeployment(deploymentId, newChildAddr, grandchild)
+		}
+
+		if tries == 5 {
 			log.Errorf("failed to extend deployment %s", deploymentId)
+			newChildAddr = myself.Id
+			extendDeployment(deploymentId, newChildAddr, grandchild)
 			return
 		}
+
+		tries++
+		extendTimer = time.NewTimer(extendAttemptTimeout * time.Second)
 		<-extendTimer.C
 	}
 }
 
 func extendDeployment(deploymentId, childAddr string, grandChild *utils.Node) bool {
-	dto, ok := hierarchyTable.DeploymentToDTO(deploymentId)
+	dto, ok := hTable.deploymentToDTO(deploymentId)
 	if !ok {
 		log.Errorf("hierarchy table does not contain deployment %s", deploymentId)
 		return false
 	}
 
-	childGrandparent := hierarchyTable.GetParent(deploymentId)
+	childGrandparent := hTable.getParent(deploymentId)
 	dto.Grandparent = childGrandparent
 	dto.Parent = myself
 
 	deployerHostPort := addPortToAddr(childAddr)
 
-	childId, err := getDeployerIdFromAddr(childAddr)
-	if err != nil {
-		return false
-	}
+	childId := childAddr
 
 	if grandChild != nil && grandChild.Id == childId {
 		return false
@@ -531,7 +550,7 @@ func extendDeployment(deploymentId, childAddr string, grandChild *utils.Node) bo
 
 	log.Debugf("extending deployment %s to %s", deploymentId, childId)
 
-	req := utils.BuildRequest(http.MethodPost, deployerHostPort, deployer2.GetDeploymentsPath(), dto)
+	req := utils.BuildRequest(http.MethodPost, deployerHostPort, api.GetDeploymentsPath(), dto)
 	status, _ := utils.DoRequest(httpClient, req, nil)
 	if status == http.StatusConflict {
 		log.Debugf("deployment %s is already present in %s", deploymentId, childId)
@@ -542,7 +561,7 @@ func extendDeployment(deploymentId, childAddr string, grandChild *utils.Node) bo
 
 	if grandChild != nil {
 		log.Debugf("telling %s to take grandchild %s for deployment %s", childId, grandChild.Id, deploymentId)
-		req = utils.BuildRequest(http.MethodPost, deployerHostPort, deployer2.GetDeploymentChildPath(deploymentId, grandChild.Id),
+		req = utils.BuildRequest(http.MethodPost, deployerHostPort, api.GetDeploymentChildPath(deploymentId, grandChild.Id),
 			grandChild)
 		status, _ = utils.DoRequest(httpClient, req, nil)
 		if status != http.StatusOK {
@@ -553,7 +572,7 @@ func extendDeployment(deploymentId, childAddr string, grandChild *utils.Node) bo
 	}
 
 	log.Debugf("extended %s to %s sucessfully", deploymentId, childId)
-	hierarchyTable.AddChild(deploymentId, child)
+	hTable.addChild(deploymentId, child)
 	children.Store(childId, child)
 
 	return true

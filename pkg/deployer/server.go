@@ -6,9 +6,9 @@ import (
 
 const (
 	Port                = 50002
-	DeployerServiceName = "deployer"
+	deployerServiceName = "deployer"
 )
 
 var (
-	DefaultHostPort = DeployerServiceName + ":" + strconv.Itoa(Port)
+	DefaultHostPort = deployerServiceName + ":" + strconv.Itoa(Port)
 )

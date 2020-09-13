@@ -2,6 +2,7 @@ package service_goals
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
@@ -27,21 +28,28 @@ var (
 )
 
 type LoadBalance struct {
-	serviceId    string
-	environment  *environment.Environment
-	dependencies []string
+	serviceId       string
+	serviceChildren *sync.Map
+	suspected       *sync.Map
+	environment     *environment.Environment
+	dependencies    []string
+	parentId        **string
 }
 
-func NewLoadBalance(serviceId string, env *environment.Environment) *LoadBalance {
+func NewLoadBalance(serviceId string, children, suspected *sync.Map, parentId **string,
+	env *environment.Environment) *LoadBalance {
 	dependencies := []string{
 		metrics.GetAggLoadPerServiceInChildrenMetricId(serviceId),
 		metrics.GetLoadPerServiceInChildrenMetricId(serviceId),
 	}
 
 	return &LoadBalance{
-		serviceId:    serviceId,
-		environment:  env,
-		dependencies: dependencies,
+		serviceId:       serviceId,
+		serviceChildren: children,
+		suspected:       suspected,
+		environment:     env,
+		dependencies:    dependencies,
+		parentId:        parentId,
 	}
 }
 
@@ -92,7 +100,21 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 	}
 
 	info = value.(map[string]interface{})
+
+	value, ok = l.environment.GetMetric(metrics.MetricNodeAddr)
+	if !ok {
+		log.Debugf("no value for metric %s", metrics.MetricNodeAddr)
+		return nil, nil, false
+	}
+
+	myself := value.(string)
 	for nodeId := range info {
+		_, okC := l.serviceChildren.Load(nodeId)
+		_, okS := l.suspected.Load(nodeId)
+		if okC || okS || nodeId == myself || nodeId == **l.parentId {
+			log.Debugf("ignoring %s", nodeId)
+			continue
+		}
 		domain = append(domain, nodeId)
 	}
 	success = true

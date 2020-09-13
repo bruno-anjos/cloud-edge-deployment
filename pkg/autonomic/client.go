@@ -39,7 +39,7 @@ func (c *Client) DeleteService(serviceId string) (status int) {
 	return
 }
 
-func (c *Client) GetServices() (services map[string]*api.Service, status int) {
+func (c *Client) GetServices() (services map[string]*api.ServiceDTO, status int) {
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), api.GetServicesPath(), nil)
 
 	services = api.GetAllServicesResponseBody{}
@@ -59,6 +59,15 @@ func (c *Client) AddServiceChild(serviceId, childId string) (status int) {
 func (c *Client) RemoveServiceChild(serviceId, childId string) (status int) {
 	path := api.GetServiceChildPath(serviceId, childId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
+func (c *Client) SetServiceParent(serviceId, parentId string) (status int) {
+	path := api.GetServiceParentPath(serviceId, parentId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 

@@ -1,9 +1,9 @@
 package archimedes
 
 type (
-	RegisterServiceRequestBody         = ServiceDTO
+	RegisterServiceRequestBody         = serviceDTO
 	RegisterServiceInstanceRequestBody = InstanceDTO
 	DiscoverRequestBody                = DiscoverMsg
-	ResolveRequestBody                 = ToResolveDTO
-	RedirectRequestBody                = RedirectDTO
+	ResolveRequestBody                 = toResolveDTO
+	RedirectRequestBody                = redirectDTO
 )

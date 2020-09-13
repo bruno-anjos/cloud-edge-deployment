@@ -13,16 +13,16 @@ const (
 )
 
 type loadBalanceStrategy struct {
-	*BasicStrategy
+	*basicStrategy
 }
 
-func NewDefaultLoadBalanceStrategy(serviceId string, serviceChildren *sync.Map,
+func NewDefaultLoadBalanceStrategy(serviceId string, serviceChildren, suspected *sync.Map, parentId **string,
 	env *environment.Environment) *loadBalanceStrategy {
 	defaultGoals := []goals.Goal{
-		service_goals.NewLoadBalance(serviceId, env),
-		service_goals.NewIdealLatency(serviceId, serviceChildren, env),
+		service_goals.NewLoadBalance(serviceId, serviceChildren, suspected, parentId, env),
+		service_goals.NewIdealLatency(serviceId, serviceChildren, suspected, parentId, env),
 	}
 	return &loadBalanceStrategy{
-		BasicStrategy: NewBasicStrategy(defaultGoals),
+		basicStrategy: newBasicStrategy(StrategyLoadBalanceId, defaultGoals),
 	}
 }

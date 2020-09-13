@@ -13,15 +13,15 @@ import (
 func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in registerServiceInstance handler")
 
-	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	ok := hierarchyTable.HasDeployment(deploymentId)
+	ok := hTable.hasDeployment(deploymentId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	instanceId := utils.ExtractPathVar(r, InstanceIdPathVar)
+	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
 
 	instanceDTO := archimedes2.InstanceDTO{}
 	err := json.NewDecoder(r.Body).Decode(&instanceDTO)
@@ -47,8 +47,8 @@ func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func registerHeartbeatServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, DeploymentIdPathVar)
-	instanceId := utils.ExtractPathVar(r, InstanceIdPathVar)
+	serviceId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
 
 	pairServiceStatus := &PairServiceIdStatus{
 		ServiceId: serviceId,
@@ -78,11 +78,11 @@ func registerHeartbeatServiceInstanceHandler(w http.ResponseWriter, r *http.Requ
 func heartbeatServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in heartbeatService handler")
 
-	deploymentId := utils.ExtractPathVar(r, DeploymentIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	hierarchyTable.HasDeployment(deploymentId)
+	hTable.hasDeployment(deploymentId)
 
-	instanceId := utils.ExtractPathVar(r, InstanceIdPathVar)
+	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
 
 	value, ok := heartbeatsMap.Load(instanceId)
 	if !ok {

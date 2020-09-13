@@ -35,22 +35,21 @@ const (
 
 // Path variables
 const (
-	DeploymentIdPathVar = "deploymentId"
-	DeployerIdPathVar   = "deployerId"
-	InstanceIdPathVar   = "instanceId"
+	deploymentIdPathVar = "deploymentId"
+	nodeIdPathVar       = "nodeId"
+	instanceIdPathVar   = "instanceId"
 )
 
 var (
-	_deploymentIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, DeploymentIdPathVar)
-	_instanceIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, InstanceIdPathVar)
-	_deployerIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, DeployerIdPathVar)
+	_deploymentIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, deploymentIdPathVar)
+	_instanceIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, instanceIdPathVar)
+	_deployerIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, nodeIdPathVar)
 
 	deploymentsRoute           = deployer.DeploymentsPath
 	deploymentRoute            = fmt.Sprintf(deployer.DeploymentPath, _deploymentIdPathVarFormatted)
 	addNodeRoute               = deployer.AddNodePath
 	whoAreYouRoute             = deployer.WhoAreYouPath
 	setAlternativesRoute       = fmt.Sprintf(deployer.SetAlternativesPath, _deployerIdPathVarFormatted)
-	deploymentQualityRoute     = fmt.Sprintf(deployer.DeploymentQualityPath, _deploymentIdPathVarFormatted)
 	deadChildRoute             = fmt.Sprintf(deployer.DeadChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
 	deploymentChildRoute       = fmt.Sprintf(deployer.DeploymentChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
 	iAmYourParentRoute         = fmt.Sprintf(deployer.IAmYourParentPath, _deploymentIdPathVarFormatted)
@@ -74,13 +73,6 @@ var Routes = []utils.Route{
 		Method:      http.MethodPost,
 		Pattern:     parentAliveRoute,
 		HandlerFunc: parentAliveHandler,
-	},
-
-	{
-		Name:        qualityNotAssuredName,
-		Method:      http.MethodPost,
-		Pattern:     deploymentQualityRoute,
-		HandlerFunc: expandTreeHandler,
 	},
 
 	{
