@@ -172,7 +172,6 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 	myself := value.(string)
 
 	log.Debugf("nodes in vicinity: %+v", locationsInVicinity)
-	log.Debugf("i'm %s, my father is %s", myself, **i.parentId)
 	for nodeId, locationValue := range locationsInVicinity {
 		_, okC := i.serviceChildren.Load(nodeId)
 		_, okS := i.suspected.Load(nodeId)
@@ -181,7 +180,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 			continue
 		}
 		location := locationValue.(float64)
-		delta := location - avgClientLocation
+		delta := math.Abs(location - avgClientLocation)
 		candidates[nodeId] = &nodeWithDistance{
 			NodeId:             nodeId,
 			DistancePercentage: delta / furthestChildDistance,

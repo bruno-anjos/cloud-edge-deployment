@@ -151,9 +151,10 @@ func (c *Client) WarnToTakeChild(serviceId string, child *utils.Node) (status in
 	return
 }
 
-func (c *Client) WarnThatIAmParent(serviceId string, parent *utils.Node) (status int) {
-	var reqBody api.IAmYourParentRequestBody
-	reqBody = *parent
+func (c *Client) WarnThatIAmParent(serviceId string, parent, grandparent *utils.Node) (status int) {
+	reqBody := api.IAmYourParentRequestBody{}
+	reqBody = append(reqBody, parent)
+	reqBody = append(reqBody, grandparent)
 
 	path := api.GetImYourParentPath(serviceId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
@@ -245,4 +246,16 @@ func (c *Client) SendInstanceHeartbeatToDeployerPeriodically() {
 			panic(errors.New(fmt.Sprintf("received unexpected status %d", status)))
 		}
 	}
+}
+
+func (c *Client) SendAlternatives(myId string, alternatives []*utils.Node) (status int) {
+	var reqBody api.AlternativesRequestBody
+	reqBody = alternatives
+
+	path := api.GetSetAlternativesPath(myId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
 }

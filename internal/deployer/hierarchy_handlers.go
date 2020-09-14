@@ -47,9 +47,10 @@ func takeChildHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("told to accept %s as child for deployment %s", child.Id, deploymentId)
 
-	req := utils.BuildRequest(http.MethodPost, child.Addr+":"+strconv.Itoa(deployer.Port),
-		api.GetImYourParentPath(deploymentId), myself)
-	status, _ := utils.DoRequest(httpClient, req, nil)
+	parent := hTable.getParent(deploymentId)
+
+	depClient := deployer.NewDeployerClient(child.Addr+":"+strconv.Itoa(deployer.Port))
+	status := depClient.WarnThatIAmParent(deploymentId, myself, parent)
 	if status != http.StatusOK {
 		log.Errorf("got status %d while telling %s that im his parent", status, child.Id)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -63,15 +64,43 @@ func takeChildHandler(w http.ResponseWriter, r *http.Request) {
 func iAmYourParentHandler(_ http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	parent := &utils.Node{}
-	err := json.NewDecoder(r.Body).Decode(parent)
+	reqBody := api.IAmYourParentRequestBody{}
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
 		panic(err)
 	}
 
-	log.Debugf("told to accept %s as parent for deployment %s", parent.Id, deploymentId)
+	var (
+		parent      *utils.Node
+		grandparent *utils.Node
+	)
+
+	if len(reqBody) == 0 {
+		panic("no parent in request body")
+	}
+
+	if len(reqBody) > 0 {
+		parent = reqBody[api.ParentIdx]
+	}
+
+	if len(reqBody) > 1 {
+		grandparent = reqBody[api.GrandparentIdx]
+	}
+
+	if parent == nil {
+		panic("parent is nil")
+	}
+
+	if grandparent != nil {
+		log.Debugf("told to accept %s as parent (%s grandparent) for deployment %s", parent.Id, grandparent.Id,
+			deploymentId)
+
+	} else {
+		log.Debugf("told to accept %s as parent for deployment %s", parent.Id, deploymentId)
+	}
 
 	hTable.setDeploymentParent(deploymentId, parent)
+	hTable.setDeploymentGrandparent(deploymentId, grandparent)
 }
 
 func getHierarchyTableHandler(w http.ResponseWriter, _ *http.Request) {

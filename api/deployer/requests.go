@@ -5,13 +5,18 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 )
 
+const (
+	ParentIdx      = 0
+	GrandparentIdx = 1
+)
+
 type (
 	ExpandTreeRequestBody              = string
 	RegisterServiceRequestBody         = DeploymentDTO
 	AddNodeRequestBody                 = string
 	DeadChildRequestBody               = utils.Node
 	TakeChildRequestBody               = utils.Node
-	IAmYourParentRequestBody           = utils.Node
+	IAmYourParentRequestBody           = []*utils.Node
 	RegisterServiceInstanceRequestBody = archimedes2.InstanceDTO
-	MigrateDeploymentBody              = MigrateDTO
+	AlternativesRequestBody            = []*utils.Node
 )
