@@ -1,0 +1,5 @@
+A: node25 -> node24 -> node21
+B: node23 -> node21
+C: node22 -> node24
+D: node21 -> node24
+E: node21
