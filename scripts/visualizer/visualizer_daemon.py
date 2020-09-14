@@ -115,7 +115,7 @@ def graph_deployer():
 
     # first add all nodes
     for node in tables.keys():
-        g.add_vertex(node)
+        g.add_vertex(node, absent=False)
 
     print("tables ", tables)
 
@@ -171,7 +171,7 @@ def graph_deployer():
         g.vs["label"] = [name + " (orphan): " + ",".join(orphan_dict[name]) if name in orphan_dict else name for name in
                          g.vs["name"]]
         visual_style["vertex_size"] = 20
-        visual_style["vertex_color"] = ["black" if absent else "red" for absent in g.vs['absent']]
+        visual_style["vertex_color"] = ["black" if absent else "red" for absent in g.vs["absent"]]
         visual_style["vertex_label"] = g.vs["name"]
         visual_style["vertex_label_dist"] = 2
         if has_edges:
