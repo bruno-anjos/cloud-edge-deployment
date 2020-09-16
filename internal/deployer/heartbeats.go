@@ -49,7 +49,7 @@ func checkParentHeartbeatsPeriodically() {
 				err = os.Remove(filename)
 				log.Error(err)
 			}
-			renegotiateParent(deadParent)
+			renegotiateParent(deadParent, getParentAlternatives(deadParent.Id))
 		}
 	}
 }

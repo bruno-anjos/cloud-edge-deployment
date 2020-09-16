@@ -452,7 +452,7 @@ func (t *parentsTable) checkDeadParents() (deadParents []*utils.Node) {
 	HELPER METHODS
 */
 
-func renegotiateParent(deadParent *utils.Node) {
+func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.Node) {
 	deploymentIds := hTable.getDeploymentsWithParent(deadParent.Id)
 
 	log.Debugf("renegotiating deployments %+v with parent %s", deploymentIds, deadParent.Id)
@@ -465,11 +465,8 @@ func renegotiateParent(deadParent *utils.Node) {
 
 		newParentChan := hTable.setDeploymentAsOrphan(deploymentId)
 
-		req := utils.BuildRequest(http.MethodPost, grandparent.Addr+":"+strconv.Itoa(deployer.Port),
-			api.GetDeadChildPath(deploymentId,
-				deadParent.Id),
-			myself)
-		status, _ := utils.DoRequest(httpClient, req, nil)
+		deplClient := deployer.NewDeployerClient(grandparent.Addr + ":" + strconv.Itoa(deployer.Port))
+		status := deplClient.WarnOfDeadChild(deploymentId, deadParent.Id, myself, alternatives)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while renegotiating parent %s with %s for deployment %s", status,
 				deadParent, grandparent.Id, deploymentId)
@@ -494,7 +491,8 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 	}
 }
 
-func attemptToExtend(deploymentId string, target string, grandchild *utils.Node, maxHops int) {
+func attemptToExtend(deploymentId string, target string, grandchild *utils.Node, maxHops int,
+	alternatives map[string]*utils.Node) {
 	var extendTimer *time.Timer
 
 	toExclude := map[string]struct{}{myself.Id: {}}
@@ -516,8 +514,17 @@ func attemptToExtend(deploymentId string, target string, grandchild *utils.Node,
 	)
 	for !success {
 		if newChildAddr == "" {
-			newChildAddr = getNodeCloserTo(location, maxHops, toExclude)
-			log.Debugf("trying %s", newChildAddr)
+			if len(alternatives) > 0 {
+				for alternative := range alternatives {
+					newChildAddr = alternative
+					break
+				}
+				delete(alternatives, newChildAddr)
+			} else {
+				newChildAddr = getNodeCloserTo(location, maxHops, toExclude)
+				log.Debugf("trying %s", newChildAddr)
+			}
+			toExclude[newChildAddr] = struct{}{}
 		}
 
 		if newChildAddr != "" {
@@ -562,10 +569,17 @@ func extendDeployment(deploymentId, childAddr string, grandChild *utils.Node) bo
 
 	child := utils.NewNode(childId, childAddr)
 
-	log.Debugf("extending deployment %s to %s", deploymentId, childId)
-
 	depClient := deployer.NewDeployerClient(deployerHostPort)
-	status := depClient.RegisterService(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Parent, dto.Grandparent)
+	status := depClient.AskCanTakeChild(deploymentId, childId)
+	if status == http.StatusConflict {
+		return false
+	} else if status != http.StatusOK {
+		log.Debugf("got status code %d asking if it could take child %s", status, childId)
+		return false
+	}
+
+	log.Debugf("extending deployment %s to %s", deploymentId, childId)
+	status = depClient.RegisterService(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Parent, dto.Grandparent)
 	if status == http.StatusConflict {
 		log.Debugf("deployment %s is already present in %s", deploymentId, childId)
 	} else if status != http.StatusOK {

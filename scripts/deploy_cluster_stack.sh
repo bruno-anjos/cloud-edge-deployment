@@ -15,7 +15,7 @@ for node in "${NODES_ARRAY[@]}"; do
 		cd $CLOUD_EDGE_DEPLOYMENT
 		bash scripts/remove_stack.sh
 	else
-		ssh "$node" "export GO111MODULE=on && export CLOUD_EDGE_DEPLOYMENT=$CLOUD_EDGE_DEPLOYMENT && cd \$CLOUD_EDGE_DEPLOYMENT && pwd && ./scripts/remove_stack.sh" &
+		ssh -o StrictHostKeyChecking=no "$node" "export GO111MODULE=on && export CLOUD_EDGE_DEPLOYMENT=$CLOUD_EDGE_DEPLOYMENT && cd \$CLOUD_EDGE_DEPLOYMENT && pwd && ./scripts/remove_stack.sh" &
 	fi
 	echo "---------------------------------------------------------------------------------------------"
 done
@@ -26,11 +26,14 @@ echo "------------------------------------- DEPLOYING STACKS -------------------
 for node in "${NODES_ARRAY[@]}"; do
 	echo "Deploying stack in $node"
 	if [ "$(hostname)" = "$node" ]; then
+		bash scripts/build_binaries.sh
 		echo "deploying locally in $node"
 		cd $CLOUD_EDGE_DEPLOYMENT
 		bash scripts/deploy_stack.sh
 	else
-		ssh "$node" "export GO111MODULE=on && export CLOUD_EDGE_DEPLOYMENT=$CLOUD_EDGE_DEPLOYMENT && cd \$CLOUD_EDGE_DEPLOYMENT && pwd && ./scripts/deploy_stack.sh"
+		ssh "$node" "export GO111MODULE=on && export CLOUD_EDGE_DEPLOYMENT=$CLOUD_EDGE_DEPLOYMENT && cd \$CLOUD_EDGE_DEPLOYMENT && pwd && ./scripts/deploy_stack.sh" &
 	fi
 	echo "---------------------------------------------------------------------------------------------"
 done
+
+wait

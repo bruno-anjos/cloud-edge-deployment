@@ -127,9 +127,11 @@ func (c *Client) SendHearbeatServiceInstance(serviceId, instanceId string) (stat
 	return
 }
 
-func (c *Client) WarnOfDeadChild(serviceId, deadChildId string, grandChild *utils.Node) (status int) {
+func (c *Client) WarnOfDeadChild(serviceId, deadChildId string, grandChild *utils.Node,
+	alternatives map[string]*utils.Node) (status int) {
 	var reqBody api.DeadChildRequestBody
-	reqBody = *grandChild
+	reqBody.Grandchild = grandChild
+	reqBody.Alternatives = alternatives
 
 	path := api.GetDeadChildPath(serviceId, deadChildId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
@@ -158,6 +160,15 @@ func (c *Client) WarnThatIAmParent(serviceId string, parent, grandparent *utils.
 
 	path := api.GetImYourParentPath(serviceId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
+func (c *Client) AskCanTakeChild(serviceId string, childId string) (status int) {
+	path := api.GetCanTakeChildPath(serviceId, childId)
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 

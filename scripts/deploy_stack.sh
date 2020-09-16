@@ -10,7 +10,7 @@ SERVICE_NAME=""
 OPTIONS=""
 PORT=""
 
-bash "$REL_PATH"/build.sh
+bash "$REL_PATH"/build_images.sh
 
 function run() {
 	docker run -d --network=scheduler-network --name=$SERVICE_NAME -p $PORT:$PORT \

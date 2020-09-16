@@ -24,6 +24,7 @@ const (
 	iAmYourParentName           = "I_AM_YOUR_PARENT"
 	getHierarchyTableName       = "GET_TABLE"
 	parentAliveName             = "PARENT_ALIVE"
+	canTakeChildName            = "CAN_TAKE_CHILD"
 	migrateDeploymentName       = "MIGRATE_DEPLOYMENT"
 	extendDeploymentToName      = "EXTEND_DEPLOYMENT_TO"
 	shortenDeploymentFromName   = "SHORTEN_DEPLOYMENT_FROM"
@@ -58,6 +59,8 @@ var (
 	extendDeploymentToRoute    = fmt.Sprintf(deployer.ExtendServiceToPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
 	shortenDeploymentFromRoute = fmt.Sprintf(deployer.ShortenServiceFromPath, _deploymentIdPathVarFormatted,
 		_deployerIdPathVarFormatted)
+	canTakeChildRoute = fmt.Sprintf(deployer.CanTakeChildPath, _deploymentIdPathVarFormatted,
+		_deployerIdPathVarFormatted)
 
 	// scheduler
 	deploymentInstanceAliveRoute = fmt.Sprintf(deployer.DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
@@ -68,6 +71,13 @@ var (
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        canTakeChildName,
+		Method:      http.MethodGet,
+		Pattern:     canTakeChildRoute,
+		HandlerFunc: canTakeChildHandler,
+	},
+
 	{
 		Name:        parentAliveName,
 		Method:      http.MethodPost,

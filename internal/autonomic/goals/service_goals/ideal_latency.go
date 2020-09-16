@@ -211,13 +211,31 @@ func (i *idealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[st
 	maxed bool) {
 	maxed = true
 
+	avgClientLocMetric := metrics.GetAverageClientLocationPerServiceMetricId(i.serviceId)
+	value, ok := i.environment.GetMetric(avgClientLocMetric)
+	if !ok {
+		log.Debugf("no value for metric %s", avgClientLocMetric)
+		return
+	}
+
+	// TODO change this for actual location
+	avgClientLocation := value.(float64)
+
+	value, ok = i.environment.GetMetric(metrics.MetricLocation)
+	if !ok {
+		log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
+	}
+
+	location := value.(float64)
+	currDistance := location - avgClientLocation
+
 	for _, candidate := range candidates {
 		percentage := candidatesCriteria[candidate].(*nodeWithDistance).DistancePercentage
 		log.Debugf("candidate %s distance percentage from furthest child %f", candidate, percentage)
 		if percentage < maximumDistancePercentage {
 			cutoff = append(cutoff, candidate)
 		}
-		if percentage < equivalenDistancePercentage {
+		if percentage < equivalenDistancePercentage || currDistance > 500 {
 			maxed = false
 		}
 	}
@@ -276,8 +294,21 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation float64) (furthestC
 	})
 
 	if furthestChildDistance == -1.0 {
-		log.Debugf("no furthest child")
-		furthestChildDistance = math.MaxFloat64
+		value, ok := i.environment.GetMetric(metrics.MetricNodeAddr)
+		if !ok {
+			log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
+		}
+
+		myself := value.(string)
+		furthestChild = myself
+
+		value, ok = i.environment.GetMetric(metrics.MetricLocation)
+		if !ok {
+			log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
+		}
+
+		location := value.(float64)
+		furthestChildDistance = math.Abs(location - avgLocation)
 	}
 
 	return

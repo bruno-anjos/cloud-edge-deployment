@@ -22,18 +22,31 @@ func deadChildHandler(_ http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grandchild := &utils.Node{}
-	err := json.NewDecoder(r.Body).Decode(grandchild)
+	body := api.DeadChildRequestBody{}
+	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		panic(err)
 	}
 
-	log.Debugf("grandchild %s reported deployment %s from %s as dead", grandchild.Id, deploymentId, deadChildId)
+	log.Debugf("grandchild %s reported deployment %s from %s as dead", body.Grandchild.Id, deploymentId, deadChildId)
 	suspectedChild.Store(deadChildId, nil)
 	hTable.removeChild(deploymentId, deadChildId)
 	children.Delete(deadChildId)
 
-	go attemptToExtend(deploymentId, "", grandchild, 0)
+	go attemptToExtend(deploymentId, "", body.Grandchild, 0, body.Alternatives)
+}
+
+func canTakeChildHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	possibleChild := utils.ExtractPathVar(r, nodeIdPathVar)
+
+	parent := hTable.getParent(deploymentId)
+	if possibleChild != parent.Id {
+		log.Debugf("can take child %s, parent is %s", possibleChild, parent.Id)
+	} else {
+		log.Debugf("rejecting child %s", possibleChild)
+		w.WriteHeader(http.StatusConflict)
+	}
 }
 
 func takeChildHandler(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +62,7 @@ func takeChildHandler(w http.ResponseWriter, r *http.Request) {
 
 	parent := hTable.getParent(deploymentId)
 
-	depClient := deployer.NewDeployerClient(child.Addr+":"+strconv.Itoa(deployer.Port))
+	depClient := deployer.NewDeployerClient(child.Addr + ":" + strconv.Itoa(deployer.Port))
 	status := depClient.WarnThatIAmParent(deploymentId, myself, parent)
 	if status != http.StatusOK {
 		log.Errorf("got status %d while telling %s that im his parent", status, child.Id)

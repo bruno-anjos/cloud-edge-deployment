@@ -158,7 +158,7 @@ func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go attemptToExtend(deploymentId, targetAddr, nil, 0)
+	go attemptToExtend(deploymentId, targetAddr, nil, 0, nil)
 }
 
 func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
@@ -412,7 +412,7 @@ func onNodeUp(addr string) {
 	if err != nil {
 		panic(err)
 	}
-	addNode(id, addr)
+	addNode(id, id)
 	sendAlternatives()
 	timer.Reset(sendAlternativesTimeout * time.Second)
 }
@@ -430,4 +430,17 @@ func addPortToAddr(addr string) string {
 		return addr + ":" + strconv.Itoa(deployer.Port)
 	}
 	return addr
+}
+
+func getParentAlternatives(parentId string) (alternatives map[string]*utils.Node) {
+	nodeAlternativesLock.RLock()
+	defer nodeAlternativesLock.RUnlock()
+
+	alternatives = map[string]*utils.Node{}
+
+	for _, alternative := range nodeAlternatives[parentId] {
+		alternatives[alternative.Id] = alternative
+	}
+
+	return
 }

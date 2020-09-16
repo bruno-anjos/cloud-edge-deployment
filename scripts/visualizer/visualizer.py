@@ -1,10 +1,7 @@
 import subprocess
 import time
 
-import cv2
-
-deployer_png_filename = "/home/b.anjos/deployer_plot.png"
-deployer_png_local_path = "/Users/banjos/Desktop/deployer_plot.png"
+deployer_png_filename = "/home/b.anjos/deployer_pngs/deployer_plot.png"
 
 archimedes_tex_filename = "/home/b.anjos/archimedes_tables.tex"
 archimedes_tex_local_path = "/Users/banjos/Desktop/archimedes_tables/archimedes_tables.tex"
@@ -19,7 +16,17 @@ def get_scp_file(origin, target):
     try:
         subprocess.run(["scp", "dicluster:%s" % origin, target], check=True)
     except subprocess.CalledProcessError as eAux:
-        print("scp returned %d, will wait %d seconds and try again" % (eAux["returncode"], wait))
+        print(f"scp returned {eAux['returncode']}")
+        return False
+    return True
+
+
+def rsync_folder_from_server(target, origin):
+    print(f"rsyncing {target} to {origin}")
+    try:
+        subprocess.run(["rsync", "-av", target, origin, "--delete"], check=True)
+    except subprocess.CalledProcessError as eAux:
+        print(f"rsync returned {eAux['returncode']}")
         return False
     return True
 
@@ -27,21 +34,13 @@ def get_scp_file(origin, target):
 while True:
     deployer_failed = False
     archimedes_failed = False
-    if get_scp_file(deployer_png_filename, deployer_png_local_path):
-        image = cv2.imread(deployer_png_local_path)
-        scale_percent = 100
-        width = int(image.shape[1] * scale_percent / 100)
-        height = int(image.shape[0] * scale_percent / 100)
-        dimD = (width, height)
-        resized = cv2.resize(image, dimD, interpolation=cv2.INTER_AREA)
-        cv2.imshow('deployer_graph', resized)
-    else:
+    if not rsync_folder_from_server("dicluster:/home/b.anjos/deployer_pngs", "/Users/banjos/Desktop/"):
         deployer_failed = True
 
     if get_scp_file(archimedes_tex_filename, archimedes_tex_local_path):
         try:
-            subprocess.run(["pdflatex", "-output-directory", archimedes_out_local_path, archimedes_tex_local_path],
-                           check=True)
+            subprocess.run(["pdflatex", "-interaction=nonstopmode", "-output-directory", archimedes_out_local_path,
+                            archimedes_tex_local_path], check=True)
         except subprocess.CalledProcessError as e:
             print("error running pdflatex: ", e.returncode)
 
@@ -50,17 +49,10 @@ while True:
                             "-quality", "90", "-strip", archimedes_png_local_path], check=True)
         except subprocess.CalledProcessError as e:
             print("error running convert: ", e.returncode)
-        image = cv2.imread(archimedes_png_local_path)
-        scale_percent = 30
-        width = int(image.shape[1] * scale_percent / 100)
-        height = int(image.shape[0] * scale_percent / 100)
-        dimA = (width, height)
-        resized = cv2.resize(image, dimA, interpolation=cv2.INTER_AREA)
-        cv2.imshow('archimedes_tables', resized)
     else:
         archimedes_failed = True
 
     if deployer_failed and archimedes_failed:
         time.sleep(wait)
 
-    cv2.waitKey(0)
+    time.sleep(4)

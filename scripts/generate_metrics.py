@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+import json
+import os
 import random
 import sys
 
@@ -43,6 +45,8 @@ def generateServiceTree(startNode, sName):
     better = True
     currNode = startNode
 
+    print(f"creating tree for {sName}, starting at {startNode}")
+
     while better:
         children = nodesChildren[currNode]
         if len(children) < 1:
@@ -53,6 +57,7 @@ def generateServiceTree(startNode, sName):
         candidates += [currNode]
         candidates.sort(key=sortChildren)
         best = candidates[0]
+        print(f"from {candidates}, best is {best}")
         if best != currNode:
             tree += f" -> {best}"
             currNode = best
@@ -73,7 +78,7 @@ def generateDictsForServiceTree(sName):
     minProcess, maxProcess = 0, 10
     processingTimes[sName] = random.randint(minProcess, maxProcess)
 
-    minCLoc, maxCLoc = 1000, 40000
+    minCLoc, maxCLoc = 1000, 5000
     clientLocations[sName] = random.randint(minCLoc, maxCLoc)
 
 
@@ -101,10 +106,27 @@ def generateNodeMetrics(nodeId, loc, visibleNodes, children):
         "METRIC_LOCATION_VICINITY": {{
             {visibleNodesLocation}
         }},
-        {otherStrings},
+        {otherStrings}
     }}"""
 
     return m
+
+
+sortingLocation = 0
+
+
+def sortByDistance(n):
+    return abs(nodesLocations[n] - sortingLocation)
+
+
+def get_neighborhood(node):
+    global nodes
+    global sortingLocation
+    nodesCopy = nodes[:]
+    sortingLocation = nodesLocations[node]
+    nodesCopy.sort(key=sortByDistance)
+    neighSize = int(len(nodes)/2)
+    return nodesCopy[:neighSize]
 
 
 if len(sys.argv) < 4:
@@ -127,28 +149,52 @@ services = []
 nodesLocations = {}
 nodesChildren = {}
 
-minNodeLoc, maxNodeLoc = 1000, 80000
+minNodeLoc, maxNodeLoc = 1000, 10000
+
+print("------------------------------------------ LOCATIONS ------------------------------------------")
+
 for node in nodes:
     location = random.randint(minNodeLoc, maxNodeLoc)
     nodesLocations[node] = location
+    print(f"{node} at {location}")
 
 for idx in range(numServices):
     serviceName = alphabet[idx]
     services.append(serviceName)
     generateDictsForServiceTree(serviceName)
 
-minNodesVisible, maxNodesVisible = int(len(nodes) / 2) + 1, len(nodes)
+print("------------------------------------------ VISIBILITY ------------------------------------------")
+
 for node in nodes:
-    nodesVisible = random.sample(nodes, random.randint(minNodesVisible, maxNodesVisible))
+    nodesVisible = get_neighborhood(node)
+    print(f"{node} sees {nodesVisible}")
     nodeChildren = nodesVisible
     nodesChildren[node] = nodeChildren
     metrics = generateNodeMetrics(node, nodesLocations[node], nodesVisible, nodeChildren)
     with open(f"{outputDir}{node}.met", 'w') as nodeFp:
+        parsed = json.loads(metrics)
+        metrics = json.dumps(parsed, indent=4, sort_keys=False)
         nodeFp.write(metrics)
 
+print("------------------------------------------ SERVICE TREES ------------------------------------------")
+
+trees = []
+
 for service in services:
+    print(f"clients for {service} are at {clientLocations[service]}")
     randNode = nodes[random.randint(0, len(nodes) - 1)]
-    with open(f"{outputDir}services.tree", 'w') as treeFp:
-        tree = generateServiceTree(randNode, service)
-        print(tree)
-        treeFp.write(tree + "\n")
+    trees.append(generateServiceTree(randNode, service))
+
+treesString = "\n".join(trees)
+
+print("------------------------------------------ FINAL TREES ------------------------------------------")
+
+print(treesString)
+
+with open(f"{outputDir}services.tree", 'w') as treeFp:
+    treeFp.write(treesString)
+
+locations = {"services": clientLocations, "nodes": nodesLocations}
+with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/locations.txt", 'w') as locFp:
+    locs = json.dumps(locations, indent=4, sort_keys=False)
+    locFp.write(locs)

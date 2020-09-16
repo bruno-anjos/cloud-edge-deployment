@@ -11,10 +11,13 @@ const (
 )
 
 type (
-	ExpandTreeRequestBody              = string
-	RegisterServiceRequestBody         = DeploymentDTO
-	AddNodeRequestBody                 = string
-	DeadChildRequestBody               = utils.Node
+	ExpandTreeRequestBody      = string
+	RegisterServiceRequestBody = DeploymentDTO
+	AddNodeRequestBody         = string
+	DeadChildRequestBody       = struct {
+		Grandchild   *utils.Node
+		Alternatives map[string]*utils.Node
+	}
 	TakeChildRequestBody               = utils.Node
 	IAmYourParentRequestBody           = []*utils.Node
 	RegisterServiceInstanceRequestBody = archimedes2.InstanceDTO

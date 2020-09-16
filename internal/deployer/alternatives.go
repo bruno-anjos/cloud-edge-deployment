@@ -17,8 +17,8 @@ import (
 func setAlternativesHandler(_ http.ResponseWriter, r *http.Request) {
 	deployerId := utils.ExtractPathVar(r, nodeIdPathVar)
 
-	reqBody := new(api.AlternativesRequestBody)
-	err := json.NewDecoder(r.Body).Decode(reqBody)
+	reqBody := api.AlternativesRequestBody{}
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
 		panic(err)
 	}
@@ -26,7 +26,7 @@ func setAlternativesHandler(_ http.ResponseWriter, r *http.Request) {
 	nodeAlternativesLock.Lock()
 	defer nodeAlternativesLock.Unlock()
 
-	nodeAlternatives[deployerId] = *reqBody
+	nodeAlternatives[deployerId] = reqBody
 }
 
 func simulateAlternatives() {
