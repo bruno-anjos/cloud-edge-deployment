@@ -1,3 +1,5 @@
-A: node20 -> node22 -> node23
-B: node20 -> node22 -> node23
-C: node20 -> node22 -> node23 -> node21
+A: node21 -> node18 -> node23 -> node19
+B: node20 -> node18 -> node23 -> node19 -> node22
+C: node23 -> node19 -> node22
+D: node20 -> node18 -> node23 -> node19 -> node22
+E: node19 -> node22

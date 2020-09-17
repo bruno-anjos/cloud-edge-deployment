@@ -161,7 +161,8 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 	var candidateIds []string
 
 	avgClientLocation := arg.(float64)
-	_, furthestChildDistance := i.calcFurthestChildDistance(avgClientLocation)
+	furthestChild, furthestChildDistance := i.calcFurthestChildDistance(avgClientLocation)
+	log.Debugf("furthest child is %s", furthestChild)
 
 	value, ok = i.environment.GetMetric(metrics.MetricNodeAddr)
 	if !ok {
@@ -229,13 +230,27 @@ func (i *idealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[st
 	location := value.(float64)
 	currDistance := location - avgClientLocation
 
+	numChildren := 0
+	// TODO this has to be tuned for real distances
+	branchingFactor := ((1 / (currDistance / 500)) * 100) + (20 / float64(numChildren))
+	i.serviceChildren.Range(func(key, value interface{}) bool {
+		numChildren++
+		return true
+	})
+
+	// TODO these values seem to make sense for now
+	branch := (branchingFactor / float64(numChildren+1)) > 20
+
+	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
+	log.Debugf("should i branch? %t", branch)
+
 	for _, candidate := range candidates {
 		percentage := candidatesCriteria[candidate].(*nodeWithDistance).DistancePercentage
 		log.Debugf("candidate %s distance percentage from furthest child %f", candidate, percentage)
 		if percentage < maximumDistancePercentage {
 			cutoff = append(cutoff, candidate)
 		}
-		if percentage < equivalenDistancePercentage || currDistance > 500 {
+		if percentage < equivalenDistancePercentage && branch {
 			maxed = false
 		}
 	}

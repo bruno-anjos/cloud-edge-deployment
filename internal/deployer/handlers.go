@@ -55,8 +55,6 @@ var (
 	location string
 	myself   *utils.Node
 
-	httpClient *http.Client
-
 	myAlternatives       sync.Map
 	nodeAlternatives     map[string][]*utils.Node
 	nodeAlternativesLock sync.RWMutex
@@ -64,9 +62,10 @@ var (
 	hTable *hierarchyTable
 	pTable *parentsTable
 
-	suspectedChild sync.Map
-	children       sync.Map
-	childrenClient = deployer.NewDeployerClient("")
+	suspectedChild       sync.Map
+	suspectedDeployments sync.Map
+	children             sync.Map
+	childrenClient       = deployer.NewDeployerClient("")
 
 	timer *time.Timer
 )
@@ -80,10 +79,6 @@ func init() {
 
 	myself = utils.NewNode(hostname, hostname)
 
-	httpClient = &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
 	myAlternatives = sync.Map{}
 	nodeAlternatives = map[string][]*utils.Node{}
 	nodeAlternativesLock = sync.RWMutex{}
@@ -91,6 +86,7 @@ func init() {
 	pTable = newParentsTable()
 
 	suspectedChild = sync.Map{}
+	suspectedDeployments = sync.Map{}
 	children = sync.Map{}
 
 	timer = time.NewTimer(sendAlternativesTimeout * time.Second)
@@ -414,6 +410,9 @@ func onNodeUp(addr string) {
 	}
 	addNode(id, id)
 	sendAlternatives()
+	if !timer.Stop() {
+		<-timer.C
+	}
 	timer.Reset(sendAlternativesTimeout * time.Second)
 }
 
@@ -422,6 +421,9 @@ func onNodeUp(addr string) {
 func onNodeDown(id string) {
 	myAlternatives.Delete(id)
 	sendAlternatives()
+	if !timer.Stop() {
+		<-timer.C
+	}
 	timer.Reset(sendAlternativesTimeout * time.Second)
 }
 

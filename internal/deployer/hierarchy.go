@@ -141,6 +141,15 @@ func (t *hierarchyTable) setDeploymentParent(deploymentId string, parent *utils.
 		entry.NewParentChan = nil
 	}
 
+	children := t.getChildren(deploymentId)
+	if len(children) > 0 {
+		deplClient := deployer.NewDeployerClient("")
+		for childId := range children {
+			deplClient.SetHostPort(childId + ":" + strconv.Itoa(deployer.Port))
+			deplClient.SetGrandparent(deploymentId, parent)
+		}
+	}
+
 	entry.IsOrphan = false
 }
 
@@ -313,7 +322,7 @@ func (t *hierarchyTable) getDeploymentsWithParent(parentId string) (deploymentId
 		deploymentId := key.(typeHierarchyEntriesMapKey)
 		deployment := value.(typeHierarchyEntriesMapValue)
 
-		if deployment.Parent.Id == parentId {
+		if deployment.Parent != nil && deployment.Parent.Id == parentId {
 			deploymentIds = append(deploymentIds, deploymentId)
 		}
 
@@ -570,16 +579,30 @@ func extendDeployment(deploymentId, childAddr string, grandChild *utils.Node) bo
 	child := utils.NewNode(childId, childAddr)
 
 	depClient := deployer.NewDeployerClient(deployerHostPort)
-	status := depClient.AskCanTakeChild(deploymentId, childId)
-	if status == http.StatusConflict {
-		return false
-	} else if status != http.StatusOK {
-		log.Debugf("got status code %d asking if it could take child %s", status, childId)
-		return false
+	if grandChild != nil {
+		status := depClient.AskCanTakeChild(deploymentId, grandChild.Id)
+		if status == http.StatusConflict {
+			return false
+		} else if status != http.StatusOK {
+			log.Debugf("got status code %d asking if %s could take child %s", status, childId, grandChild.Id)
+			return false
+		}
+	}
+
+	if childId != myself.Id {
+		status := depClient.AskCanTakeParent(deploymentId, myself.Id)
+		if status == http.StatusConflict {
+			log.Debugf("child %s, can not take me (%s) as new parent", childId, myself.Id)
+			return false
+		} else if status != http.StatusOK {
+			log.Debugf("got status code %d asking if %s could take me as parent", status, childId)
+			return false
+		}
+
 	}
 
 	log.Debugf("extending deployment %s to %s", deploymentId, childId)
-	status = depClient.RegisterService(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Parent, dto.Grandparent)
+	status := depClient.RegisterService(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Parent, dto.Grandparent)
 	if status == http.StatusConflict {
 		log.Debugf("deployment %s is already present in %s", deploymentId, childId)
 	} else if status != http.StatusOK {
@@ -598,6 +621,7 @@ func extendDeployment(deploymentId, childAddr string, grandChild *utils.Node) bo
 	}
 
 	log.Debugf("extended %s to %s sucessfully", deploymentId, childId)
+	suspectedDeployments.Delete(deploymentId)
 	if child.Id != myself.Id {
 		hTable.addChild(deploymentId, child)
 		children.Store(childId, child)

@@ -141,6 +141,18 @@ func (c *Client) WarnOfDeadChild(serviceId, deadChildId string, grandChild *util
 	return
 }
 
+func (c *Client) SetGrandparent(serviceId string, grandparent *utils.Node) (status int) {
+	var reqBody api.SetGrandparentRequestBody
+	reqBody = *grandparent
+
+	path := api.GetSetGrandparentPath(serviceId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
 func (c *Client) WarnToTakeChild(serviceId string, child *utils.Node) (status int) {
 	var reqBody api.TakeChildRequestBody
 	reqBody = *child
@@ -168,6 +180,15 @@ func (c *Client) WarnThatIAmParent(serviceId string, parent, grandparent *utils.
 
 func (c *Client) AskCanTakeChild(serviceId string, childId string) (status int) {
 	path := api.GetCanTakeChildPath(serviceId, childId)
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
+func (c *Client) AskCanTakeParent(serviceId string, parentId string) (status int) {
+	path := api.GetCanTakeParentPath(serviceId, parentId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)

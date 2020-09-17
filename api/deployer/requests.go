@@ -22,4 +22,5 @@ type (
 	IAmYourParentRequestBody           = []*utils.Node
 	RegisterServiceInstanceRequestBody = archimedes2.InstanceDTO
 	AlternativesRequestBody            = []*utils.Node
+	SetGrandparentRequestBody          = utils.Node
 )

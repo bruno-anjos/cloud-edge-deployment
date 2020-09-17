@@ -27,6 +27,8 @@ const (
 	ExtendServiceToPath    = "/deployments/%s/extend/%s"
 	ShortenServiceFromPath = "/deployments/%s/shorten/%s"
 	CanTakeChildPath       = "/deployments/%s/can_child/%s"
+	SetGrandparentPath     = "/deployments/%s/grandparent"
+	CanTakeParentPath      = "/deployments/%s/can_parent/%s"
 
 	// scheduler
 	DeploymentInstanceAlivePath = "/deployments/%s/%s/alive"
@@ -99,4 +101,12 @@ func GetShortenServicePath(serviceId, targetId string) string {
 
 func GetCanTakeChildPath(deploymentId, childId string) string {
 	return PrefixPath + fmt.Sprintf(CanTakeChildPath, deploymentId, childId)
+}
+
+func GetCanTakeParentPath(deploymentId, parentId string) string {
+	return PrefixPath + fmt.Sprintf(CanTakeParentPath, deploymentId, parentId)
+}
+
+func GetSetGrandparentPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(SetGrandparentPath, deploymentId)
 }

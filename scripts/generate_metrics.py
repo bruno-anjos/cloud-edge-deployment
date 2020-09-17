@@ -41,6 +41,7 @@ def generateServiceTree(startNode, sName):
 
     sortingService = sName
     tree = f"{sName}: {startNode}"
+    treeSize = 1
 
     better = True
     currNode = startNode
@@ -60,11 +61,12 @@ def generateServiceTree(startNode, sName):
         print(f"from {candidates}, best is {best}")
         if best != currNode:
             tree += f" -> {best}"
+            treeSize += 1
             currNode = best
         else:
             better = False
 
-    return tree
+    return tree, treeSize
 
 
 def generateDictsForServiceTree(sName):
@@ -125,18 +127,98 @@ def get_neighborhood(node):
     nodesCopy = nodes[:]
     sortingLocation = nodesLocations[node]
     nodesCopy.sort(key=sortByDistance)
-    neighSize = int(len(nodes)/2)
+    neighSize = int(len(nodes) / 2)
     return nodesCopy[:neighSize]
+
+
+def gen_trees():
+    global serviceLatencies
+    global processingTimes
+    global clientLocations
+    global services
+    global nodesLocations
+    global nodesChildren
+
+    minNodeLoc, maxNodeLoc = 1000, 10000
+
+    print("------------------------------------------ LOCATIONS ------------------------------------------")
+
+    for node in nodes:
+        location = random.randint(minNodeLoc, maxNodeLoc)
+        nodesLocations[node] = location
+        print(f"{node} at {location}")
+
+    for idx in range(numServices):
+        serviceName = alphabet[idx]
+        services.append(serviceName)
+        generateDictsForServiceTree(serviceName)
+
+    print("------------------------------------------ VISIBILITY ------------------------------------------")
+
+    for node in nodes:
+        nodesVisible = get_neighborhood(node)
+        print(f"{node} sees {nodesVisible}")
+        nodeChildren = nodesVisible
+        nodesChildren[node] = nodeChildren
+        metrics = generateNodeMetrics(node, nodesLocations[node], nodesVisible, nodeChildren)
+        with open(f"{outputDir}{node}.met", 'w') as nodeFp:
+            parsed = json.loads(metrics)
+            metrics = json.dumps(parsed, indent=4, sort_keys=False)
+            nodeFp.write(metrics)
+
+    print("------------------------------------------ SERVICE TREES ------------------------------------------")
+
+    trees = []
+    treeSizes = []
+
+    for service in services:
+        print(f"clients for {service} are at {clientLocations[service]}")
+        randNode = nodes[random.randint(0, len(nodes) - 1)]
+        tree, treeSize = generateServiceTree(randNode, service)
+        trees.append(tree)
+        treeSizes.append(treeSize)
+    return trees, treeSizes
 
 
 if len(sys.argv) < 4:
     print("usage: python3 generate_metrics.py output_dir number_of_services node1 [node2 node3 node4...]")
 
-outputDir = sys.argv[1]
+args = sys.argv[1:]
+
+minTreeSize = 0
+atLeastOneTreeSize = 0
+hasOptions = True
+
+idx = 0
+idxsToIgnore = {}
+for arg in args:
+    if arg == "--min":
+        minTreeSize = int(args[idx + 1])
+        hasOptions = True
+        idxsToIgnore[idx] = True
+        idxsToIgnore[idx+1] = True
+    elif arg == "--at_least_one":
+        atLeastOneTreeSize = int(args[idx + 1])
+        hasOptions = True
+        idxsToIgnore[idx] = True
+        idxsToIgnore[idx+1] = True
+    idx += 1
+
+newArgs = []
+for i, arg in enumerate(args):
+    if i not in idxsToIgnore:
+        newArgs.append(arg)
+args = newArgs
+
+print("New args:", args)
+print("Min tree size:", minTreeSize)
+print("At least one tree size:", atLeastOneTreeSize)
+
+outputDir = args[0]
 if not outputDir.endswith("/"):
     outputDir += "/"
-numServices = int(sys.argv[2])
-nodes = sys.argv[3:]
+numServices = int(args[1])
+nodes = args[2:]
 print("Number of services: ", numServices)
 print("Nodes: ", nodes)
 
@@ -148,42 +230,29 @@ clientLocations = {}
 services = []
 nodesLocations = {}
 nodesChildren = {}
-
-minNodeLoc, maxNodeLoc = 1000, 10000
-
-print("------------------------------------------ LOCATIONS ------------------------------------------")
-
-for node in nodes:
-    location = random.randint(minNodeLoc, maxNodeLoc)
-    nodesLocations[node] = location
-    print(f"{node} at {location}")
-
-for idx in range(numServices):
-    serviceName = alphabet[idx]
-    services.append(serviceName)
-    generateDictsForServiceTree(serviceName)
-
-print("------------------------------------------ VISIBILITY ------------------------------------------")
-
-for node in nodes:
-    nodesVisible = get_neighborhood(node)
-    print(f"{node} sees {nodesVisible}")
-    nodeChildren = nodesVisible
-    nodesChildren[node] = nodeChildren
-    metrics = generateNodeMetrics(node, nodesLocations[node], nodesVisible, nodeChildren)
-    with open(f"{outputDir}{node}.met", 'w') as nodeFp:
-        parsed = json.loads(metrics)
-        metrics = json.dumps(parsed, indent=4, sort_keys=False)
-        nodeFp.write(metrics)
-
-print("------------------------------------------ SERVICE TREES ------------------------------------------")
-
+done = False
 trees = []
 
-for service in services:
-    print(f"clients for {service} are at {clientLocations[service]}")
-    randNode = nodes[random.randint(0, len(nodes) - 1)]
-    trees.append(generateServiceTree(randNode, service))
+while not done:
+    serviceLatencies = {}
+    processingTimes = {}
+    clientLocations = {}
+    services = []
+    nodesLocations = {}
+    nodesChildren = {}
+
+    trees, treeSizes = gen_trees()
+
+    minMet = True
+    atLeast = False
+
+    for treeSize in treeSizes:
+        if treeSize < minTreeSize:
+            minMet = False
+        if treeSize >= atLeastOneTreeSize:
+            atLeast = True
+
+    done = minMet and atLeast
 
 treesString = "\n".join(trees)
 

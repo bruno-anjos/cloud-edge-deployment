@@ -28,6 +28,8 @@ const (
 	migrateDeploymentName       = "MIGRATE_DEPLOYMENT"
 	extendDeploymentToName      = "EXTEND_DEPLOYMENT_TO"
 	shortenDeploymentFromName   = "SHORTEN_DEPLOYMENT_FROM"
+	setGrandparentName          = "SET_GRANDPARENT"
+	canTakeParentName          = "CAN_TAKE_PARENT"
 
 	// scheduler
 	heartbeatServiceInstanceName         = "HEARTBEAT_SERVICE_INSTANCE"
@@ -61,6 +63,8 @@ var (
 		_deployerIdPathVarFormatted)
 	canTakeChildRoute = fmt.Sprintf(deployer.CanTakeChildPath, _deploymentIdPathVarFormatted,
 		_deployerIdPathVarFormatted)
+	setGrandparentRoute = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
+	canTakeParentRoute = fmt.Sprintf(deployer.CanTakeParentPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
 
 	// scheduler
 	deploymentInstanceAliveRoute = fmt.Sprintf(deployer.DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
@@ -71,6 +75,20 @@ var (
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        canTakeParentName,
+		Method:      http.MethodGet,
+		Pattern:     canTakeParentRoute,
+		HandlerFunc: canTakeParentHandler,
+	},
+
+	{
+		Name:        setGrandparentName,
+		Method:      http.MethodPost,
+		Pattern:     setGrandparentRoute,
+		HandlerFunc: setGrandparentHandler,
+	},
+
 	{
 		Name:        canTakeChildName,
 		Method:      http.MethodGet,

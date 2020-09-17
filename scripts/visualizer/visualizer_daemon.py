@@ -44,7 +44,7 @@ def get_hierarchy_table(node_arg):
         table_resp = check_resp_and_get_json(requests.get((deployerURLf % node_arg) + tablePath))
         return table_resp
     except requests.ConnectionError:
-        return {}
+        return {"dead": True}
 
 
 def get_all_hierarchy_tables():
@@ -90,8 +90,11 @@ table json schema:
 """
 
 
-def add_if_missing(graph, nodes, node):
-    if node not in nodes:
+def add_if_missing(graph, table, node):
+    nodes = [name for name in graph.vs['name']]
+    if node in nodes:
+        return
+    if "dead" in table:
         graph.add_vertex(node, color="black")
 
 
@@ -107,7 +110,7 @@ def graph_deployer():
     node_id_field_id = "Id"
     orphan_field_id = "IsOrphan"
 
-    colors = ["blue", "pink", "red", "black", "green", "gray", "orange"]
+    colors = ["blue", "pink", "green", "orange", "dark blue", "brown", "web green"]
     arrow_width_dict = {attr_grandparent: 3, attr_parent: 1, attr_child: 1}
     edge_width_dict = {attr_grandparent: 1, attr_parent: 1, attr_child: 3}
     orphan_dict = {}
@@ -122,9 +125,15 @@ def graph_deployer():
 
     graphs = {}
     inited_deployments = {}
+    combinedGraph = igraph.Graph(directed=True)
+    for node, table in tables.items():
+        if "dead" in table:
+            combinedGraph.add_vertex(node, color="black")
+        else:
+            combinedGraph.add_vertex(node, color="red")
 
     for node, auxTable in tables.items():
-        if not auxTable:
+        if not auxTable or "dead" in auxTable:
             continue
         has_tables = True
         print("—--------------------------------------------")
@@ -135,14 +144,21 @@ def graph_deployer():
                 g = igraph.Graph(directed=True)
                 graphs[deploymentId] = g
 
+            if deploymentId not in deployment_colors:
+                color = colors[i % len(colors)]
+                deployment_colors[deploymentId] = color
+                i += 1
+
             if deploymentId not in inited_deployments:
                 # first add all nodes
-                for auxNode in tables.keys():
-                    g.add_vertex(auxNode, color="red")
+                for auxNode, table in tables.items():
+                    if "dead" not in table:
+                        g.add_vertex(auxNode, color="red")
 
                 with open(f"{os.path.dirname(os.path.realpath(__file__))}/locations.txt", 'r') as f:
                     locations = json.load(f)
                     g.add_vertex(deploymentId, color="blue")
+                    combinedGraph.add_vertex(deploymentId, color=deployment_colors[deploymentId])
                 inited_deployments[deploymentId] = True
 
             if entry[orphan_field_id]:
@@ -151,15 +167,11 @@ def graph_deployer():
                 else:
                     orphan_dict[node] = [deploymentId]
 
-            if deploymentId not in deployment_colors:
-                color = colors[i % len(colors)]
-                deployment_colors[deploymentId] = color
-                i += 1
             if entry[parent_field_id] is not None:
                 parent = entry[parent_field_id]
                 parentId = parent[node_id_field_id]
                 print(f"({deploymentId}) {node} has parent {parentId}")
-                add_if_missing(g, tables.keys(), parentId)
+                add_if_missing(g, tables[parentId], parentId)
                 g.add_edge(node, parentId, relation=attr_parent,
                            deploymentId=deploymentId)
                 has_edges = True
@@ -167,14 +179,16 @@ def graph_deployer():
                 grandparent = entry[grandparent_field_id]
                 grandparentId = grandparent[node_id_field_id]
                 print(f"({deploymentId}) {node} has grandparent {grandparentId}")
-                add_if_missing(g, tables.keys(), grandparentId)
+                add_if_missing(g, tables[grandparentId], grandparentId)
                 g.add_edge(node, grandparentId, relation=attr_grandparent,
                            deploymentId=deploymentId)
                 has_edges = True
             for childId in entry[children_field_id].keys():
                 print(f"({deploymentId}) {node} has child {childId}")
-                add_if_missing(g, tables.keys(), childId)
+                add_if_missing(g, tables[childId], childId)
                 g.add_edge(node, childId, relation=attr_child, deploymentId=deploymentId)
+                add_if_missing(combinedGraph, tables[childId], childId)
+                combinedGraph.add_edge(node, childId, deploymentId=deploymentId)
                 has_edges = True
 
     for deploymentId, g in graphs.items():
@@ -186,7 +200,7 @@ def graph_deployer():
         visual_style["vertex_size"] = 30
         visual_style["vertex_color"] = [color for color in g.vs["color"]]
         visual_style["vertex_label"] = g.vs["label"]
-        visual_style["vertex_label_dist"] = 4
+        visual_style["vertex_label_dist"] = 3
         visual_style["vertex_label_size"] = 16
         visual_style["vertex_shape"] = ["triangle-up" if color == "blue" else "circle" for color in
                                         g.vs["color"]]
@@ -198,6 +212,26 @@ def graph_deployer():
         visual_style["bbox"] = (1000, 1000)
         visual_style["margin"] = 200
         igraph.plot(g, f"/home/b.anjos/deployer_pngs/deployer_plot_{deploymentId}.png", **visual_style, autocurve=True)
+
+    if has_tables:
+        visual_style = {}
+        layout = combinedGraph.layout_auto()
+        combinedGraph.vs["label"] = [name + f"\n({get_location(name, locations)})" for name in combinedGraph.vs["name"]]
+        visual_style["vertex_size"] = 30
+        visual_style["vertex_color"] = [color for color in combinedGraph.vs["color"]]
+        visual_style["vertex_label"] = combinedGraph.vs["label"]
+        visual_style["vertex_label_dist"] = 3
+        visual_style["vertex_label_size"] = 16
+        visual_style["vertex_shape"] = ["triangle-up" if color != "red" and color != "black" else "circle" for color in
+                                        combinedGraph.vs["color"]]
+        if has_edges:
+            visual_style["edge_color"] = [deployment_colors[deploymentId]
+                                          for deploymentId in combinedGraph.es['deploymentId']]
+            visual_style["edge_width"] = 3
+        visual_style["layout"] = layout
+        visual_style["bbox"] = (1000, 1000)
+        visual_style["margin"] = 200
+        igraph.plot(combinedGraph, f"/home/b.anjos/deployer_pngs/combined_plot.png", **visual_style, autocurve=True)
 
     if not has_tables:
         mypath = "/home/b.anjos/deployer_pngs/"

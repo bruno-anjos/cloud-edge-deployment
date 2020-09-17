@@ -75,13 +75,18 @@ func loadAlternativesPeriodically() {
 
 func sendAlternativesPeriodically() {
 	for {
+		// TODO not perfect
 		<-timer.C
 		sendAlternatives()
+		if !timer.Stop() {
+			<-timer.C
+		}
 		timer.Reset(sendAlternativesTimeout * time.Second)
 	}
 }
 
 func sendAlternatives() {
+	log.Debug("sending alternatives")
 	var alternatives []*utils.Node
 	myAlternatives.Range(func(key, value interface{}) bool {
 		neighbor := value.(typeMyAlternativesMapValue)
