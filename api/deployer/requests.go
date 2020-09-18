@@ -17,10 +17,15 @@ type (
 	DeadChildRequestBody       = struct {
 		Grandchild   *utils.Node
 		Alternatives map[string]*utils.Node
+		Location     float64
 	}
 	TakeChildRequestBody               = utils.Node
 	IAmYourParentRequestBody           = []*utils.Node
 	RegisterServiceInstanceRequestBody = archimedes2.InstanceDTO
 	AlternativesRequestBody            = []*utils.Node
 	SetGrandparentRequestBody          = utils.Node
+	FallbackRequestBody                = struct {
+		OrphanId       string
+		OrphanLocation float64
+	}
 )

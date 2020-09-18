@@ -128,10 +128,11 @@ func (c *Client) SendHearbeatServiceInstance(serviceId, instanceId string) (stat
 }
 
 func (c *Client) WarnOfDeadChild(serviceId, deadChildId string, grandChild *utils.Node,
-	alternatives map[string]*utils.Node) (status int) {
+	alternatives map[string]*utils.Node, location float64) (status int) {
 	var reqBody api.DeadChildRequestBody
 	reqBody.Grandchild = grandChild
 	reqBody.Alternatives = alternatives
+	reqBody.Location = location
 
 	path := api.GetDeadChildPath(serviceId, deadChildId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
@@ -285,6 +286,19 @@ func (c *Client) SendAlternatives(myId string, alternatives []*utils.Node) (stat
 	reqBody = alternatives
 
 	path := api.GetSetAlternativesPath(myId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
+func (c *Client) Fallback(deploymentId, orphanId string, orphanLocation float64) (status int) {
+	var reqBody api.FallbackRequestBody
+	reqBody.OrphanId = orphanId
+	reqBody.OrphanLocation = orphanLocation
+
+	path := api.GetFallbackPath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)

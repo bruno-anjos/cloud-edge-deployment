@@ -37,7 +37,22 @@ func deadChildHandler(_ http.ResponseWriter, r *http.Request) {
 	hTable.removeChild(deploymentId, deadChildId)
 	children.Delete(deadChildId)
 
-	go attemptToExtend(deploymentId, "", body.Grandchild, 0, body.Alternatives)
+	go attemptToExtend(deploymentId, "", body.Location, body.Grandchild, 0, body.Alternatives)
+}
+
+func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+
+	reqBody := api.FallbackRequestBody{}
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		panic(err)
+	}
+
+	log.Debugf("node %s is falling back from %f with deployment %s", reqBody.OrphanId, reqBody.OrphanLocation,
+		deploymentId)
+
+	go attemptToExtend(deploymentId, reqBody.OrphanId, reqBody.OrphanLocation, nil, maxHopsToLookFor, nil)
 }
 
 func canTakeChildHandler(w http.ResponseWriter, r *http.Request) {

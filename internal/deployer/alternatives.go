@@ -2,9 +2,7 @@ package deployer
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
@@ -30,24 +28,7 @@ func setAlternativesHandler(_ http.ResponseWriter, r *http.Request) {
 }
 
 func simulateAlternatives() {
-	go writeMyselfToAlternatives()
 	go loadAlternativesPeriodically()
-}
-
-func writeMyselfToAlternatives() {
-	ticker := time.NewTicker(30 * time.Second)
-	filename := alternativesDir + addPortToAddr(hostname)
-
-	for {
-		if _, err := os.Stat(filename); os.IsNotExist(err) {
-			_, err = os.Create(filename)
-			if err != nil {
-				log.Error(err)
-			}
-		}
-
-		<-ticker.C
-	}
 }
 
 func loadAlternativesPeriodically() {
@@ -56,19 +37,13 @@ func loadAlternativesPeriodically() {
 	for {
 		<-ticker.C
 
-		files, err := ioutil.ReadDir(alternativesDir)
-		if err != nil {
-			log.Error(err)
+		vicinity, status := hTable.autonomicClient.GetVicinity()
+		if status != http.StatusOK {
 			continue
 		}
 
-		for _, f := range files {
-			addr := f.Name()
-			if addr == hostname {
-				continue
-			}
-
-			onNodeUp(addr)
+		for neighbor := range vicinity {
+			onNodeUp(neighbor)
 		}
 	}
 }

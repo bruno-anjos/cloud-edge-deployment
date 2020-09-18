@@ -29,6 +29,7 @@ const (
 	CanTakeChildPath       = "/deployments/%s/can_child/%s"
 	SetGrandparentPath     = "/deployments/%s/grandparent"
 	CanTakeParentPath      = "/deployments/%s/can_parent/%s"
+	FallbackPath           = "/deployments/%s/fallback"
 
 	// scheduler
 	DeploymentInstanceAlivePath = "/deployments/%s/%s/alive"
@@ -109,4 +110,8 @@ func GetCanTakeParentPath(deploymentId, parentId string) string {
 
 func GetSetGrandparentPath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(SetGrandparentPath, deploymentId)
+}
+
+func GetFallbackPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(FallbackPath, deploymentId)
 }

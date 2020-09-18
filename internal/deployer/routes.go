@@ -17,7 +17,6 @@ const (
 	whoAreYouName               = "WHO_ARE_YOU"
 	addNodeName                 = "ADD_NODE"
 	setAlternativesName         = "SET_ALTERNATIVES"
-	qualityNotAssuredName       = "QUALITY_NOT_ASSURED"
 	deadChildName               = "DEAD_CHILD"
 	takeChildName               = "TAKE_CHILD"
 	deleteDeploymentChildName   = "DELETE_DEPLOYMENT_CHILD"
@@ -29,7 +28,8 @@ const (
 	extendDeploymentToName      = "EXTEND_DEPLOYMENT_TO"
 	shortenDeploymentFromName   = "SHORTEN_DEPLOYMENT_FROM"
 	setGrandparentName          = "SET_GRANDPARENT"
-	canTakeParentName          = "CAN_TAKE_PARENT"
+	canTakeParentName           = "CAN_TAKE_PARENT"
+	fallbackName                = "FALLBACK"
 
 	// scheduler
 	heartbeatServiceInstanceName         = "HEARTBEAT_SERVICE_INSTANCE"
@@ -64,7 +64,8 @@ var (
 	canTakeChildRoute = fmt.Sprintf(deployer.CanTakeChildPath, _deploymentIdPathVarFormatted,
 		_deployerIdPathVarFormatted)
 	setGrandparentRoute = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
-	canTakeParentRoute = fmt.Sprintf(deployer.CanTakeParentPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	canTakeParentRoute  = fmt.Sprintf(deployer.CanTakeParentPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	fallbackRoute       = fmt.Sprintf(deployer.FallbackPath, _deploymentIdPathVarFormatted)
 
 	// scheduler
 	deploymentInstanceAliveRoute = fmt.Sprintf(deployer.DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
@@ -75,6 +76,13 @@ var (
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        fallbackName,
+		Method:      http.MethodPost,
+		Pattern:     fallbackRoute,
+		HandlerFunc: fallbackHandler,
+	},
+
 	{
 		Name:        canTakeParentName,
 		Method:      http.MethodGet,

@@ -1,6 +1,7 @@
 package autonomic
 
 import (
+	"encoding/json"
 	"net/http"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
@@ -70,6 +71,89 @@ func (c *Client) SetServiceParent(serviceId, parentId string) (status int) {
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
+func (c *Client) IsNodeInVicinity(nodeId string) (isInVicinity bool) {
+	path := api.GetIsNodeInVicinityPath(nodeId)
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+
+	status, _ := utils.DoRequest(c.Client, req, nil)
+	if status == http.StatusOK {
+		isInVicinity = true
+	} else if status == http.StatusNotFound {
+		isInVicinity = false
+	} else {
+		return false
+	}
+
+	return
+}
+
+func (c *Client) GetClosestNode(location float64, toExclude map[string]struct{}) (closest string) {
+	reqBody := api.ClosestNodeRequestBody{
+		Location:  location,
+		ToExclude: toExclude,
+	}
+	path := api.GetClosestNodePath()
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, reqBody)
+
+	var respBody api.ClosestNodeResponseBody
+	status, resp := utils.DoRequest(c.Client, req, nil)
+	if status == http.StatusOK {
+		err := json.NewDecoder(resp.Body).Decode(&respBody)
+		if err != nil {
+			panic(err)
+		}
+		closest = respBody
+	} else {
+		closest = ""
+	}
+
+	return
+}
+
+func (c *Client) GetVicinity() (vicinity map[string]interface{}, status int) {
+	path := api.GetVicinityPath()
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+
+	var (
+		respBody api.GetVicinityResponseBody
+		resp     *http.Response
+	)
+	status, resp = utils.DoRequest(c.Client, req, nil)
+	if status == http.StatusOK {
+		err := json.NewDecoder(resp.Body).Decode(&respBody)
+		if err != nil {
+			panic(err)
+		}
+		vicinity = respBody
+	} else {
+		vicinity = nil
+	}
+
+	return
+}
+
+func (c *Client) GetMyLocation() (location float64, status int) {
+	path := api.GetMyLocationPath()
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+
+	var (
+		respBody api.GetMyLocationResponseBody
+		resp     *http.Response
+	)
+	status, resp = utils.DoRequest(c.Client, req, nil)
+	if status == http.StatusOK {
+		err := json.NewDecoder(resp.Body).Decode(&respBody)
+		if err != nil {
+			panic(err)
+		}
+		location = respBody
+	} else {
+		location = -1.0
+	}
 
 	return
 }

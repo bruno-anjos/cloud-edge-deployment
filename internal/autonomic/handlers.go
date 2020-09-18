@@ -23,7 +23,7 @@ func init() {
 }
 
 func addServiceHandler(_ http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 
 	var serviceConfig api.AddServiceRequestBody
 	err := json.NewDecoder(r.Body).Decode(&serviceConfig)
@@ -40,7 +40,7 @@ func addServiceHandler(_ http.ResponseWriter, r *http.Request) {
 }
 
 func removeServiceHandler(_ http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 	autonomicSystem.removeService(serviceId)
 }
 
@@ -55,22 +55,74 @@ func getAllServicesHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 func addServiceChildHandler(_ http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
-	childId := utils.ExtractPathVar(r, ChildIdPathVar)
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	childId := utils.ExtractPathVar(r, childIdPathVar)
 
 	autonomicSystem.addServiceChild(serviceId, childId)
 }
 
 func removeServiceChildHandler(_ http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
-	childId := utils.ExtractPathVar(r, ChildIdPathVar)
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	childId := utils.ExtractPathVar(r, childIdPathVar)
 
 	autonomicSystem.removeServiceChild(serviceId, childId)
 }
 
 func setServiceParentHandler(_ http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, ServiceIdPathVar)
-	parentId := utils.ExtractPathVar(r, ParentIdPathVar)
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	parentId := utils.ExtractPathVar(r, parentIdPathVar)
 
 	autonomicSystem.setServiceParent(serviceId, parentId)
+}
+
+func isNodeInVicinityHandler(w http.ResponseWriter, r *http.Request) {
+	nodeId := utils.ExtractPathVar(r, nodeIdPathVar)
+
+	if !autonomicSystem.isNodeInVicinity(nodeId) {
+		w.WriteHeader(http.StatusNotFound)
+	}
+
+	return
+}
+
+func closestNodeToHandler(w http.ResponseWriter, r *http.Request) {
+	var reqBody api.ClosestNodeRequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		panic(err)
+	}
+
+	closest := autonomicSystem.closestNodeTo(reqBody.Location, reqBody.ToExclude)
+	if closest == "" {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	utils.SendJSONReplyOK(w, closest)
+}
+
+func getVicinityHandler(w http.ResponseWriter, _ *http.Request) {
+	vicinity := autonomicSystem.getVicinity()
+	if vicinity == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	var respBody api.GetVicinityResponseBody
+	respBody = vicinity
+
+	utils.SendJSONReplyOK(w, respBody)
+}
+
+func getMyLocationHandler(w http.ResponseWriter, _ *http.Request) {
+	location := autonomicSystem.getMyLocation()
+	if location == -1. {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	var respBody api.GetMyLocationResponseBody
+	respBody = location
+
+	utils.SendJSONReplyOK(w, respBody)
 }

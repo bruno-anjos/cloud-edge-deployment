@@ -469,13 +469,19 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 	for _, deploymentId := range deploymentIds {
 		grandparent := hTable.getGrandparent(deploymentId)
 		if grandparent == nil {
-			panic("TODO fallback")
+			deplClient := deployer.NewDeployerClient(fallback + ":" + strconv.Itoa(deployer.Port))
+			status := deplClient.Fallback(deploymentId, myself.Id, location)
+			if status != http.StatusOK {
+				log.Debugf("tried to fallback to %s, got %d", fallback, status)
+				deleteDeploymentAsync(deploymentId)
+			}
+			continue
 		}
 
 		newParentChan := hTable.setDeploymentAsOrphan(deploymentId)
 
 		deplClient := deployer.NewDeployerClient(grandparent.Addr + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.WarnOfDeadChild(deploymentId, deadParent.Id, myself, alternatives)
+		status := deplClient.WarnOfDeadChild(deploymentId, deadParent.Id, myself, alternatives, location)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while renegotiating parent %s with %s for deployment %s", status,
 				deadParent, grandparent.Id, deploymentId)
@@ -493,14 +499,21 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 
 	select {
 	case <-waitingTimer.C:
-		panic("TODO fallback")
+		log.Debugf("falling back to %s", fallback)
+		deplClient := deployer.NewDeployerClient(fallback)
+		status := deplClient.Fallback(deploymentId, myself.Id, location)
+		if status != http.StatusOK {
+			log.Debugf("tried to fallback to %s, got %d", fallback, status)
+			return
+		}
+		return
 	case newParentId := <-newParentChan:
 		log.Debugf("got new parent %s for deployment %s", newParentId, deploymentId)
 		return
 	}
 }
 
-func attemptToExtend(deploymentId string, target string, grandchild *utils.Node, maxHops int,
+func attemptToExtend(deploymentId, target string, targetLocation float64, grandchild *utils.Node, maxHops int,
 	alternatives map[string]*utils.Node) {
 	var extendTimer *time.Timer
 
@@ -530,14 +543,21 @@ func attemptToExtend(deploymentId string, target string, grandchild *utils.Node,
 				}
 				delete(alternatives, newChildAddr)
 			} else {
-				newChildAddr = getNodeCloserTo(location, maxHops, toExclude)
-				log.Debugf("trying %s", newChildAddr)
+				var found bool
+				newChildAddr, found = getNodeCloserTo(targetLocation, maxHops, toExclude)
+				if found {
+					log.Debugf("trying %s", newChildAddr)
+				}
 			}
-			toExclude[newChildAddr] = struct{}{}
 		}
 
 		if newChildAddr != "" {
-			success = extendDeployment(deploymentId, newChildAddr, grandchild)
+			inVicinity := hTable.autonomicClient.IsNodeInVicinity(newChildAddr)
+			if inVicinity {
+				success = extendDeployment(deploymentId, newChildAddr, grandchild)
+			} else {
+				toExclude[newChildAddr] = struct{}{}
+			}
 		}
 
 		if tries == 5 {
@@ -628,10 +648,6 @@ func extendDeployment(deploymentId, childAddr string, grandChild *utils.Node) bo
 	}
 
 	return true
-}
-
-func resetToFallback() {
-
 }
 
 func loadFallbackHostname(filename string) string {

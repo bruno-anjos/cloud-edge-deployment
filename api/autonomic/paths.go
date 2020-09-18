@@ -10,10 +10,14 @@ const (
 
 	PrefixPath = "/autonomic"
 
-	ServicesPath      = "/services"
-	ServicePath       = "/services/%s"
-	ServiceChildPath  = "/services/%s/child/%s"
-	ServiceParentPath = "/services/%s/parent/%s"
+	ServicesPath         = "/services"
+	ServicePath          = "/services/%s"
+	ServiceChildPath     = "/services/%s/child/%s"
+	ServiceParentPath    = "/services/%s/parent/%s"
+	IsNodeInVicinityPath = "/vicinity/%s"
+	ClosestNodePath      = "/closest"
+	VicinityPath         = "/vicinity"
+	MyLocationPath       = "/location"
 )
 
 func GetServicesPath() string {
@@ -30,4 +34,20 @@ func GetServiceChildPath(serviceId, childId string) string {
 
 func GetServiceParentPath(serviceId, parentId string) string {
 	return PrefixPath + fmt.Sprintf(ServiceParentPath, serviceId, parentId)
+}
+
+func GetIsNodeInVicinityPath(nodeId string) string {
+	return PrefixPath + fmt.Sprintf(IsNodeInVicinityPath, nodeId)
+}
+
+func GetClosestNodePath() string {
+	return PrefixPath + ClosestNodePath
+}
+
+func GetVicinityPath() string {
+	return PrefixPath + VicinityPath
+}
+
+func GetMyLocationPath() string {
+	return PrefixPath + MyLocationPath
 }

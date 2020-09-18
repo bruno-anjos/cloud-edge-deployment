@@ -1,7 +1,9 @@
 package autonomic
 
 import (
+	"math"
 	"math/rand"
+	"sort"
 	"sync"
 	"time"
 
@@ -206,6 +208,67 @@ func (a *system) getServices() (services map[string]*service) {
 	})
 
 	return
+}
+
+func (a *system) isNodeInVicinity(nodeId string) bool {
+	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
+	if !ok {
+		return false
+	}
+
+	vicinity := value.(map[string]interface{})
+	_, ok = vicinity[nodeId]
+
+	return ok
+}
+
+func (a *system) closestNodeTo(location float64, toExclude map[string]struct{}) (nodeId string) {
+	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
+	if !ok {
+		return ""
+	}
+
+	vicinity := value.(map[string]interface{})
+	var ordered []string
+
+	for node := range vicinity {
+		if _, ok = toExclude[node]; ok {
+			continue
+		}
+		ordered = append(ordered, node)
+	}
+
+	sort.Slice(ordered, func(i, j int) bool {
+		return math.Abs(vicinity[ordered[i]].(float64)-location) < math.Abs(vicinity[ordered[j]].(float64)-location)
+	})
+
+	if len(ordered) < 1 {
+		return ""
+	}
+
+	return ordered[0]
+}
+
+func (a *system) getVicinity() map[string]interface{} {
+	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
+	if !ok {
+		return nil
+	}
+
+	vicinity := value.(map[string]interface{})
+
+	return vicinity
+}
+
+func (a *system) getMyLocation() float64 {
+	value, ok := a.env.GetMetric(metrics.MetricLocation)
+	if !ok {
+		return -1.
+	}
+
+	location := value.(float64)
+
+	return location
 }
 
 func (a *system) start() {

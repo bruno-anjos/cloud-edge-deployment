@@ -2,7 +2,6 @@ package deployer
 
 import (
 	"encoding/json"
-	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -51,8 +50,8 @@ var (
 
 var (
 	hostname string
+	location float64
 	fallback string
-	location string
 	myself   *utils.Node
 
 	myAlternatives       sync.Map
@@ -92,10 +91,17 @@ func init() {
 	timer = time.NewTimer(sendAlternativesTimeout * time.Second)
 
 	// TODO change this for location from lower API
-	location = ""
 	fallback = loadFallbackHostname(fallbackFilename)
+	log.Debugf("loaded fallback %s", fallback)
 
 	simulateAlternatives()
+
+	var status int
+	for status != http.StatusOK {
+		location, status = hTable.autonomicClient.GetMyLocation()
+	}
+
+	log.Debugf("got location %f", location)
 
 	go sendHeartbeatsPeriodically()
 	go sendAlternativesPeriodically()
@@ -154,7 +160,7 @@ func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go attemptToExtend(deploymentId, targetAddr, nil, 0, nil)
+	go attemptToExtend(deploymentId, targetAddr, 0, nil, 0, nil)
 }
 
 func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
@@ -262,27 +268,11 @@ func whoAreYouHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 // TODO function simulating lower API
-func getNodeCloserTo(location string, maxHopsToLookFor int, excludeNodes map[string]struct{}) string {
-	var (
-		alternatives []*utils.Node
-	)
-
-	myAlternatives.Range(func(key, value interface{}) bool {
-		node := value.(typeMyAlternativesMapValue)
-		if _, ok := excludeNodes[node.Id]; ok {
-			return true
-		}
-		log.Debugf("adding %s", node)
-		alternatives = append(alternatives, node)
-		return true
-	})
-
-	if len(alternatives) == 0 {
-		return ""
-	}
-
-	randIdx := rand.Intn(len(alternatives))
-	return alternatives[randIdx].Addr
+func getNodeCloserTo(location float64, maxHopsToLookFor int, excludeNodes map[string]struct{}) (closest string,
+	found bool) {
+	closest = hTable.autonomicClient.GetClosestNode(location, excludeNodes)
+	found = closest != ""
+	return
 }
 
 func addDeploymentAsync(deployment *Deployment, deploymentId string) {
@@ -404,9 +394,17 @@ func addNode(nodeDeployerId, addr string) bool {
 // TODO function simulation lower API
 // Node up is only triggered for nodes that appeared one hop away
 func onNodeUp(addr string) {
-	id, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		panic(err)
+	var (
+		id string
+		err error
+	)
+	if strings.Contains(addr, ":") {
+		id, _, err = net.SplitHostPort(addr)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		id = addr
 	}
 	addNode(id, id)
 	sendAlternatives()
