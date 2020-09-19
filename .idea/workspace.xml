@@ -4,24 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5271c906-0556-48fb-94b9-7ee1cd9c0ecb" name="Default Changelist" comment="update IDE files">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/autonomic/paths.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/autonomic/paths.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/autonomic/replies.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/autonomic/replies.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/autonomic/requests.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/autonomic/requests.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/deployer/paths.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/deployer/paths.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/deployer/requests.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/deployer/requests.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/autonomic/autonomic.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/autonomic.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/autonomic/handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/handlers.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/autonomic/routes.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/autonomic/routes.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/deployer/alternatives.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/alternatives.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/deployer/handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/handlers.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/deployer/hierarchy.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/hierarchy.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/deployer/hierarchy_handlers.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/hierarchy_handlers.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/deployer/routes.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/deployer/routes.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pkg/autonomic/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/autonomic/client.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pkg/deployer/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/deployer/client.go" afterDir="false" />
-    </list>
+    <list default="true" id="5271c906-0556-48fb-94b9-7ee1cd9c0ecb" name="Default Changelist" comment="update IDE files" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
