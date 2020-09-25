@@ -25,6 +25,8 @@ const (
 	redirectName                = "REDIRECT"
 	removeRedirectName          = "REMOVE_REDIRECT"
 	getRedirectedName           = "GET_REDIRECTED"
+	resolveLocallyName          = "RESOLVE_LOCALLY"
+	setResolvingAnswerName      = "SET_RESOLVE_ANSWER"
 )
 
 // Path variables
@@ -41,16 +43,32 @@ var (
 	serviceRoute         = fmt.Sprintf(archimedes.ServicePath, _serviceIdPathVarFormatted)
 	serviceInstanceRoute = fmt.Sprintf(archimedes.ServiceInstancePath, _serviceIdPathVarFormatted,
 		_instanceIdPathVarFormatted)
-	instanceRoute   = fmt.Sprintf(archimedes.InstancePath, _instanceIdPathVarFormatted)
-	discoverRoute   = archimedes.DiscoverPath
-	whoAreYouRoute  = archimedes.WhoAreYouPath
-	tableRoute      = archimedes.TablePath
-	resolveRoute    = archimedes.ResolvePath
-	redirectRoute   = fmt.Sprintf(archimedes.RedirectPath, _serviceIdPathVarFormatted)
-	redirectedRoute = fmt.Sprintf(archimedes.RedirectedPath, _serviceIdPathVarFormatted)
+	instanceRoute           = fmt.Sprintf(archimedes.InstancePath, _instanceIdPathVarFormatted)
+	discoverRoute           = archimedes.DiscoverPath
+	whoAreYouRoute          = archimedes.WhoAreYouPath
+	tableRoute              = archimedes.TablePath
+	resolveRoute            = archimedes.ResolvePath
+	resolveLocallyRoute     = archimedes.ResolveLocallyPath
+	redirectRoute           = fmt.Sprintf(archimedes.RedirectPath, _serviceIdPathVarFormatted)
+	redirectedRoute         = fmt.Sprintf(archimedes.RedirectedPath, _serviceIdPathVarFormatted)
+	setResolvingAnswerRoute = fmt.Sprintf(archimedes.SetResolvingAnswerPath)
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        setResolvingAnswerName,
+		Method:      http.MethodPost,
+		Pattern:     setResolvingAnswerRoute,
+		HandlerFunc: setResolutionAnswerHandler,
+	},
+
+	{
+		Name:        resolveLocallyName,
+		Method:      http.MethodPost,
+		Pattern:     resolveLocallyRoute,
+		HandlerFunc: resolveLocallyHandler,
+	},
+
 	{
 		Name:        getRedirectedName,
 		Method:      http.MethodGet,

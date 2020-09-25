@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"encoding/json"
+	archimedesApi "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"net"
 	"net/http"
 	"os"
@@ -267,6 +268,93 @@ func whoAreYouHandler(w http.ResponseWriter, _ *http.Request) {
 	utils.SendJSONReplyOK(w, myself.Id)
 }
 
+func startResolveUpTheTreeHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+
+	var reqBody api.StartResolveUpTheTreeRequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		panic(err)
+	}
+
+	parent := hTable.getParent(deploymentId)
+	if parent == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	go resolveUp(parent.Id, deploymentId, hostname, &reqBody)
+}
+
+func resolveUp(parentId, deploymentId, origin string, toResolve *archimedesApi.ToResolveDTO) {
+	deplClient := deployer.NewDeployerClient(parentId + ":" + strconv.Itoa(deployer.Port))
+	status := deplClient.ResolveUpTheTree(deploymentId, origin, toResolve)
+	if status != http.StatusOK {
+		log.Debugf("got %d while attempting to resolve up the tree", status)
+	}
+}
+
+func resolveUpTheTreeHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+
+	var req api.ResolveUpTheTreeRequestBody
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		panic(err)
+	}
+
+	archClient := archimedes.NewArchimedesClient(archimedes.ServiceName + ":" + strconv.Itoa(archimedes.Port))
+	rHost, rPort, status := archClient.ResolveLocally(req.ToResolve.Host, req.ToResolve.Port)
+
+	archClient.SetHostPort(req.Origin + ":" + strconv.Itoa(archimedes.Port))
+	id := req.ToResolve.Host + ":" + req.ToResolve.Port.Port()
+
+	switch status {
+	case http.StatusOK:
+		resolved := &archimedesApi.ResolvedDTO{
+			Host: rHost,
+			Port: rPort,
+		}
+		archClient.SetResolvingAnswer(id, resolved)
+	case http.StatusNotFound:
+		parent := hTable.getParent(deploymentId)
+		if parent == nil {
+			archClient.SetResolvingAnswer(id, nil)
+		} else {
+			go resolveUp(parent.Id, deploymentId, req.Origin, req.ToResolve)
+		}
+	default:
+		log.Debugf("got status %d while trying to resolve locally in archimedes", status)
+		w.WriteHeader(http.StatusInternalServerError)
+		archClient.SetResolvingAnswer(id, nil)
+	}
+}
+
+func resolveInArchimedesHandler(w http.ResponseWriter, r *http.Request) {
+	var req api.ResolveInArchimedesRequestBody
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		panic(err)
+	}
+
+	archClient := archimedes.NewArchimedesClient(archimedes.ServiceName + ":" + strconv.Itoa(archimedes.Port))
+	rHost, rPort, status := archClient.ResolveLocally(req.Host, req.Port)
+	switch status {
+	case http.StatusOK:
+		utils.SendJSONReplyOK(w, archimedesApi.ResolvedDTO{
+			Host: rHost,
+			Port: rPort,
+		})
+	case http.StatusNotFound:
+		w.WriteHeader(status)
+		return
+	default:
+		log.Debugf("got status %d while trying to resolve locally in archimedes", status)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
 // TODO function simulating lower API
 func getNodeCloserTo(location float64, maxHopsToLookFor int, excludeNodes map[string]struct{}) (closest string,
 	found bool) {
@@ -395,7 +483,7 @@ func addNode(nodeDeployerId, addr string) bool {
 // Node up is only triggered for nodes that appeared one hop away
 func onNodeUp(addr string) {
 	var (
-		id string
+		id  string
 		err error
 	)
 	if strings.Contains(addr, ":") {

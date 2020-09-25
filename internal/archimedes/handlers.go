@@ -2,6 +2,8 @@ package archimedes
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"math/rand"
 	"net"
 	"net/http"
@@ -38,6 +40,8 @@ var (
 	sTable           *servicesTable
 	redirectionsMap  sync.Map
 	archimedesId     string
+	resolvingInTree  sync.Map
+	waitingChannels  sync.Map
 )
 
 func init() {
@@ -45,6 +49,8 @@ func init() {
 
 	sTable = newServicesTable()
 	redirectionsMap = sync.Map{}
+	resolvingInTree = sync.Map{}
+	waitingChannels = sync.Map{}
 
 	archimedesId = uuid.New().String()
 
@@ -268,43 +274,126 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	toResolve := &req
+	redirect, targetUrl := checkForRedirections(req.ToResolve.Host)
+	if redirect {
+		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
+	}
 
-	value, ok := redirectionsMap.Load(toResolve.Host)
+	resolved, found := resolveLocally(req.ToResolve)
+	if !found {
+		deplClient := deployer.NewDeployerClient(deployer.ServiceName + ":" + strconv.Itoa(deployer.Port))
+		id := req.ToResolve.Host + ":" + req.ToResolve.Port.Port()
+
+		_, ok := resolvingInTree.Load(id)
+		if ok {
+			// If there is already a resolution for this given id ocurring
+			value, cOk := waitingChannels.Load(id)
+			if !cOk {
+				panic(fmt.Sprintf("there should be a waiting channel for %s", id))
+			} else {
+				// Get the channel and wait for it to be complete
+				waitChan := value.(chan struct{})
+				<-waitChan
+
+				value, ok = resolvingInTree.Load(id)
+				if !ok {
+					panic(fmt.Sprintf("value for %s was supposed to be in map", id))
+				}
+
+				if value == nil {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+
+				resolved = value.(*api.ResolvedDTO)
+			}
+		} else {
+			waitChan := make(chan struct{})
+			waitingChannels.Store(id, waitChan)
+			resolvingInTree.Store(id, nil)
+			deplClient.StartResolveUpTheTree(req.DeploymentId, req.ToResolve)
+		}
+
+		return
+	}
+
+	var resp api.ResolveResponseBody
+	resp = *resolved
+
+	utils.SendJSONReplyOK(w, resp)
+}
+
+func setResolutionAnswerHandler(w http.ResponseWriter, r *http.Request) {
+	var req api.SetResolutionAnswerRequestBody
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	value, ok := waitingChannels.Load(req.Id)
+	if !ok {
+		log.Debugf("got answer for resolution of %s, but i wasnt waiting", req.Id)
+		return
+	}
+
+	waitChan := value.(chan struct{})
+	resolvingInTree.Store(req.Id, &req.Resolved)
+	close(waitChan)
+}
+
+func resolveLocallyHandler(w http.ResponseWriter, r *http.Request) {
+	var req api.ResolveLocallyRequestBody
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		panic(err)
+	}
+
+	toResolve := &req
+	resolved, found := resolveLocally(toResolve)
+	if !found {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	utils.SendJSONReplyOK(w, resolved)
+}
+
+func checkForRedirections(hostToResolve string) (redirect bool, targetUrl url.URL) {
+	redirect = false
+
+	value, ok := redirectionsMap.Load(hostToResolve)
 	if ok {
 		redirectConfig := value.(redirectionsMapValue)
 		if !redirectConfig.Done {
 			reachedGoal := atomic.CompareAndSwapInt32(&redirectConfig.Current, redirectConfig.Goal-1,
 				redirectConfig.Goal)
-			if !reachedGoal {
-				targetUrl := url.URL{
-					Scheme: "http",
-					Host:   redirectConfig.Target + ":" + strconv.Itoa(archimedes.Port),
-					Path:   api.GetResolvePath(),
-				}
-				http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
-				return
-			} else {
+			redirect, targetUrl = true, url.URL{
+				Scheme: "http",
+				Host:   redirectConfig.Target + ":" + strconv.Itoa(archimedes.Port),
+				Path:   api.GetResolvePath(),
+			}
+			if reachedGoal {
 				redirectConfig.Done = true
 			}
+			return
 		}
 	}
+
+	return
+}
+
+func resolveLocally(toResolve *api.ToResolveDTO) (resolved *api.ResolvedDTO, found bool) {
+	found = false
 
 	service, sOk := sTable.getService(toResolve.Host)
 	if !sOk {
 		instance, iOk := sTable.getInstance(toResolve.Host)
 		if !iOk {
-			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		resolved, rOk := resolveInstance(toResolve.Port, instance)
-		if !rOk {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
-		utils.SendJSONReplyOK(w, resolved)
+		resolved, found = resolveInstance(toResolve.Port, instance)
 		return
 	}
 
@@ -312,7 +401,6 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 	if len(instances) == 0 {
 		log.Debugf("no instances for service %s", service.Id)
-		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
@@ -326,23 +414,12 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resolved, ok := resolveInstance(toResolve.Port, randInstance)
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
-		return
+	resolved, found = resolveInstance(toResolve.Port, randInstance)
+	if found {
+		log.Debugf("resolved %s:%s to %s:%s", toResolve.Host, toResolve.Port.Port(), resolved.Host, resolved.Port)
 	}
 
-	log.Debugf("resolved %s:%s to %s:%s", toResolve.Host, toResolve.Port.Port(), resolved.Host, resolved.Port)
-
-	resolvedDTO := api.ResolvedDTO{
-		Host: resolved.Host,
-		Port: resolved.Port,
-	}
-
-	var resp api.ResolveResponseBody
-	resp = resolvedDTO
-
-	utils.SendJSONReplyOK(w, resp)
+	return
 }
 
 func discoverHandler(w http.ResponseWriter, r *http.Request) {
@@ -402,7 +479,7 @@ func redirectHandler(w http.ResponseWriter, r *http.Request) {
 	redirectionsMap.Store(serviceId, redirectConfig)
 }
 
-func removeRedirectionHandler(w http.ResponseWriter, r *http.Request) {
+func removeRedirectionHandler(_ http.ResponseWriter, r *http.Request) {
 	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 	redirectionsMap.Delete(serviceId)
 }

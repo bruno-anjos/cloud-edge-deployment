@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"fmt"
+	"github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"net/http"
 	"os"
 	"time"
@@ -299,6 +300,31 @@ func (c *Client) Fallback(deploymentId, orphanId string, orphanLocation float64)
 	reqBody.OrphanLocation = orphanLocation
 
 	path := api.GetFallbackPath(deploymentId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
+func (c *Client) StartResolveUpTheTree(deploymentId string, toResolve *archimedes.ToResolveDTO) (status int) {
+	var reqBody api.StartResolveUpTheTreeRequestBody
+	reqBody = *toResolve
+	path := api.GetStartResolveUpTheTreePath(deploymentId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
+func (c *Client) ResolveUpTheTree(deploymentId, origin string, toResolve *archimedes.ToResolveDTO) (status int) {
+	reqBody := api.ResolveUpTheTreeRequestBody{
+		Origin:    origin,
+		ToResolve: toResolve,
+	}
+
+	path := api.GetResolveUpTheTreePath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)

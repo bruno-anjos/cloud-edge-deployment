@@ -107,13 +107,33 @@ func (c *Client) GetInstance(instanceId string) (instance *api.Instance, status 
 	return
 }
 
-func (c *Client) Resolve(host string, port nat.Port) (rHost, rPort string, status int) {
+func (c *Client) Resolve(host string, port nat.Port, deploymentId string) (rHost, rPort string, status int) {
 	reqBody := api.ResolveRequestBody{
+		ToResolve: &api.ToResolveDTO{
+			Host: host,
+			Port: port,
+		},
+		DeploymentId: deploymentId,
+	}
+
+	path := api.GetResolvePath()
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+
+	var resp api.ResolveResponseBody
+	status, _ = utils.DoRequest(c.Client, req, &resp)
+	rHost = resp.Host
+	rPort = resp.Port
+
+	return
+}
+
+func (c *Client) ResolveLocally(host string, port nat.Port) (rHost, rPort string, status int) {
+	reqBody := api.ResolveLocallyRequestBody{
 		Host: host,
 		Port: port,
 	}
 
-	path := api.GetResolvePath()
+	path := api.GetResolveLocallyPath()
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	var resp api.ResolveResponseBody
@@ -150,6 +170,19 @@ func (c *Client) GetRedirected(serviceId string) (redirected int32, status int) 
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, redirected)
+	return
+}
+
+func (c *Client) SetResolvingAnswer(id string, resolved *api.ResolvedDTO) (status int) {
+	reqBody := api.SetResolutionAnswerRequestBody{
+		Resolved: resolved,
+		Id:       id,
+	}
+
+	path := api.SetResolvingAnswerPath
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
 	return
 }
 

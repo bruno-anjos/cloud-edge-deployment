@@ -5,10 +5,10 @@ import (
 )
 
 const (
-	archimedesServiceName = "archimedes"
-	Port                  = 50000
+	ServiceName = "archimedes"
+	Port        = 50000
 )
 
 var (
-	DefaultHostPort = archimedesServiceName + ":" + strconv.Itoa(Port)
+	DefaultHostPort = ServiceName + ":" + strconv.Itoa(Port)
 )

@@ -1,7 +1,7 @@
 package deployer
 
 import (
-	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
+	archimedes "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 )
 
@@ -21,11 +21,17 @@ type (
 	}
 	TakeChildRequestBody               = utils.Node
 	IAmYourParentRequestBody           = []*utils.Node
-	RegisterServiceInstanceRequestBody = archimedes2.InstanceDTO
+	RegisterServiceInstanceRequestBody = archimedes.InstanceDTO
 	AlternativesRequestBody            = []*utils.Node
 	SetGrandparentRequestBody          = utils.Node
 	FallbackRequestBody                = struct {
 		OrphanId       string
 		OrphanLocation float64
+	}
+	ResolveInArchimedesRequestBody   = archimedes.ToResolveDTO
+	StartResolveUpTheTreeRequestBody = archimedes.ToResolveDTO
+	ResolveUpTheTreeRequestBody = struct {
+		Origin    string
+		ToResolve *archimedes.ToResolveDTO
 	}
 )

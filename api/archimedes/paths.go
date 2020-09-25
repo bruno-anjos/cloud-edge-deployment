@@ -10,16 +10,18 @@ const (
 
 	PrefixPath = "/archimedes"
 
-	ServicesPath        = "/services"
-	ServicePath         = "/services/%s"
-	ServiceInstancePath = "/services/%s/%s"
-	InstancePath        = "/instances/%s"
-	DiscoverPath        = "/discover"
-	WhoAreYouPath       = "/who"
-	TablePath           = "/table"
-	ResolvePath         = "/resolve"
-	RedirectPath        = "/services/%s/redirect"
-	RedirectedPath      = "/services/%s/redirected"
+	ServicesPath           = "/services"
+	ServicePath            = "/services/%s"
+	ServiceInstancePath    = "/services/%s/%s"
+	InstancePath           = "/instances/%s"
+	DiscoverPath           = "/discover"
+	WhoAreYouPath          = "/who"
+	TablePath              = "/table"
+	ResolvePath            = "/resolve"
+	ResolveLocallyPath     = "/resolve/local"
+	RedirectPath           = "/services/%s/redirect"
+	RedirectedPath         = "/services/%s/redirected"
+	SetResolvingAnswerPath = "/services/asnwer"
 )
 
 func GetServicesPath() string {
@@ -40,6 +42,10 @@ func GetServiceInstancePath(serviceId, instanceId string) string {
 
 func GetResolvePath() string {
 	return PrefixPath + ResolvePath
+}
+
+func GetResolveLocallyPath() string {
+	return PrefixPath + ResolveLocallyPath
 }
 
 func GetRedirectPath(serviceId string) string {

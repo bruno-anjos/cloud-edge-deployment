@@ -40,7 +40,7 @@ type neighborDTO struct {
 	Addr string
 }
 
-type toResolveDTO struct {
+type ToResolveDTO struct {
 	Host string
 	Port nat.Port
 }

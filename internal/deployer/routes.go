@@ -30,6 +30,9 @@ const (
 	setGrandparentName          = "SET_GRANDPARENT"
 	canTakeParentName           = "CAN_TAKE_PARENT"
 	fallbackName                = "FALLBACK"
+	resolveInArchimedesName     = "RESOLVE_IN_ARCHIMEDES"
+	resolveUpTheTreeName        = "RESOLVE_UP_THE_TREE"
+	startResolveUpTheTreeName   = "START_RESOLVE_UP_THE_TREE"
 
 	// scheduler
 	heartbeatServiceInstanceName         = "HEARTBEAT_SERVICE_INSTANCE"
@@ -63,9 +66,12 @@ var (
 		_deployerIdPathVarFormatted)
 	canTakeChildRoute = fmt.Sprintf(deployer.CanTakeChildPath, _deploymentIdPathVarFormatted,
 		_deployerIdPathVarFormatted)
-	setGrandparentRoute = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
-	canTakeParentRoute  = fmt.Sprintf(deployer.CanTakeParentPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
-	fallbackRoute       = fmt.Sprintf(deployer.FallbackPath, _deploymentIdPathVarFormatted)
+	setGrandparentRoute        = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
+	canTakeParentRoute         = fmt.Sprintf(deployer.CanTakeParentPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	fallbackRoute              = fmt.Sprintf(deployer.FallbackPath, _deploymentIdPathVarFormatted)
+	resolveInArchimedesRoute   = deployer.ResolveInArchimedesPath
+	resolveUpTheTreeRoute      = fmt.Sprintf(deployer.ResolveUpTheTreePath, _deploymentIdPathVarFormatted)
+	startResolveUpTheTreeRoute = fmt.Sprintf(deployer.StartResolveUpTheTreePath, _deploymentIdPathVarFormatted)
 
 	// scheduler
 	deploymentInstanceAliveRoute = fmt.Sprintf(deployer.DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
@@ -76,6 +82,27 @@ var (
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        startResolveUpTheTreeName,
+		Method:      http.MethodPost,
+		Pattern:     startResolveUpTheTreeRoute,
+		HandlerFunc: startResolveUpTheTreeHandler,
+	},
+
+	{
+		Name:        resolveUpTheTreeName,
+		Method:      http.MethodPost,
+		Pattern:     resolveUpTheTreeRoute,
+		HandlerFunc: resolveUpTheTreeHandler,
+	},
+
+	{
+		Name:        resolveInArchimedesName,
+		Method:      http.MethodPost,
+		Pattern:     resolveInArchimedesRoute,
+		HandlerFunc: resolveInArchimedesHandler,
+	},
+
 	{
 		Name:        fallbackName,
 		Method:      http.MethodPost,
