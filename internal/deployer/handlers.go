@@ -2,7 +2,7 @@ package deployer
 
 import (
 	"encoding/json"
-	archimedesApi "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -10,6 +10,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	archimedesApi "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -330,28 +333,61 @@ func resolveUpTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func resolveInArchimedesHandler(w http.ResponseWriter, r *http.Request) {
-	var req api.ResolveInArchimedesRequestBody
-	err := json.NewDecoder(r.Body).Decode(&req)
+func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+
+	var reqBody api.RedirectClientDownTheTreeRequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
 		panic(err)
 	}
 
-	archClient := archimedes.NewArchimedesClient(archimedes.ServiceName + ":" + strconv.Itoa(archimedes.Port))
-	rHost, rPort, status := archClient.ResolveLocally(req.Host, req.Port)
-	switch status {
-	case http.StatusOK:
-		utils.SendJSONReplyOK(w, archimedesApi.ResolvedDTO{
-			Host: rHost,
-			Port: rPort,
-		})
-	case http.StatusNotFound:
-		w.WriteHeader(status)
+	clientLocation := reqBody
+
+	auxChildren := hTable.getChildren(deploymentId)
+	if len(auxChildren) == 0 {
+		log.Debugf("no children to redirect client to")
+		w.WriteHeader(http.StatusNoContent)
 		return
-	default:
-		log.Debugf("got status %d while trying to resolve locally in archimedes", status)
+	}
+
+	myLocation, status := hTable.autonomicClient.GetMyLocation()
+	if status != http.StatusOK {
+		log.Error("could not get my location")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
+	}
+
+	var (
+		bestDiff    = math.Abs(myLocation - clientLocation)
+		bestNode    = myself.Id
+		auxLocation float64
+	)
+
+	autoClient := autonomic.NewAutonomicClient("")
+	for id := range auxChildren {
+		autoClient.SetHostPort(id + ":" + strconv.Itoa(autonomic.Port))
+		auxLocation, status = autoClient.GetMyLocation()
+		if status != http.StatusOK {
+			log.Errorf("got %d while trying to get %s location", status, id)
+			continue
+		}
+
+		currDiff := math.Abs(auxLocation - clientLocation)
+		if currDiff < bestDiff {
+			bestDiff = currDiff
+			bestNode = id
+		}
+	}
+
+	if bestNode != myself.Id {
+		log.Debugf("will redirect client at %f to %s", clientLocation, bestNode)
+		var respBody api.RedirectClientDownTheTreeResponseBody
+		respBody = bestNode
+		utils.SendJSONReplyOK(w, respBody)
+	} else {
+		log.Debugf("client is already connect to closest node")
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 

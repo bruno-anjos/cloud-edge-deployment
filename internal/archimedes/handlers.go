@@ -3,7 +3,6 @@ package archimedes
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"math/rand"
 	"net"
 	"net/http"
@@ -11,6 +10,8 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -41,6 +42,7 @@ var (
 	redirectionsMap  sync.Map
 	archimedesId     string
 	resolvingInTree  sync.Map
+	resolvedInTree   sync.Map
 	waitingChannels  sync.Map
 )
 
@@ -50,6 +52,7 @@ func init() {
 	sTable = newServicesTable()
 	redirectionsMap = sync.Map{}
 	resolvingInTree = sync.Map{}
+	resolvedInTree = sync.Map{}
 	waitingChannels = sync.Map{}
 
 	archimedesId = uuid.New().String()
@@ -267,53 +270,43 @@ func getServicesTableHandler(w http.ResponseWriter, _ *http.Request) {
 func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("handling resolve request")
 
-	var req api.ResolveRequestBody
-	err := json.NewDecoder(r.Body).Decode(&req)
+	var reqBody api.ResolveRequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	redirect, targetUrl := checkForRedirections(req.ToResolve.Host)
+	redirect, targetUrl := checkForRedirections(reqBody.ToResolve.Host)
 	if redirect {
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
 	}
 
-	resolved, found := resolveLocally(req.ToResolve)
-	if !found {
-		deplClient := deployer.NewDeployerClient(deployer.ServiceName + ":" + strconv.Itoa(deployer.Port))
-		id := req.ToResolve.Host + ":" + req.ToResolve.Port.Port()
-
-		_, ok := resolvingInTree.Load(id)
-		if ok {
-			// If there is already a resolution for this given id ocurring
-			value, cOk := waitingChannels.Load(id)
-			if !cOk {
-				panic(fmt.Sprintf("there should be a waiting channel for %s", id))
-			} else {
-				// Get the channel and wait for it to be complete
-				waitChan := value.(chan struct{})
-				<-waitChan
-
-				value, ok = resolvingInTree.Load(id)
-				if !ok {
-					panic(fmt.Sprintf("value for %s was supposed to be in map", id))
-				}
-
-				if value == nil {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-
-				resolved = value.(*api.ResolvedDTO)
-			}
-		} else {
-			waitChan := make(chan struct{})
-			waitingChannels.Store(id, waitChan)
-			resolvingInTree.Store(id, nil)
-			deplClient.StartResolveUpTheTree(req.DeploymentId, req.ToResolve)
+	deplClient := deployer.NewDeployerClient(deployer.ServiceName + ":" + strconv.Itoa(deployer.Port))
+	redirectTo, status := deplClient.RedirectDownTheTree(reqBody.DeploymentId, reqBody.Location)
+	switch status {
+	case http.StatusNoContent:
+		break
+	case http.StatusOK:
+		targetUrl = url.URL{
+			Scheme:      "http",
+			Host:        redirectTo + ":" + strconv.Itoa(archimedes.Port),
+			Path:        api.GetResolvePath(),
 		}
+		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
+		return
+	default:
+		log.Errorf("got status %d while redirecting down the tree", status)
+		return
+	}
 
+	resolved, found := resolveLocally(reqBody.ToResolve)
+	if !found {
+		id := reqBody.ToResolve.Host + ":" + reqBody.ToResolve.Port.Port()
+		resolved = resolveInTree(id, reqBody.DeploymentId, reqBody.ToResolve)
+		if resolved == nil {
+			w.WriteHeader(http.StatusNotFound)
+		}
 		return
 	}
 
@@ -321,6 +314,62 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	resp = *resolved
 
 	utils.SendJSONReplyOK(w, resp)
+}
+
+func resolveInTree(id, deploymentId string, toResolve *api.ToResolveDTO) (resolved *api.ResolvedDTO) {
+	_, ok := resolvingInTree.Load(id)
+	if ok {
+		// If there is already a resolution for this given id ocurring
+		value, cOk := waitingChannels.Load(id)
+		if !cOk {
+			panic(fmt.Sprintf("there should be a waiting channel for %s", id))
+		}
+
+		// Get the channel and wait for it to be complete
+		waitChan := value.(chan struct{})
+		<-waitChan
+
+		value, ok = resolvedInTree.Load(id)
+		if !ok {
+			panic(fmt.Sprintf("value for %s was supposed to be in map", id))
+		}
+
+		if value == nil {
+			resolved = nil
+		} else {
+			resolved = value.(*api.ResolvedDTO)
+		}
+
+		return
+	}
+
+	value, ok := resolvedInTree.Load(id)
+	if ok {
+		// there was no resolution occurring and the value had been resolved before
+		resolved = value.(*api.ResolvedDTO)
+		return
+	}
+
+	// there was no resolution occurring and it had'nt been resolved before
+	waitChan := make(chan struct{})
+	waitingChannels.Store(id, waitChan)
+	resolvingInTree.Store(id, nil)
+	deplClient := deployer.NewDeployerClient(deployer.ServiceName + ":" + strconv.Itoa(deployer.Port))
+	deplClient.StartResolveUpTheTree(deploymentId, toResolve)
+	<-waitChan
+
+	value, ok = resolvingInTree.Load(id)
+	if !ok {
+		panic(fmt.Sprintf("value for %s was supposed to be in map", id))
+	}
+
+	if value == nil {
+		resolved = nil
+	} else {
+		resolved = value.(*api.ResolvedDTO)
+	}
+
+	return
 }
 
 func setResolutionAnswerHandler(w http.ResponseWriter, r *http.Request) {
@@ -338,7 +387,9 @@ func setResolutionAnswerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	waitChan := value.(chan struct{})
-	resolvingInTree.Store(req.Id, &req.Resolved)
+	resolvedInTree.Store(req.Id, &req.Resolved)
+	resolvingInTree.Delete(req.Id)
+	waitingChannels.Delete(req.Id)
 	close(waitChan)
 }
 

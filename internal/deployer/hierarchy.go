@@ -141,10 +141,10 @@ func (t *hierarchyTable) setDeploymentParent(deploymentId string, parent *utils.
 		entry.NewParentChan = nil
 	}
 
-	children := t.getChildren(deploymentId)
-	if len(children) > 0 {
+	auxChildren := t.getChildren(deploymentId)
+	if len(auxChildren) > 0 {
 		deplClient := deployer.NewDeployerClient("")
-		for childId := range children {
+		for childId := range auxChildren {
 			deplClient.SetHostPort(childId + ":" + strconv.Itoa(deployer.Port))
 			deplClient.SetGrandparent(deploymentId, parent)
 		}

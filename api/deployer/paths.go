@@ -17,22 +17,22 @@ const (
 
 	SetAlternativesPath = "/alternatives/%s"
 
-	DeploymentQualityPath   = "/deployments/%s/quality"
-	DeadChildPath           = "/deployments/%s/deadchild/%s"
-	IAmYourParentPath       = "/deployments/%s/parent"
-	HierarchyTablePath      = "/table"
-	ParentAlivePath         = "/parent/%s/up"
-	DeploymentChildPath     = "/deployments/%s/child/%s"
-	MigrateDeploymentPath   = "/deployments/%s/migrate"
-	ExtendServiceToPath     = "/deployments/%s/extend/%s"
-	ShortenServiceFromPath  = "/deployments/%s/shorten/%s"
-	CanTakeChildPath        = "/deployments/%s/can_child/%s"
-	SetGrandparentPath      = "/deployments/%s/grandparent"
-	CanTakeParentPath       = "/deployments/%s/can_parent/%s"
-	FallbackPath            = "/deployments/%s/fallback"
-	ResolveInArchimedesPath = "/deployments/resolve"
-	ResolveUpTheTreePath    = "/deployments/%s/resolve_up"
-	StartResolveUpTheTreePath    = "/deployments/%s/start_resolve_up"
+	DeploymentQualityPath     = "/deployments/%s/quality"
+	DeadChildPath             = "/deployments/%s/deadchild/%s"
+	IAmYourParentPath         = "/deployments/%s/parent"
+	HierarchyTablePath        = "/table"
+	ParentAlivePath           = "/parent/%s/up"
+	DeploymentChildPath       = "/deployments/%s/child/%s"
+	MigrateDeploymentPath     = "/deployments/%s/migrate"
+	ExtendServiceToPath       = "/deployments/%s/extend/%s"
+	ShortenServiceFromPath    = "/deployments/%s/shorten/%s"
+	CanTakeChildPath          = "/deployments/%s/can_child/%s"
+	SetGrandparentPath        = "/deployments/%s/grandparent"
+	CanTakeParentPath         = "/deployments/%s/can_parent/%s"
+	FallbackPath              = "/deployments/%s/fallback"
+	ResolveUpTheTreePath      = "/deployments/%s/resolve_up"
+	StartResolveUpTheTreePath = "/deployments/%s/start_resolve_up"
+	RedirectDownTheTreePath   = "/deployments/%s/redirect_down"
 
 	// scheduler
 	DeploymentInstanceAlivePath = "/deployments/%s/%s/alive"
@@ -125,4 +125,8 @@ func GetResolveUpTheTreePath(deploymentId string) string {
 
 func GetStartResolveUpTheTreePath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(StartResolveUpTheTreePath, deploymentId)
+}
+
+func GetRedirectDownTheTreePath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(RedirectDownTheTreePath, deploymentId)
 }

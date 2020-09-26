@@ -28,10 +28,10 @@ type (
 		OrphanId       string
 		OrphanLocation float64
 	}
-	ResolveInArchimedesRequestBody   = archimedes.ToResolveDTO
 	StartResolveUpTheTreeRequestBody = archimedes.ToResolveDTO
 	ResolveUpTheTreeRequestBody = struct {
 		Origin    string
 		ToResolve *archimedes.ToResolveDTO
 	}
+	RedirectClientDownTheTreeRequestBody = float64
 )

@@ -1,11 +1,13 @@
 package deployer
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -328,6 +330,29 @@ func (c *Client) ResolveUpTheTree(deploymentId, origin string, toResolve *archim
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
+func (c *Client) RedirectDownTheTree(deploymentId string, location float64) (redirectTo string, status int) {
+	var reqBody api.RedirectClientDownTheTreeRequestBody
+	reqBody = location
+
+	path := api.GetRedirectDownTheTreePath(deploymentId)
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, reqBody)
+
+	var (
+		resp *http.Response
+		respBody api.RedirectClientDownTheTreeResponseBody
+	)
+	status, resp = utils.DoRequest(c.Client, req, nil)
+	if status == http.StatusOK {
+		err := json.NewDecoder(resp.Body).Decode(&respBody)
+		if err != nil {
+			panic(err)
+		}
+		redirectTo = respBody
+	}
 
 	return
 }
