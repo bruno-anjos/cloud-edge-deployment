@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	CONSTRAINT_NUMBER_OF_INSTANCES_ID = "CONSTRAINT_NUMBER_OF_INSTANCES"
+	ConstraintNumberOfInstancesId = "CONSTRAINT_NUMBER_OF_INSTANCES"
 )
 
 type NumberOfInstances struct {
@@ -21,7 +21,7 @@ func NewConstraintNumberOfInstances(serviceId string, maxNumInstances int) *Numb
 }
 
 func (n *NumberOfInstances) GetConstraintId() string {
-	return CONSTRAINT_NUMBER_OF_INSTANCES_ID
+	return ConstraintNumberOfInstancesId
 }
 
 func (n *NumberOfInstances) MetricId() string {

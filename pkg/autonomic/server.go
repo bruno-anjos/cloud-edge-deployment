@@ -2,13 +2,14 @@ package autonomic
 
 import (
 	"strconv"
+
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 )
 
 const (
-	autonomicServiceName = "autonomic"
-	Port                 = 50003
+	Port = 50003
 )
 
 var (
-	DefaultHostPort = autonomicServiceName + ":" + strconv.Itoa(Port)
+	DefaultHostPort = utils.AutonomicServiceName + ":" + strconv.Itoa(Port)
 )

@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	ADD_SERVICE_ID     = "ACTION_ADD_SERVICE"
-	REMOVE_SERVICE_ID  = "ACTION_REMOVE_SERVICE"
-	MIGRATE_SERVICE_ID = "ACTION_MIGRATE_SERVICE"
+	AddServiceId     = "ACTION_ADD_SERVICE"
+	RemoveServiceId  = "ACTION_REMOVE_SERVICE"
+	MigrateServiceId = "ACTION_MIGRATE_SERVICE"
 )
 
 type RemoveServiceAction struct {
@@ -20,7 +20,7 @@ type RemoveServiceAction struct {
 
 func NewRemoveServiceAction(serviceId, target string) *RemoveServiceAction {
 	return &RemoveServiceAction{
-		actionWithServiceTarget: newActionWithServiceTarget(REMOVE_SERVICE_ID, serviceId, target),
+		actionWithServiceTarget: newActionWithServiceTarget(RemoveServiceId, serviceId, target),
 	}
 }
 
@@ -35,12 +35,12 @@ type AddServiceAction struct {
 
 func NewAddServiceAction(serviceId, target string) *AddServiceAction {
 	return &AddServiceAction{
-		actionWithServiceTarget: newActionWithServiceTarget(ADD_SERVICE_ID, serviceId, target),
+		actionWithServiceTarget: newActionWithServiceTarget(AddServiceId, serviceId, target),
 	}
 }
 
 func (m *AddServiceAction) Execute(client utils.Client) {
-	log.Debugf("executing %s", ADD_SERVICE_ID)
+	log.Debugf("executing %s", AddServiceId)
 	deployerClient := client.(*deployer.Client)
 	status := deployerClient.ExtendDeploymentTo(m.GetServiceId(), m.GetTarget())
 	if status != http.StatusOK {
@@ -54,12 +54,12 @@ type MigrateAction struct {
 
 func NewMigrateAction(serviceId, from, to string) *MigrateAction {
 	return &MigrateAction{
-		actionWithServiceOriginTarget: newActionWithServiceOriginTarget(MIGRATE_SERVICE_ID, serviceId, from, to),
+		actionWithServiceOriginTarget: newActionWithServiceOriginTarget(MigrateServiceId, serviceId, from, to),
 	}
 }
 
 func (m *MigrateAction) Execute(client utils.Client) {
-	log.Debugf("executing %s", MIGRATE_SERVICE_ID)
+	log.Debugf("executing %s", MigrateServiceId)
 	deployerClient := client.(deployer.Client)
 	status := deployerClient.MigrateDeployment(m.GetServiceId(), m.GetOrigin(), m.GetTarget())
 	if status == http.StatusOK {

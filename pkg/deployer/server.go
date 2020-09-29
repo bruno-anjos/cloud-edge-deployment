@@ -2,13 +2,14 @@ package deployer
 
 import (
 	"strconv"
+
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 )
 
 const (
-	Port        = 50002
-	ServiceName = "deployer"
+	Port = 50002
 )
 
 var (
-	DefaultHostPort = ServiceName + ":" + strconv.Itoa(Port)
+	DefaultHostPort = utils.DeployerServiceName + ":" + strconv.Itoa(Port)
 )

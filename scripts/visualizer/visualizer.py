@@ -55,4 +55,4 @@ while True:
     if deployer_failed and archimedes_failed:
         time.sleep(wait)
 
-    time.sleep(4)
+    time.sleep(8)

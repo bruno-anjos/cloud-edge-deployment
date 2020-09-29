@@ -30,7 +30,7 @@ func NewDeployerClient(addr string) *Client {
 	}
 }
 
-func (c *Client) ExpandTree(serviceId, location string) (status int) {
+func (c *Client) ExpandTree(serviceId string, location *utils.Location) (status int) {
 	var reqBody api.ExpandTreeRequestBody
 	reqBody = location
 
@@ -131,7 +131,7 @@ func (c *Client) SendHearbeatServiceInstance(serviceId, instanceId string) (stat
 }
 
 func (c *Client) WarnOfDeadChild(serviceId, deadChildId string, grandChild *utils.Node,
-	alternatives map[string]*utils.Node, location float64) (status int) {
+	alternatives map[string]*utils.Node, location *utils.Location) (status int) {
 	var reqBody api.DeadChildRequestBody
 	reqBody.Grandchild = grandChild
 	reqBody.Alternatives = alternatives
@@ -296,7 +296,7 @@ func (c *Client) SendAlternatives(myId string, alternatives []*utils.Node) (stat
 	return
 }
 
-func (c *Client) Fallback(deploymentId, orphanId string, orphanLocation float64) (status int) {
+func (c *Client) Fallback(deploymentId, orphanId string, orphanLocation *utils.Location) (status int) {
 	var reqBody api.FallbackRequestBody
 	reqBody.OrphanId = orphanId
 	reqBody.OrphanLocation = orphanLocation
@@ -334,7 +334,7 @@ func (c *Client) ResolveUpTheTree(deploymentId, origin string, toResolve *archim
 	return
 }
 
-func (c *Client) RedirectDownTheTree(deploymentId string, location float64) (redirectTo string, status int) {
+func (c *Client) RedirectDownTheTree(deploymentId string, location *utils.Location) (redirectTo string, status int) {
 	var reqBody api.RedirectClientDownTheTreeRequestBody
 	reqBody = location
 

@@ -1,7 +1,6 @@
 package service_goals
 
 import (
-	"math"
 	"sort"
 	"sync"
 
@@ -9,6 +8,8 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -31,7 +32,7 @@ const (
 
 type NodeWithLocation struct {
 	NodeId   string
-	Location float64
+	Location *utils.Location
 }
 
 type (
@@ -119,7 +120,12 @@ func (i *idealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 	}
 
 	// TODO change this for actual location
-	avgClientLocation := value.(float64)
+
+	var avgClientLocation utils.Location
+	err := mapstructure.Decode(value, &avgClientLocation)
+	if err != nil {
+		panic(err)
+	}
 
 	candidateIds, sortingCriteria, ok := i.GenerateDomain(avgClientLocation)
 	if !ok {
@@ -135,14 +141,34 @@ func (i *idealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 	optRange, isAlreadyMax = i.Cutoff(ordered, sortingCriteria)
 	log.Debugf("%s cutoff result %+v", idealLatencyGoalId, optRange)
 
-	furthestChild, _ := i.calcFurthestChildDistance(avgClientLocation)
+	furthestChild, _ := i.calcFurthestChildDistance(&avgClientLocation)
 	actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
 
-	childMaxLoad := value.(float64)
-	if childMaxLoad > loadToAddServiceThreshold {
-		actionArgs[ilActionTypeArgIndex] = actions.ADD_SERVICE_ID
+	childrenLoadMetric := metrics.GetLoadPerServiceInChildrenMetricId(i.serviceId)
+	value, ok = i.environment.GetMetric(childrenLoadMetric)
+	if !ok {
+		log.Debugf("no value for metric %s", childrenLoadMetric)
+		return
+	}
+
+	childrenLoad := value.(map[string]interface{})
+	var (
+		childWithMaxLoad string
+		childId string
+		maxLoad = 0.
+	)
+	for childId, value = range childrenLoad {
+		childLoad := value.(float64)
+		if childLoad > maxLoad {
+			maxLoad = childLoad
+			childWithMaxLoad = childId
+		}
+	}
+
+	if maxLoad > loadToAddServiceThreshold {
+		actionArgs[ilActionTypeArgIndex] = actions.AddServiceId
 	} else {
-		actionArgs[ilActionTypeArgIndex] = actions.MIGRATE_SERVICE_ID
+		actionArgs[ilActionTypeArgIndex] = actions.MigrateServiceId
 		actionArgs[ilFromIndex] = furthestChild
 	}
 
@@ -160,8 +186,13 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 	candidates := map[string]interface{}{}
 	var candidateIds []string
 
-	avgClientLocation := arg.(float64)
-	furthestChild, furthestChildDistance := i.calcFurthestChildDistance(avgClientLocation)
+	var avgClientLocation utils.Location
+	err := mapstructure.Decode(arg, &avgClientLocation)
+	if err != nil {
+		panic(err)
+	}
+
+	furthestChild, furthestChildDistance := i.calcFurthestChildDistance(&avgClientLocation)
 	log.Debugf("furthest child is %s", furthestChild)
 
 	value, ok = i.environment.GetMetric(metrics.MetricNodeAddr)
@@ -180,8 +211,13 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}
-		location := locationValue.(float64)
-		delta := math.Abs(location - avgClientLocation)
+		var location utils.Location
+		err = mapstructure.Decode(locationValue, &location)
+		if err != nil {
+			panic(err)
+		}
+
+		delta := location.CalcDist(&avgClientLocation)
 		candidates[nodeId] = &nodeWithDistance{
 			NodeId:             nodeId,
 			DistancePercentage: delta / furthestChildDistance,
@@ -220,23 +256,32 @@ func (i *idealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[st
 	}
 
 	// TODO change this for actual location
-	avgClientLocation := value.(float64)
+	var avgClientLocation utils.Location
+	err := mapstructure.Decode(value, &avgClientLocation)
+	if err != nil {
+		panic(err)
+	}
 
 	value, ok = i.environment.GetMetric(metrics.MetricLocation)
 	if !ok {
 		log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
 	}
 
-	location := value.(float64)
-	currDistance := location - avgClientLocation
+	var location utils.Location
+	err = mapstructure.Decode(value, &location)
+	if err != nil {
+		panic(err)
+	}
+
+	currDistance := location.CalcDist(&avgClientLocation)
 
 	numChildren := 0
-	// TODO this has to be tuned for real distances
-	branchingFactor := ((1 / (currDistance / 500)) * 100) + (20 / float64(numChildren))
 	i.serviceChildren.Range(func(key, value interface{}) bool {
 		numChildren++
 		return true
 	})
+	// TODO this has to be tuned for real distances
+	branchingFactor := ((1 / (currDistance / 500)) * 100) + (20 / float64(numChildren))
 
 	// TODO these values seem to make sense for now
 	branch := (branchingFactor / float64(numChildren+1)) > 20
@@ -250,7 +295,7 @@ func (i *idealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[st
 		if percentage < maximumDistancePercentage {
 			cutoff = append(cutoff, candidate)
 		}
-		if percentage < equivalenDistancePercentage && branch {
+		if branch {
 			maxed = false
 		}
 	}
@@ -262,9 +307,9 @@ func (i *idealLatency) GenerateAction(target string, args ...interface{}) action
 	log.Debugf("generating action %s", (args[ilActionTypeArgIndex]).(string))
 
 	switch args[ilActionTypeArgIndex].(string) {
-	case actions.ADD_SERVICE_ID:
+	case actions.AddServiceId:
 		return actions.NewAddServiceAction(i.serviceId, target)
-	case actions.MIGRATE_SERVICE_ID:
+	case actions.MigrateServiceId:
 		from := args[ilFromIndex].(string)
 		return actions.NewMigrateAction(i.serviceId, from, target)
 	}
@@ -291,14 +336,14 @@ func (i *idealLatency) GetDependencies() (metrics []string) {
 	return i.dependencies
 }
 
-func (i *idealLatency) calcFurthestChildDistance(avgLocation float64) (furthestChild string,
+func (i *idealLatency) calcFurthestChildDistance(avgLocation *utils.Location) (furthestChild string,
 	furthestChildDistance float64) {
 	furthestChildDistance = -1.0
 
 	i.serviceChildren.Range(func(key, value interface{}) bool {
 		childId := key.(serviceChildrenMapKey)
 		child := value.(serviceChildrenMapValue)
-		delta := child.Location - avgLocation
+		delta := child.Location.CalcDist(avgLocation)
 
 		if delta > furthestChildDistance {
 			furthestChildDistance = delta
@@ -322,8 +367,13 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation float64) (furthestC
 			log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
 		}
 
-		location := value.(float64)
-		furthestChildDistance = math.Abs(location - avgLocation)
+		var location utils.Location
+		err := mapstructure.Decode(value, &location)
+		if err != nil {
+			panic(err)
+		}
+
+		furthestChildDistance = location.CalcDist(avgLocation)
 	}
 
 	return

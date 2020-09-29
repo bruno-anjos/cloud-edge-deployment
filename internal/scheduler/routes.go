@@ -48,3 +48,26 @@ var Routes = []utils.Route{
 		HandlerFunc: stopAllInstancesHandler,
 	},
 }
+
+var DummyRoutes = []utils.Route{
+	{
+		Name:        startInstanceName,
+		Method:      http.MethodPost,
+		Pattern:     instancesRoute,
+		HandlerFunc: dummyStartInstanceHandler,
+	},
+
+	{
+		Name:        stopInstanceName,
+		Method:      http.MethodDelete,
+		Pattern:     instanceRoute,
+		HandlerFunc: dummyStopInstanceHandler,
+	},
+
+	{
+		Name:        stopAllInstancesName,
+		Method:      http.MethodDelete,
+		Pattern:     instancesRoute,
+		HandlerFunc: dummyStopAllInstancesHandler,
+	},
+}

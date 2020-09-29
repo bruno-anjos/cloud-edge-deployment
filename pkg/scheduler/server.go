@@ -2,13 +2,14 @@ package scheduler
 
 import (
 	"strconv"
+
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 )
 
 const (
-	Port                 = 50001
-	schedulerServiceName = "scheduler"
+	Port = 50001
 )
 
 var (
-	DefaultHostPort = schedulerServiceName + ":" + strconv.Itoa(Port)
+	DefaultHostPort = utils.SchedulerServiceName + ":" + strconv.Itoa(Port)
 )

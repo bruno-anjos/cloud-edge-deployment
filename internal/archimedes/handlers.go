@@ -282,16 +282,16 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
 	}
 
-	deplClient := deployer.NewDeployerClient(deployer.ServiceName + ":" + strconv.Itoa(deployer.Port))
+	deplClient := deployer.NewDeployerClient(utils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
 	redirectTo, status := deplClient.RedirectDownTheTree(reqBody.DeploymentId, reqBody.Location)
 	switch status {
 	case http.StatusNoContent:
 		break
 	case http.StatusOK:
 		targetUrl = url.URL{
-			Scheme:      "http",
-			Host:        redirectTo + ":" + strconv.Itoa(archimedes.Port),
-			Path:        api.GetResolvePath(),
+			Scheme: "http",
+			Host:   redirectTo + ":" + strconv.Itoa(archimedes.Port),
+			Path:   api.GetResolvePath(),
 		}
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
 		return
@@ -302,12 +302,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 	resolved, found := resolveLocally(reqBody.ToResolve)
 	if !found {
-		id := reqBody.ToResolve.Host + ":" + reqBody.ToResolve.Port.Port()
-		resolved = resolveInTree(id, reqBody.DeploymentId, reqBody.ToResolve)
-		if resolved == nil {
-			w.WriteHeader(http.StatusNotFound)
-		}
-		return
+		// TODO Redirect to fallback
 	}
 
 	var resp api.ResolveResponseBody
@@ -317,8 +312,11 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func resolveInTree(id, deploymentId string, toResolve *api.ToResolveDTO) (resolved *api.ResolvedDTO) {
+	log.Debugf("resolving (%s) %s up the tree", deploymentId, toResolve.Host)
+
 	_, ok := resolvingInTree.Load(id)
 	if ok {
+		log.Debugf("already resolving (%s) %s", deploymentId, toResolve.Host)
 		// If there is already a resolution for this given id ocurring
 		value, cOk := waitingChannels.Load(id)
 		if !cOk {
@@ -336,8 +334,10 @@ func resolveInTree(id, deploymentId string, toResolve *api.ToResolveDTO) (resolv
 
 		if value == nil {
 			resolved = nil
+			log.Debugf("resolved (%s) %s to nil", deploymentId, toResolve.Host)
 		} else {
 			resolved = value.(*api.ResolvedDTO)
+			log.Debugf("resolved (%s) %s to %s", deploymentId, toResolve.Host, resolved.Host)
 		}
 
 		return
@@ -354,8 +354,12 @@ func resolveInTree(id, deploymentId string, toResolve *api.ToResolveDTO) (resolv
 	waitChan := make(chan struct{})
 	waitingChannels.Store(id, waitChan)
 	resolvingInTree.Store(id, nil)
-	deplClient := deployer.NewDeployerClient(deployer.ServiceName + ":" + strconv.Itoa(deployer.Port))
-	deplClient.StartResolveUpTheTree(deploymentId, toResolve)
+	deplClient := deployer.NewDeployerClient(utils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
+	status := deplClient.StartResolveUpTheTree(deploymentId, toResolve)
+	if status != http.StatusOK {
+		log.Debugf("got %d while attempting to start resolving (%s) %s", status, deploymentId, toResolve.Host)
+		return nil
+	}
 	<-waitChan
 
 	value, ok = resolvingInTree.Load(id)
@@ -365,31 +369,35 @@ func resolveInTree(id, deploymentId string, toResolve *api.ToResolveDTO) (resolv
 
 	if value == nil {
 		resolved = nil
+		log.Debugf("resolved (%s) %s to nil", deploymentId, toResolve.Host)
 	} else {
 		resolved = value.(*api.ResolvedDTO)
+		log.Debugf("resolved (%s) %s to %s", deploymentId, toResolve.Host, resolved.Host)
 	}
 
 	return
 }
 
 func setResolutionAnswerHandler(w http.ResponseWriter, r *http.Request) {
-	var req api.SetResolutionAnswerRequestBody
-	err := json.NewDecoder(r.Body).Decode(&req)
+	var reqBody api.SetResolutionAnswerRequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	value, ok := waitingChannels.Load(req.Id)
+	log.Debugf("got answer %s for %s", reqBody.Resolved.Host, reqBody.Id)
+
+	value, ok := waitingChannels.Load(reqBody.Id)
 	if !ok {
-		log.Debugf("got answer for resolution of %s, but i wasnt waiting", req.Id)
+		log.Debugf("got answer for resolution of %s, but i wasnt waiting", reqBody.Id)
 		return
 	}
 
 	waitChan := value.(chan struct{})
-	resolvedInTree.Store(req.Id, &req.Resolved)
-	resolvingInTree.Delete(req.Id)
-	waitingChannels.Delete(req.Id)
+	resolvedInTree.Store(reqBody.Id, &reqBody.Resolved)
+	resolvingInTree.Delete(reqBody.Id)
+	waitingChannels.Delete(reqBody.Id)
 	close(waitChan)
 }
 

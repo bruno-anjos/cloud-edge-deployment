@@ -1,5 +1,9 @@
 package archimedes
 
+import (
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+)
+
 type (
 	RegisterServiceRequestBody         = serviceDTO
 	RegisterServiceInstanceRequestBody = InstanceDTO
@@ -7,7 +11,7 @@ type (
 	ResolveRequestBody                 = struct {
 		ToResolve    *ToResolveDTO
 		DeploymentId string
-		Location     float64
+		Location     *utils.Location
 	}
 	ResolveLocallyRequestBody      = ToResolveDTO
 	RedirectRequestBody            = redirectDTO

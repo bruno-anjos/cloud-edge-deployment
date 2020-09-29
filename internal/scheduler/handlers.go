@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	scheduler2 "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
+	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/docker/docker/api/types"
@@ -42,7 +42,8 @@ var (
 	stopContainerTimeoutVar = stopContainerTimeout * time.Second
 )
 
-func init() {
+func InitHandlers() {
+
 	log.SetLevel(log.DebugLevel)
 
 	var err error
@@ -89,7 +90,7 @@ func init() {
 func startInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling start instance")
 
-	var containerInstance scheduler2.ContainerInstanceDTO
+	var containerInstance api.ContainerInstanceDTO
 	err := json.NewDecoder(r.Body).Decode(&containerInstance)
 	if err != nil {
 		log.Error(err)
@@ -131,7 +132,7 @@ func stopAllInstancesHandler(_ http.ResponseWriter, _ *http.Request) {
 	deleteAllInstances()
 }
 
-func startContainerAsync(containerInstance *scheduler2.ContainerInstanceDTO) {
+func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	portBindings := generatePortBindings(containerInstance.Ports)
 
 	//

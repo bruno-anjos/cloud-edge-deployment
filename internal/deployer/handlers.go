@@ -2,7 +2,6 @@ package deployer
 
 import (
 	"encoding/json"
-	"math"
 	"net"
 	"net/http"
 	"os"
@@ -54,7 +53,7 @@ var (
 
 var (
 	hostname string
-	location float64
+	location *utils.Location
 	fallback string
 	myself   *utils.Node
 
@@ -164,7 +163,7 @@ func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go attemptToExtend(deploymentId, targetAddr, 0, nil, 0, nil)
+	go attemptToExtend(deploymentId, targetAddr, nil, nil, 0, nil)
 }
 
 func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
@@ -286,10 +285,14 @@ func startResolveUpTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Debugf("starting resolution (%s) %s", deploymentId, reqBody.Host, parent.Id)
+
 	go resolveUp(parent.Id, deploymentId, hostname, &reqBody)
 }
 
 func resolveUp(parentId, deploymentId, origin string, toResolve *archimedesApi.ToResolveDTO) {
+	log.Debugf("resolving (%s) %s through %s", deploymentId, toResolve.Host, parentId)
+
 	deplClient := deployer.NewDeployerClient(parentId + ":" + strconv.Itoa(deployer.Port))
 	status := deplClient.ResolveUpTheTree(deploymentId, origin, toResolve)
 	if status != http.StatusOK {
@@ -300,17 +303,20 @@ func resolveUp(parentId, deploymentId, origin string, toResolve *archimedesApi.T
 func resolveUpTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	var req api.ResolveUpTheTreeRequestBody
-	err := json.NewDecoder(r.Body).Decode(&req)
+
+	var reqBody api.ResolveUpTheTreeRequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
 		panic(err)
 	}
 
-	archClient := archimedes.NewArchimedesClient(archimedes.ServiceName + ":" + strconv.Itoa(archimedes.Port))
-	rHost, rPort, status := archClient.ResolveLocally(req.ToResolve.Host, req.ToResolve.Port)
+	log.Debugf("resolving (%s) %s for %s", deploymentId, reqBody.ToResolve.Host, reqBody.Origin)
 
-	archClient.SetHostPort(req.Origin + ":" + strconv.Itoa(archimedes.Port))
-	id := req.ToResolve.Host + ":" + req.ToResolve.Port.Port()
+	archClient := archimedes.NewArchimedesClient(utils.ArchimedesServiceName + ":" + strconv.Itoa(archimedes.Port))
+	rHost, rPort, status := archClient.ResolveLocally(reqBody.ToResolve.Host, reqBody.ToResolve.Port)
+
+	archClient.SetHostPort(reqBody.Origin + ":" + strconv.Itoa(archimedes.Port))
+	id := reqBody.ToResolve.Host + ":" + reqBody.ToResolve.Port.Port()
 
 	switch status {
 	case http.StatusOK:
@@ -319,12 +325,13 @@ func resolveUpTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 			Port: rPort,
 		}
 		archClient.SetResolvingAnswer(id, resolved)
+		log.Debugf("resolved (%s) %s locally to %s", deploymentId, reqBody.ToResolve.Host, resolved)
 	case http.StatusNotFound:
 		parent := hTable.getParent(deploymentId)
 		if parent == nil {
 			archClient.SetResolvingAnswer(id, nil)
 		} else {
-			go resolveUp(parent.Id, deploymentId, req.Origin, req.ToResolve)
+			go resolveUp(parent.Id, deploymentId, reqBody.Origin, reqBody.ToResolve)
 		}
 	default:
 		log.Debugf("got status %d while trying to resolve locally in archimedes", status)
@@ -359,9 +366,9 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		bestDiff    = math.Abs(myLocation - clientLocation)
+		bestDiff    = myLocation.CalcDist(clientLocation)
 		bestNode    = myself.Id
-		auxLocation float64
+		auxLocation *utils.Location
 	)
 
 	autoClient := autonomic.NewAutonomicClient("")
@@ -373,7 +380,7 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		currDiff := math.Abs(auxLocation - clientLocation)
+		currDiff := auxLocation.CalcDist(clientLocation)
 		if currDiff < bestDiff {
 			bestDiff = currDiff
 			bestNode = id
@@ -392,7 +399,7 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // TODO function simulating lower API
-func getNodeCloserTo(location float64, maxHopsToLookFor int, excludeNodes map[string]struct{}) (closest string,
+func getNodeCloserTo(location *utils.Location, maxHopsToLookFor int, excludeNodes map[string]struct{}) (closest string,
 	found bool) {
 	closest = hTable.autonomicClient.GetClosestNode(location, excludeNodes)
 	found = closest != ""

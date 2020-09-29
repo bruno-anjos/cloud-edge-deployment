@@ -11,13 +11,15 @@ function build() {
 }
 
 SERVICE_NAME="archimedes"
-build
+build &
 
 SERVICE_NAME="deployer"
-build
+build &
 
 SERVICE_NAME="scheduler"
-build
+build &
 
 SERVICE_NAME="autonomic"
-build
+build &
+
+wait

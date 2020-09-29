@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/url"
 
@@ -10,6 +11,22 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
+
+func resolve(toResolve string) (resolved string) {
+	host, port, err := net.SplitHostPort(toResolve)
+	if err != nil {
+		panic(err)
+	}
+
+	resolved = toResolve
+
+	switch host {
+	case ArchimedesServiceName, DeployerServiceName, SchedulerServiceName, AutonomicServiceName:
+		resolved = "localhost" + ":" + port
+	}
+
+	return
+}
 
 func BuildRequest(method, host, path string, body interface{}) *http.Request {
 	hostUrl := url.URL{
@@ -46,6 +63,8 @@ func BuildRequest(method, host, path string, body interface{}) *http.Request {
 }
 
 func DoRequest(httpClient *http.Client, request *http.Request, responseBody interface{}) (int, *http.Response) {
+	request.URL.Host = resolve(request.URL.Host)
+
 	log.Debugf("Doing request: %s %s", request.Method, request.URL.String())
 
 	if httpClient == nil {

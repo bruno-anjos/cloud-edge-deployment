@@ -1,5 +1,5 @@
-A: node21 -> node18 -> node23 -> node19
-B: node20 -> node18 -> node23 -> node19 -> node22
-C: node23 -> node19 -> node22
-D: node20 -> node18 -> node23 -> node19 -> node22
-E: node19 -> node22
+A: dummy15 -> dummy11 -> dummy30 -> dummy40 -> dummy34 -> dummy10 -> dummy6 -> dummy38 -> dummy35 -> dummy20
+B: dummy14 -> dummy37 -> dummy34 -> dummy10 -> dummy6 -> dummy38 -> dummy27 -> dummy19
+C: dummy21 -> dummy12 -> dummy36 -> dummy28
+D: dummy33 -> dummy1 -> dummy32 -> dummy5
+E: dummy14 -> dummy40 -> dummy34 -> dummy10 -> dummy25 -> dummy38 -> dummy27

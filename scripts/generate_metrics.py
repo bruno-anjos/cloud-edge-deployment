@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import json
+import math
 import os
 import random
 import sys
@@ -27,10 +28,16 @@ import sys
 sortingService = ""
 
 
+def calcDist(l1, l2):
+    dX = l2["X"] - l1["X"]
+    dY = l2["Y"] - l1["Y"]
+    return math.sqrt(dX ** 2 + dY ** 2)
+
+
 def sortChildren(n):
     global sortingService
     global clientLocations
-    return abs(nodesLocations[n] - clientLocations[sortingService])
+    return calcDist(nodesLocations[n], clientLocations[sortingService])
 
 
 def generateServiceTree(startNode, sName):
@@ -80,14 +87,17 @@ def generateDictsForServiceTree(sName):
     minProcess, maxProcess = 0, 10
     processingTimes[sName] = random.randint(minProcess, maxProcess)
 
-    minCLoc, maxCLoc = 1000, 5000
-    clientLocations[sName] = random.randint(minCLoc, maxCLoc)
+    minCLoc, maxCLoc = 1000, 8000
+    clientLocations[sName] = {"X": random.randint(minCLoc, maxCLoc), "Y": random.randint(minCLoc, maxCLoc)}
 
 
 def generateNodeMetrics(nodeId, loc, visibleNodes, children):
     global services
     global nodesLocations
-    visibleNodesLocation = ",\n".join([f"\"{nodeId}\":{nodesLocations[nodeId]}" for nodeId in visibleNodes])
+    visibleNodesLocation = ",\n".join([f""""{nodeId}": {{
+        "X": {nodesLocations[nodeId]["X"]},
+        "Y": {nodesLocations[nodeId]["Y"]}
+    }}""" for nodeId in visibleNodes])
 
     other = []
     for s in services:
@@ -96,7 +106,11 @@ def generateNodeMetrics(nodeId, loc, visibleNodes, children):
                   f"\"METRIC_CLIENT_LATENCY_PER_SERVICE_{s}\": {serviceLatencies[s]}",
                   f"\"METRIC_PROCESSING_TIME_PER_SERVICE_{s}\": {processingTimes[s]}",
                   f"\"METRIC_NUMBER_OF_INSTANCES_PER_SERVICE_{s}\": 0",
-                  f"\"METRIC_AVERAGE_CLIENT_LOCATION_PER_SERVICE_{s}\": {clientLocations[s]}"]
+                  f"""\"METRIC_AVERAGE_CLIENT_LOCATION_PER_SERVICE_{s}\": {{
+                        "X": {clientLocations[s]["X"]},
+                        "Y": {clientLocations[s]["Y"]}
+                    }}
+                    """]
         for child in children:
             other += [f"\"METRIC_LOAD_PER_SERVICE_{s}_IN_CHILD_{child}\": 0"]
 
@@ -104,7 +118,10 @@ def generateNodeMetrics(nodeId, loc, visibleNodes, children):
 
     m = f"""{{
         "METRIC_NODE_ADDR": "{nodeId}",
-        "METRIC_LOCATION": {loc},
+        "METRIC_LOCATION": {{
+            "X": {loc["X"]},
+            "Y": {loc["Y"]}
+        }},
         "METRIC_LOCATION_VICINITY": {{
             {visibleNodesLocation}
         }},
@@ -114,11 +131,11 @@ def generateNodeMetrics(nodeId, loc, visibleNodes, children):
     return m
 
 
-sortingLocation = 0
+sortingLocation = {"X": 0, "Y": 0}
 
 
 def sortByDistance(n):
-    return abs(nodesLocations[n] - sortingLocation)
+    return calcDist(nodesLocations[n], sortingLocation)
 
 
 def get_neighborhood(node):
@@ -127,7 +144,7 @@ def get_neighborhood(node):
     nodesCopy = nodes[:]
     sortingLocation = nodesLocations[node]
     nodesCopy.sort(key=sortByDistance)
-    neighSize = int(len(nodes) / 2)
+    neighSize = int(len(nodes) / 8)
     return nodesCopy[:neighSize]
 
 
@@ -144,7 +161,7 @@ def gen_trees():
     print("------------------------------------------ LOCATIONS ------------------------------------------")
 
     for node in nodes:
-        location = random.randint(minNodeLoc, maxNodeLoc)
+        location = {"X": random.randint(minNodeLoc, maxNodeLoc), "Y": random.randint(minNodeLoc, maxNodeLoc)}
         nodesLocations[node] = location
         print(f"{node} at {location}")
 
@@ -181,7 +198,8 @@ def gen_trees():
 
 
 if len(sys.argv) < 4:
-    print("usage: python3 generate_metrics.py output_dir number_of_services node1 [node2 node3 node4...]")
+    print("usage: python3 generate_metrics.py output_dir number_of_services prefix number_of_nodes")
+    exit(1)
 
 args = sys.argv[1:]
 
@@ -196,12 +214,12 @@ for arg in args:
         minTreeSize = int(args[idx + 1])
         hasOptions = True
         idxsToIgnore[idx] = True
-        idxsToIgnore[idx+1] = True
+        idxsToIgnore[idx + 1] = True
     elif arg == "--at_least_one":
         atLeastOneTreeSize = int(args[idx + 1])
         hasOptions = True
         idxsToIgnore[idx] = True
-        idxsToIgnore[idx+1] = True
+        idxsToIgnore[idx + 1] = True
     idx += 1
 
 newArgs = []
@@ -218,9 +236,21 @@ outputDir = args[0]
 if not outputDir.endswith("/"):
     outputDir += "/"
 numServices = int(args[1])
-nodes = args[2:]
+prefix = args[2]
+numberOfNodes = int(args[3])
 print("Number of services: ", numServices)
+print("Prefix: ", prefix)
+print("Number of Nodes: ", numberOfNodes)
+
+nodes = []
+for i in range(numberOfNodes):
+    nodes.append(prefix + str(i + 1))
+
 print("Nodes: ", nodes)
+
+filelist = os.listdir(outputDir)
+for f in filelist:
+    os.remove(os.path.join(outputDir, f))
 
 alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 

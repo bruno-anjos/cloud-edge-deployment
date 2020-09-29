@@ -2,13 +2,14 @@ package archimedes
 
 import (
 	"strconv"
+
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 )
 
 const (
-	ServiceName = "archimedes"
-	Port        = 50000
+	Port = 50000
 )
 
 var (
-	DefaultHostPort = ServiceName + ":" + strconv.Itoa(Port)
+	DefaultHostPort = utils.ArchimedesServiceName + ":" + strconv.Itoa(Port)
 )

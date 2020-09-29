@@ -13,6 +13,11 @@ import (
 const (
 	// LocalhostAddr contains the default interface address
 	LocalhostAddr = "0.0.0.0"
+
+	ArchimedesServiceName = "archimedes"
+	DeployerServiceName = "deployer"
+	SchedulerServiceName = "scheduler"
+	AutonomicServiceName = "autonomic"
 )
 
 // StartServer seeds the random generator and starts a server on the
@@ -23,6 +28,28 @@ func StartServer(serviceName, hostPort string, port int, prefixPath string, rout
 	debug := flag.Bool("d", false, "add debug logs")
 	listenAddr := flag.String("l", LocalhostAddr, "address to listen on")
 	flag.Parse()
+
+	if *debug {
+		log.SetLevel(log.DebugLevel)
+	}
+
+	log.Debug("starting log in debug mode")
+	r := NewRouter(prefixPath, routes)
+
+	var listenAddrPort string
+	if *listenAddr != "" {
+		listenAddrPort = *listenAddr + ":" + strconv.Itoa(port)
+	} else {
+		listenAddrPort = hostPort
+	}
+
+	log.Infof("%s server listening at %s...\n", serviceName, listenAddrPort)
+	log.Fatal(http.ListenAndServe(listenAddrPort, r))
+}
+
+func StartServerWithoutDefaultFlags(serviceName, hostPort string, port int, prefixPath string, routes []Route,
+	debug *bool, listenAddr *string) {
+	rand.Seed(time.Now().UnixNano())
 
 	if *debug {
 		log.SetLevel(log.DebugLevel)

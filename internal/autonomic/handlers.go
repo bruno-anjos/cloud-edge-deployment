@@ -15,7 +15,6 @@ var (
 
 func init() {
 	log.SetLevel(log.DebugLevel)
-
 	autonomicSystem = newSystem()
 	autonomicSystem.start()
 
@@ -116,7 +115,7 @@ func getVicinityHandler(w http.ResponseWriter, _ *http.Request) {
 
 func getMyLocationHandler(w http.ResponseWriter, _ *http.Request) {
 	location := autonomicSystem.getMyLocation()
-	if location == -1. {
+	if location == nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}

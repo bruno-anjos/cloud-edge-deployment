@@ -91,7 +91,7 @@ func (c *Client) IsNodeInVicinity(nodeId string) (isInVicinity bool) {
 	return
 }
 
-func (c *Client) GetClosestNode(location float64, toExclude map[string]struct{}) (closest string) {
+func (c *Client) GetClosestNode(location *utils.Location, toExclude map[string]struct{}) (closest string) {
 	reqBody := api.ClosestNodeRequestBody{
 		Location:  location,
 		ToExclude: toExclude,
@@ -136,7 +136,7 @@ func (c *Client) GetVicinity() (vicinity map[string]interface{}, status int) {
 	return
 }
 
-func (c *Client) GetMyLocation() (location float64, status int) {
+func (c *Client) GetMyLocation() (location *utils.Location, status int) {
 	path := api.GetMyLocationPath()
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
@@ -152,7 +152,7 @@ func (c *Client) GetMyLocation() (location float64, status int) {
 		}
 		location = respBody
 	} else {
-		location = -1.0
+		location = nil
 	}
 
 	return

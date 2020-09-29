@@ -16,4 +16,5 @@ require (
 	github.com/urfave/cli/v2 v2.2.0
 	golang.org/x/net v0.0.0-20200822124328-c89045814202 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
+	github.com/mitchellh/mapstructure latest
 )

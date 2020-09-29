@@ -2,7 +2,6 @@ package autonomic
 
 import (
 	"math"
-	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -12,8 +11,10 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals/service_goals"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/strategies"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
@@ -70,7 +71,7 @@ func newService(serviceId, strategyId string, suspected *sync.Map,
 	return s, nil
 }
 
-func (a *service) addChild(childId string, location float64) {
+func (a *service) addChild(childId string, location *utils.Location) {
 	node := &service_goals.NodeWithLocation{
 		NodeId:   childId,
 		Location: location,
@@ -168,10 +169,14 @@ func (a *system) addServiceChild(serviceId, childId string) {
 		return
 	}
 
-	location := value.(float64)
+	var location utils.Location
+	err := mapstructure.Decode(value, &location)
+	if err != nil {
+		panic(err)
+	}
 
 	a.suspected.Delete(childId)
-	s.addChild(childId, location)
+	s.addChild(childId, &location)
 }
 
 func (a *system) removeServiceChild(serviceId, childId string) {
@@ -222,7 +227,7 @@ func (a *system) isNodeInVicinity(nodeId string) bool {
 	return ok
 }
 
-func (a *system) closestNodeTo(location float64, toExclude map[string]struct{}) (nodeId string) {
+func (a *system) closestNodeTo(location *utils.Location, toExclude map[string]struct{}) (nodeId string) {
 	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		return ""
@@ -239,7 +244,19 @@ func (a *system) closestNodeTo(location float64, toExclude map[string]struct{}) 
 	}
 
 	sort.Slice(ordered, func(i, j int) bool {
-		return math.Abs(vicinity[ordered[i]].(float64)-location) < math.Abs(vicinity[ordered[j]].(float64)-location)
+		var iLoc utils.Location
+		err := mapstructure.Decode(vicinity[ordered[i]], &iLoc)
+		if err != nil {
+			panic(err)
+		}
+
+		var jLoc utils.Location
+		err = mapstructure.Decode(vicinity[ordered[j]], &jLoc)
+		if err != nil {
+			panic(err)
+		}
+
+		return math.Abs(iLoc.CalcDist(location)) < math.Abs(jLoc.CalcDist(location))
 	})
 
 	if len(ordered) < 1 {
@@ -260,27 +277,35 @@ func (a *system) getVicinity() map[string]interface{} {
 	return vicinity
 }
 
-func (a *system) getMyLocation() float64 {
+func (a *system) getMyLocation() *utils.Location {
 	value, ok := a.env.GetMetric(metrics.MetricLocation)
 	if !ok {
-		return -1.
+		return nil
 	}
 
-	location := value.(float64)
+	var location utils.Location
+	err := mapstructure.Decode(value, &location)
+	if err != nil {
+		panic(err)
+	}
 
-	return location
+	return &location
 }
 
 func (a *system) start() {
 	go func() {
-		time.Sleep(time.Duration(rand.Intn(9)+1) * time.Second)
+		time.Sleep(time.Duration(30) * time.Second)
 		timer := time.NewTimer(defaultInterval)
 
 		for {
 			<-timer.C
 			a.services.Range(func(key, value interface{}) bool {
+
 				serviceId := key.(string)
 				s := value.(servicesMapValue)
+
+				log.Debugf("evaluating service %s", serviceId)
+
 				action := s.generateAction()
 				if action == nil {
 					return true

@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	REDIRECT_CLIENTS_ID = "ACTION_REDIRECT_CLIENTS"
+	RedirectClientsId = "ACTION_REDIRECT_CLIENTS"
 
 	raAmountIndex = 3
 )
@@ -17,7 +17,7 @@ type RedirectAction struct {
 
 func NewRedirectAction(serviceId, from, to string, amountPercentage float64) *RedirectAction {
 	return &RedirectAction{
-		actionWithServiceOriginTarget: newActionWithServiceOriginTarget(REDIRECT_CLIENTS_ID, serviceId, from, to,
+		actionWithServiceOriginTarget: newActionWithServiceOriginTarget(RedirectClientsId, serviceId, from, to,
 			amountPercentage),
 	}
 }

@@ -513,7 +513,7 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 	}
 }
 
-func attemptToExtend(deploymentId, target string, targetLocation float64, grandchild *utils.Node, maxHops int,
+func attemptToExtend(deploymentId, target string, targetLocation *utils.Location, grandchild *utils.Node, maxHops int,
 	alternatives map[string]*utils.Node) {
 	var extendTimer *time.Timer
 

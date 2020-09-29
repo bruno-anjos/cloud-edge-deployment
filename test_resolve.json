@@ -1,0 +1,8 @@
+{
+    "DeploymentId": "C",
+    "Location": 6833,
+    "ToResolve": {
+        "Host": "C",
+        "Port": "8001/tcp"
+    }
+}
