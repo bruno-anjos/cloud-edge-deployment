@@ -303,6 +303,21 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	resolved, found := resolveLocally(reqBody.ToResolve)
 	if !found {
 		// TODO Redirect to fallback
+		var fallback string
+		fallback, status = deplClient.GetFallback()
+		if status != http.StatusOK {
+			log.Errorf("got status %d while asking for fallback from deployer", fallback)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		fallbackURL := url.URL{
+			Scheme: "http",
+			Host:   fallback + ":" + strconv.Itoa(archimedes.Port),
+			Path:   api.GetResolvePath(),
+		}
+		http.Redirect(w, r, fallbackURL.String(), http.StatusPermanentRedirect)
+		return
 	}
 
 	var resp api.ResolveResponseBody

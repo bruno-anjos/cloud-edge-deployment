@@ -40,7 +40,7 @@ func NewAddServiceAction(serviceId, target string) *AddServiceAction {
 }
 
 func (m *AddServiceAction) Execute(client utils.Client) {
-	log.Debugf("executing %s", AddServiceId)
+	log.Debugf("executing %s to %s", AddServiceId, m.GetTarget())
 	deployerClient := client.(*deployer.Client)
 	status := deployerClient.ExtendDeploymentTo(m.GetServiceId(), m.GetTarget())
 	if status != http.StatusOK {
@@ -59,8 +59,8 @@ func NewMigrateAction(serviceId, from, to string) *MigrateAction {
 }
 
 func (m *MigrateAction) Execute(client utils.Client) {
-	log.Debugf("executing %s", MigrateServiceId)
-	deployerClient := client.(deployer.Client)
+	log.Debugf("executing %s from %s to %s", MigrateServiceId, m.GetOrigin(), m.GetTarget())
+	deployerClient := client.(*deployer.Client)
 	status := deployerClient.MigrateDeployment(m.GetServiceId(), m.GetOrigin(), m.GetTarget())
 	if status == http.StatusOK {
 		log.Errorf("got status code %d while extending deployment", status)

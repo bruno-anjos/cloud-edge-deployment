@@ -33,6 +33,7 @@ const (
 	resolveUpTheTreeName        = "RESOLVE_UP_THE_TREE"
 	startResolveUpTheTreeName   = "START_RESOLVE_UP_THE_TREE"
 	redirectDownTheTreeName     = "REDIRECT_DOWN_THE_TREE"
+	getFallbackIdName           = "GET_FALLBACK"
 
 	// scheduler
 	heartbeatServiceInstanceName         = "HEARTBEAT_SERVICE_INSTANCE"
@@ -72,6 +73,7 @@ var (
 	resolveUpTheTreeRoute      = fmt.Sprintf(deployer.ResolveUpTheTreePath, _deploymentIdPathVarFormatted)
 	startResolveUpTheTreeRoute = fmt.Sprintf(deployer.StartResolveUpTheTreePath, _deploymentIdPathVarFormatted)
 	redirectDownTheTreeRoute   = fmt.Sprintf(deployer.RedirectDownTheTreePath, _deploymentIdPathVarFormatted)
+	getFallbackRoute           = deployer.GetFallbackIdPath
 
 	// scheduler
 	deploymentInstanceAliveRoute = fmt.Sprintf(deployer.DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
@@ -82,6 +84,13 @@ var (
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        getFallbackIdName,
+		Method:      http.MethodGet,
+		Pattern:     getFallbackRoute,
+		HandlerFunc: getFallbackHandler,
+	},
+
 	{
 		Name:        redirectDownTheTreeName,
 		Method:      http.MethodGet,

@@ -141,7 +141,6 @@ func (i *idealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 	optRange, isAlreadyMax = i.Cutoff(ordered, sortingCriteria)
 	log.Debugf("%s cutoff result %+v", idealLatencyGoalId, optRange)
 
-	furthestChild, _ := i.calcFurthestChildDistance(&avgClientLocation)
 	actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
 
 	childrenLoadMetric := metrics.GetLoadPerServiceInChildrenMetricId(i.serviceId)
@@ -152,25 +151,34 @@ func (i *idealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 	}
 
 	childrenLoad := value.(map[string]interface{})
-	var (
-		childWithMaxLoad string
-		childId string
-		maxLoad = 0.
-	)
-	for childId, value = range childrenLoad {
+	add := false
+	for _, value = range childrenLoad {
 		childLoad := value.(float64)
-		if childLoad > maxLoad {
-			maxLoad = childLoad
-			childWithMaxLoad = childId
+		if childLoad > loadToAddServiceThreshold {
+			add = true
+			break
 		}
 	}
 
-	if maxLoad > loadToAddServiceThreshold {
+	imTooFar := false
+	furthestChild, furthestChildDistance := i.calcFurthestChildDistance(&avgClientLocation)
+	if furthestChild == "" {
+		imTooFar = furthestChildDistance > 500
+	}
+
+	if add || imTooFar {
 		actionArgs[ilActionTypeArgIndex] = actions.AddServiceId
 	} else {
-		actionArgs[ilActionTypeArgIndex] = actions.MigrateServiceId
-		actionArgs[ilFromIndex] = furthestChild
+		isAlreadyMax = true
 	}
+
+	// TODO understand where migrate action fits
+	// if furthestChild != "" {
+	// 	actionArgs[ilActionTypeArgIndex] = actions.MigrateServiceId
+	// 	actionArgs[ilFromIndex] = furthestChild
+	// } else {
+	// 	isAlreadyMax = true
+	// }
 
 	return
 }
@@ -192,8 +200,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 		panic(err)
 	}
 
-	furthestChild, furthestChildDistance := i.calcFurthestChildDistance(&avgClientLocation)
-	log.Debugf("furthest child is %s", furthestChild)
+	_, furthestChildDistance := i.calcFurthestChildDistance(&avgClientLocation)
 
 	value, ok = i.environment.GetMetric(metrics.MetricNodeAddr)
 	if !ok {
@@ -350,6 +357,8 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation *utils.Location) (f
 			furthestChild = childId
 		}
 
+		log.Debugf("child %s", childId)
+
 		return true
 	})
 
@@ -358,9 +367,6 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation *utils.Location) (f
 		if !ok {
 			log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
 		}
-
-		myself := value.(string)
-		furthestChild = myself
 
 		value, ok = i.environment.GetMetric(metrics.MetricLocation)
 		if !ok {

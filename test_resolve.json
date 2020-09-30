@@ -1,8 +1,11 @@
 {
-    "DeploymentId": "C",
-    "Location": 6833,
+    "DeploymentId": "A",
+    "Location": {
+        "X": 1916,
+        "Y": 2805
+    },
     "ToResolve": {
-        "Host": "C",
+        "Host": "A",
         "Port": "8001/tcp"
     }
 }

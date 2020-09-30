@@ -1,5 +1,5 @@
-A: dummy15 -> dummy11 -> dummy30 -> dummy40 -> dummy34 -> dummy10 -> dummy6 -> dummy38 -> dummy35 -> dummy20
-B: dummy14 -> dummy37 -> dummy34 -> dummy10 -> dummy6 -> dummy38 -> dummy27 -> dummy19
-C: dummy21 -> dummy12 -> dummy36 -> dummy28
-D: dummy33 -> dummy1 -> dummy32 -> dummy5
-E: dummy14 -> dummy40 -> dummy34 -> dummy10 -> dummy25 -> dummy38 -> dummy27
+A: dummy37 -> dummy11 -> dummy40 -> dummy18 -> dummy26 -> dummy23 -> dummy12
+B: dummy37 -> dummy11 -> dummy40 -> dummy18 -> dummy29 -> dummy21 -> dummy2 -> dummy16 -> dummy19 -> dummy6 -> dummy32
+C: dummy37 -> dummy11 -> dummy40 -> dummy18 -> dummy29
+D: dummy37 -> dummy11 -> dummy40 -> dummy18 -> dummy29
+E: dummy37 -> dummy11 -> dummy40 -> dummy18 -> dummy29 -> dummy21 -> dummy2 -> dummy34

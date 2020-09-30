@@ -148,7 +148,7 @@ def get_neighborhood(node):
     return nodesCopy[:neighSize]
 
 
-def gen_trees():
+def gen_trees(fallback):
     global serviceLatencies
     global processingTimes
     global clientLocations
@@ -190,8 +190,7 @@ def gen_trees():
 
     for service in services:
         print(f"clients for {service} are at {clientLocations[service]}")
-        randNode = nodes[random.randint(0, len(nodes) - 1)]
-        tree, treeSize = generateServiceTree(randNode, service)
+        tree, treeSize = generateServiceTree(fallback, service)
         trees.append(tree)
         treeSizes.append(treeSize)
     return trees, treeSizes
@@ -262,6 +261,7 @@ nodesLocations = {}
 nodesChildren = {}
 done = False
 trees = []
+fallback = "empty"
 
 while not done:
     serviceLatencies = {}
@@ -271,7 +271,10 @@ while not done:
     nodesLocations = {}
     nodesChildren = {}
 
-    trees, treeSizes = gen_trees()
+    fallback = nodes[random.randint(0, len(nodes) - 1)]
+    print(f"fallback is {fallback}")
+
+    trees, treeSizes = gen_trees(fallback)
 
     minMet = True
     atLeast = False
@@ -297,3 +300,6 @@ locations = {"services": clientLocations, "nodes": nodesLocations}
 with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/locations.txt", 'w') as locFp:
     locs = json.dumps(locations, indent=4, sort_keys=False)
     locFp.write(locs)
+
+with open(f"{os.path.dirname(os.path.realpath(__file__))}/../build/deployer/fallback.txt", 'w') as fallbackFp:
+    fallbackFp.write(fallback)

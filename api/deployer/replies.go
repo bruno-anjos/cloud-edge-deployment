@@ -9,4 +9,5 @@ type (
 	ResolveInArchimedesResponseBody       = archimedes.ResolvedDTO
 	ResolveUpTheTreeResponseBody          = archimedes.ResolvedDTO
 	RedirectClientDownTheTreeResponseBody = string
+	GetFallbackResponseBody               = string
 )

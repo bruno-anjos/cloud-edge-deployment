@@ -33,6 +33,7 @@ const (
 	ResolveUpTheTreePath      = "/deployments/%s/resolve_up"
 	StartResolveUpTheTreePath = "/deployments/%s/start_resolve_up"
 	RedirectDownTheTreePath   = "/deployments/%s/redirect_down"
+	GetFallbackIdPath         = "/deployments/fallback"
 
 	// scheduler
 	DeploymentInstanceAlivePath = "/deployments/%s/%s/alive"
@@ -129,4 +130,8 @@ func GetStartResolveUpTheTreePath(deploymentId string) string {
 
 func GetRedirectDownTheTreePath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(RedirectDownTheTreePath, deploymentId)
+}
+
+func GetGetFallbackIdPath() string {
+	return PrefixPath + GetFallbackIdPath
 }

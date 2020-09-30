@@ -141,6 +141,11 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if origin.Id == target.Id {
+		log.Debugf("origin is the same as target (%s)", origin.Id)
+		return
+	}
+
 	client := deployer.NewDeployerClient(origin.Addr + ":" + strconv.Itoa(deployer.Port))
 	client.DeleteService(serviceId)
 
@@ -396,6 +401,13 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 		log.Debugf("client is already connect to closest node")
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+func getFallbackHandler(w http.ResponseWriter, r *http.Request) {
+	var respBody api.GetFallbackResponseBody
+	respBody = fallback
+
+	utils.SendJSONReplyOK(w, respBody)
 }
 
 // TODO function simulating lower API

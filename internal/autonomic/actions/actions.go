@@ -39,10 +39,12 @@ type actionWithServiceTarget struct {
 	*actionWithArgs
 }
 
-func newActionWithServiceTarget(actionId, serviceId, target string,
-	args ...interface{}) *actionWithServiceTarget {
+func newActionWithServiceTarget(actionId, serviceId, target string, args ...interface{}) *actionWithServiceTarget {
+	newArgs := []interface{}{serviceId, target}
+	newArgs = append(newArgs, args...)
+
 	return &actionWithServiceTarget{
-		actionWithArgs: newActionWithArgs(actionId, serviceId, target, args),
+		actionWithArgs: newActionWithArgs(actionId, newArgs...),
 	}
 }
 

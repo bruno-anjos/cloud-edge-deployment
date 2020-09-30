@@ -342,7 +342,7 @@ func (c *Client) RedirectDownTheTree(deploymentId string, location *utils.Locati
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, reqBody)
 
 	var (
-		resp *http.Response
+		resp     *http.Response
 		respBody api.RedirectClientDownTheTreeResponseBody
 	)
 	status, resp = utils.DoRequest(c.Client, req, nil)
@@ -353,6 +353,20 @@ func (c *Client) RedirectDownTheTree(deploymentId string, location *utils.Locati
 		}
 		redirectTo = respBody
 	}
+
+	return
+}
+
+func (c *Client) GetFallback() (fallback string, status int) {
+	path := api.GetGetFallbackIdPath()
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+
+	var (
+		respBody api.GetFallbackResponseBody
+	)
+	status, _ = utils.DoRequest(c.Client, req, &respBody)
+
+	fallback = respBody
 
 	return
 }
