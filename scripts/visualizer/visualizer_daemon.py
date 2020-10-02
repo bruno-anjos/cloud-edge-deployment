@@ -8,10 +8,9 @@ import igraph
 import requests
 from tabulate import tabulate
 
-dummyDeployerURLf = 'http://localhost:%d/deployer'
-dummyArchimedesURLf = 'http://localhost:%d/archimedes'
 deployerURLf = 'http://%s:50002/deployer'
 archimedesURLf = 'http://%s:50000/archimedes'
+dummyContainerFormatf = "192.168.19%d.%d"
 tablePath = '/table'
 
 args = sys.argv[1:]
@@ -35,12 +34,15 @@ for arg in args:
         numNodes = int(arg)
 
 for num in range(numNodes):
-    nodes.append(prefix+str(num+1))
+    nodes.append(prefix + str(num + 1))
 
 print("Got nodes: ", nodes)
 
-dummy_deployer_port = 30000
-dummy_archimedes_port = 40000
+with open(f"{os.path.dirname(os.path.realpath(__file__))}/../../build/deployer/fallback.txt", 'r') as fallbackFp:
+    fallback = fallbackFp.readline()
+
+with open(f"{os.path.dirname(os.path.realpath(__file__))}/neighborhoods.json", 'r') as neighsFp:
+    neighborhoods = json.load(neighsFp)
 
 
 def check_resp_and_get_json(resp):
@@ -56,7 +58,9 @@ def get_services_table(node_arg, number):
     global dummy
 
     if dummy:
-        url = (dummyArchimedesURLf % (dummy_archimedes_port + number)) + tablePath
+        nodeNum = number % 255
+        carry = number // 255
+        url = (archimedesURLf % (dummyContainerFormatf % (3 + carry, nodeNum))) + tablePath
     else:
         url = (archimedesURLf % node_arg) + tablePath
 
@@ -74,7 +78,9 @@ def get_hierarchy_table(node_arg, number):
     global dummy
 
     if dummy:
-        url = (dummyDeployerURLf % (dummy_deployer_port + number)) + tablePath
+        nodeNum = number % 255
+        carry = number // 255
+        url = (deployerURLf % (dummyContainerFormatf % (3 + carry, nodeNum))) + tablePath
     else:
         url = (deployerURLf % node_arg) + tablePath
 
@@ -136,14 +142,18 @@ def add_if_missing(graph, table, node):
     if node in nodes:
         return
     if "dead" in table:
-        graph.add_vertex(node, color="black")
+        graph.add_vertex(node, color="black", service=False)
 
 
 def graph_deployer():
+    global fallback
+    global neighborhoods
+
     print("creating graph for deployers")
     attr_child = "child"
     attr_parent = "parent"
     attr_grandparent = "grandparent"
+    attr_neigh = "neigh"
 
     parent_field_id = "Parent"
     grandparent_field_id = "Grandparent"
@@ -152,8 +162,8 @@ def graph_deployer():
     orphan_field_id = "IsOrphan"
 
     colors = ["blue", "pink", "green", "orange", "dark blue", "brown", "dark green"]
-    arrow_width_dict = {attr_grandparent: 3, attr_parent: 1, attr_child: 1}
-    edge_width_dict = {attr_grandparent: 1, attr_parent: 1, attr_child: 3}
+    arrow_width_dict = {attr_grandparent: 3, attr_parent: 1, attr_child: 1, attr_neigh: 0.5}
+    edge_width_dict = {attr_grandparent: 1, attr_parent: 1, attr_child: 3, attr_neigh: 0.5}
     orphan_dict = {}
 
     tables = get_all_hierarchy_tables()
@@ -168,9 +178,9 @@ def graph_deployer():
     combinedGraph = igraph.Graph(directed=True)
     for node, table in tables.items():
         if "dead" in table:
-            combinedGraph.add_vertex(node, color="black")
+            combinedGraph.add_vertex(node, color="black", service=False)
         else:
-            combinedGraph.add_vertex(node, color="red")
+            combinedGraph.add_vertex(node, color="red", service=False)
 
     for node, auxTable in tables.items():
         if not auxTable or "dead" in auxTable:
@@ -193,12 +203,12 @@ def graph_deployer():
                 # first add all nodes
                 for auxNode, table in tables.items():
                     if "dead" not in table:
-                        g.add_vertex(auxNode, color="red")
+                        g.add_vertex(auxNode, color="red", service=False)
 
-                with open(f"{os.path.dirname(os.path.realpath(__file__))}/locations.txt", 'r') as f:
+                with open(f"{os.path.dirname(os.path.realpath(__file__))}/locations.json", 'r') as f:
                     locations = json.load(f)
-                    g.add_vertex(deploymentId, color="blue")
-                    combinedGraph.add_vertex(deploymentId, color=deployment_colors[deploymentId])
+                g.add_vertex(deploymentId, color=deployment_colors[deploymentId], service=True)
+                combinedGraph.add_vertex(deploymentId, color=deployment_colors[deploymentId], service=True)
                 inited_deployments[deploymentId] = True
 
             if entry[orphan_field_id]:
@@ -206,6 +216,10 @@ def graph_deployer():
                     orphan_dict[node].append(deploymentId)
                 else:
                     orphan_dict[node] = [deploymentId]
+
+            for neigh in neighborhoods[node]:
+                add_if_missing(g, tables[neigh], neigh)
+                g.add_edge(node, neigh, relation=attr_neigh, deploymentId=attr_neigh)
 
             if entry[parent_field_id] is not None:
                 parent = entry[parent_field_id]
@@ -230,7 +244,6 @@ def graph_deployer():
 
     for deploymentId, g in graphs.items():
         visual_style = {}
-        layout = g.layout_auto()
         g.vs["label"] = [name + f"\n({get_location(name, locations)})\n(orphan): " + ",".join(orphan_dict[name])
                          if name in orphan_dict
                          else name + f"\n({get_location(name, locations)})" for name in g.vs["name"]]
@@ -239,32 +252,43 @@ def graph_deployer():
         visual_style["vertex_label"] = g.vs["label"]
         visual_style["vertex_label_dist"] = 3
         visual_style["vertex_label_size"] = 16
-        visual_style["vertex_shape"] = ["triangle-up" if color == "blue" else "circle" for color in
-                                        g.vs["color"]]
+        visual_style["vertex_shape"] = ["triangle-up" if service else "circle" for service in
+                                        g.vs["service"]]
         if len(g.es) > 0:
-            visual_style["edge_color"] = deployment_colors[deploymentId]
+            visual_style["edge_color"] = ["black" if deploymentId == attr_neigh else deployment_colors[deploymentId]
+                                          for deploymentId in g.es['deploymentId']]
             visual_style["edge_arrow_width"] = [arrow_width_dict[relation] for relation in g.es["relation"]]
             visual_style["edge_width"] = [edge_width_dict[relation] for relation in g.es["relation"]]
-        visual_style["layout"] = layout
+
+        layout = []
+        for node in g.vs["name"]:
+            loc = get_location(node, locations)
+            layout.append((loc["X"], loc["Y"]))
+
         visual_style["bbox"] = (3000, 3000)
         visual_style["margin"] = 200
+        visual_style["layout"] = layout
         igraph.plot(g, f"/home/b.anjos/deployer_pngs/deployer_plot_{deploymentId}.png", **visual_style, autocurve=True)
 
     if has_tables:
         visual_style = {}
-        layout = combinedGraph.layout_auto()
         combinedGraph.vs["label"] = [name + f"\n({get_location(name, locations)})" for name in combinedGraph.vs["name"]]
         visual_style["vertex_size"] = 30
         visual_style["vertex_color"] = [color for color in combinedGraph.vs["color"]]
         visual_style["vertex_label"] = combinedGraph.vs["label"]
         visual_style["vertex_label_dist"] = 3
         visual_style["vertex_label_size"] = 16
-        visual_style["vertex_shape"] = ["triangle-up" if color != "red" and color != "black" else "circle" for color in
-                                        combinedGraph.vs["color"]]
+        visual_style["vertex_shape"] = ["triangle-up" if service else "circle" for service in
+                                        combinedGraph.vs["service"]]
         if len(combinedGraph.es) > 0:
             visual_style["edge_color"] = [deployment_colors[deploymentId]
                                           for deploymentId in combinedGraph.es['deploymentId']]
             visual_style["edge_width"] = 3
+
+        layout = []
+        for node in combinedGraph.vs["name"]:
+            loc = get_location(node, locations)
+            layout.append((loc["X"], loc["Y"]))
         visual_style["layout"] = layout
         visual_style["bbox"] = (3000, 3000)
         visual_style["margin"] = 200

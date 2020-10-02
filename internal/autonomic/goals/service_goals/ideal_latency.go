@@ -23,6 +23,8 @@ const (
 	ilArgsNum = 2
 
 	idealLatencyGoalId = "GOAL_IDEAL_LATENCY"
+
+	hiddenParentId = "_parent"
 )
 
 const (
@@ -119,8 +121,6 @@ func (i *idealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 		return
 	}
 
-	// TODO change this for actual location
-
 	var avgClientLocation utils.Location
 	err := mapstructure.Decode(value, &avgClientLocation)
 	if err != nil {
@@ -214,10 +214,11 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 	for nodeId, locationValue := range locationsInVicinity {
 		_, okC := i.serviceChildren.Load(nodeId)
 		_, okS := i.suspected.Load(nodeId)
-		if okC || okS || nodeId == myself || nodeId == **i.parentId {
+		if okC || okS || nodeId == myself {
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}
+
 		var location utils.Location
 		err = mapstructure.Decode(locationValue, &location)
 		if err != nil {
@@ -225,11 +226,19 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 		}
 
 		delta := location.CalcDist(&avgClientLocation)
-		candidates[nodeId] = &nodeWithDistance{
-			NodeId:             nodeId,
-			DistancePercentage: delta / furthestChildDistance,
+
+		if nodeId == **i.parentId {
+			candidates[hiddenParentId] = &nodeWithDistance{
+				NodeId:             nodeId,
+				DistancePercentage: delta / furthestChildDistance,
+			}
+		} else {
+			candidates[nodeId] = &nodeWithDistance{
+				NodeId:             nodeId,
+				DistancePercentage: delta / furthestChildDistance,
+			}
+			candidateIds = append(candidateIds, nodeId)
 		}
-		candidateIds = append(candidateIds, nodeId)
 	}
 
 	return candidateIds, candidates, true
@@ -240,7 +249,6 @@ func (i *idealLatency) Order(candidates goals.Domain, sortingCriteria map[string
 	sort.Slice(ordered, func(i, j int) bool {
 		cI := sortingCriteria[ordered[i]].(*nodeWithDistance)
 		cJ := sortingCriteria[ordered[j]].(*nodeWithDistance)
-
 		return cI.DistancePercentage < cJ.DistancePercentage
 	})
 
@@ -305,6 +313,18 @@ func (i *idealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[st
 		if branch {
 			maxed = false
 		}
+	}
+
+	value, ok = candidatesCriteria[hiddenParentId]
+	if !ok {
+		return
+	}
+
+	parentDist := value.(*nodeWithDistance).DistancePercentage
+	bestNode := candidatesCriteria[candidates[0]].(*nodeWithDistance).DistancePercentage
+	if parentDist < bestNode {
+		log.Debugf("parent (%s) is better than child %s", **i.parentId, candidates[0])
+		maxed = true
 	}
 
 	return

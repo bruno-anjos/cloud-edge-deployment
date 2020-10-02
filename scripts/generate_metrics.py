@@ -34,16 +34,11 @@ def calcDist(l1, l2):
     return math.sqrt(dX ** 2 + dY ** 2)
 
 
-def sortChildren(n):
-    global sortingService
-    global clientLocations
+def sortChildren(n, sortingService, nodesLocations, clientLocations):
     return calcDist(nodesLocations[n], clientLocations[sortingService])
 
 
-def generateServiceTree(startNode, sName):
-    global nodesChildren
-    global nodesLocations
-    global clientLocations
+def generateServiceTree(startNode, sName, nodesChildren, nodesLocations, clientLocations):
     global sortingService
 
     sortingService = sName
@@ -53,8 +48,6 @@ def generateServiceTree(startNode, sName):
     better = True
     currNode = startNode
 
-    print(f"creating tree for {sName}, starting at {startNode}")
-
     while better:
         children = nodesChildren[currNode]
         if len(children) < 1:
@@ -63,9 +56,8 @@ def generateServiceTree(startNode, sName):
         candidates = []
         candidates.extend(children)
         candidates += [currNode]
-        candidates.sort(key=sortChildren)
+        candidates.sort(key=lambda elem: sortChildren(elem, sName, nodesLocations, clientLocations))
         best = candidates[0]
-        print(f"from {candidates}, best is {best}")
         if best != currNode:
             tree += f" -> {best}"
             treeSize += 1
@@ -76,24 +68,21 @@ def generateServiceTree(startNode, sName):
     return tree, treeSize
 
 
-def generateDictsForServiceTree(sName):
-    global serviceLatencies
-    global processingTimes
-    global clientLocations
-
+def generateDictsForServiceTree():
     minLatency, maxLatency = 100, 1000
-    serviceLatencies[sName] = random.randint(minLatency, maxLatency)
+    serviceLatency = random.randint(minLatency, maxLatency)
 
     minProcess, maxProcess = 0, 10
-    processingTimes[sName] = random.randint(minProcess, maxProcess)
+    processingTime = random.randint(minProcess, maxProcess)
 
-    minCLoc, maxCLoc = 1000, 8000
-    clientLocations[sName] = {"X": random.randint(minCLoc, maxCLoc), "Y": random.randint(minCLoc, maxCLoc)}
+    minCLoc, maxCLoc = 0, 10000
+    serviceLocation = {"X": random.randint(minCLoc, maxCLoc), "Y": random.randint(minCLoc, maxCLoc)}
+
+    return serviceLocation, processingTime, serviceLatency
 
 
-def generateNodeMetrics(nodeId, loc, visibleNodes, children):
-    global services
-    global nodesLocations
+def generateNodeMetrics(nodeId, loc, visibleNodes, children, nodesLocations, services, serviceLatencies,
+                        processingTimes, clientLocations):
     visibleNodesLocation = ",\n".join([f""""{nodeId}": {{
         "X": {nodesLocations[nodeId]["X"]},
         "Y": {nodesLocations[nodeId]["Y"]}
@@ -134,66 +123,74 @@ def generateNodeMetrics(nodeId, loc, visibleNodes, children):
 sortingLocation = {"X": 0, "Y": 0}
 
 
-def sortByDistance(n):
+def sortByDistance(n, nodesLocations):
     return calcDist(nodesLocations[n], sortingLocation)
 
 
-def get_neighborhood(node):
+def get_neighborhood(node, nodesLocations, neighSize):
     global nodes
     global sortingLocation
     nodesCopy = nodes[:]
     sortingLocation = nodesLocations[node]
-    nodesCopy.sort(key=sortByDistance)
-    neighSize = int(len(nodes) / 8)
+    nodesCopy.sort(key=lambda elem: (sortByDistance(elem, nodesLocations)))
     return nodesCopy[:neighSize]
 
 
-def gen_trees(fallback):
-    global serviceLatencies
-    global processingTimes
-    global clientLocations
-    global services
-    global nodesLocations
-    global nodesChildren
+def gen_trees(neighSize):
+    services = []
 
-    minNodeLoc, maxNodeLoc = 1000, 10000
+    nodesChildren = {}
+    nodesLocations = {}
 
-    print("------------------------------------------ LOCATIONS ------------------------------------------")
+    minNodeLoc, maxNodeLoc = 0, 10000
 
+    midNode = ""
+    minDistToMid = -1
+    midPoint = ((maxNodeLoc - minNodeLoc) / 2) + minNodeLoc
     for node in nodes:
         location = {"X": random.randint(minNodeLoc, maxNodeLoc), "Y": random.randint(minNodeLoc, maxNodeLoc)}
         nodesLocations[node] = location
-        print(f"{node} at {location}")
+        dist = calcDist(location, {"X":  midPoint, "Y": midPoint})
+        if minDistToMid == -1 or dist < minDistToMid:
+            midNode = node
+            minDistToMid = dist
 
+    clientLocations = {}
+    processingTimes = {}
+    serviceLatencies = {}
     for idx in range(numServices):
         serviceName = alphabet[idx]
         services.append(serviceName)
-        generateDictsForServiceTree(serviceName)
+        serviceLocation, processingTime, serviceLatency = generateDictsForServiceTree()
+        clientLocations[serviceName] = serviceLocation
+        processingTimes[serviceName] = processingTime
+        serviceLatencies[serviceName] = serviceLatency
 
-    print("------------------------------------------ VISIBILITY ------------------------------------------")
-
+    neighborhoods = {}
     for node in nodes:
-        nodesVisible = get_neighborhood(node)
-        print(f"{node} sees {nodesVisible}")
+        nodesVisible = get_neighborhood(node, nodesLocations, neighSize)
+        neighborhoods[node] = nodesVisible
         nodeChildren = nodesVisible
         nodesChildren[node] = nodeChildren
-        metrics = generateNodeMetrics(node, nodesLocations[node], nodesVisible, nodeChildren)
+        metrics = generateNodeMetrics(node, nodesLocations[node], nodesVisible, nodeChildren, nodesLocations,
+                                      services, serviceLatencies, processingTimes, clientLocations)
         with open(f"{outputDir}{node}.met", 'w') as nodeFp:
             parsed = json.loads(metrics)
             metrics = json.dumps(parsed, indent=4, sort_keys=False)
             nodeFp.write(metrics)
 
-    print("------------------------------------------ SERVICE TREES ------------------------------------------")
-
     trees = []
     treeSizes = []
 
+    fallback = midNode
+    print(f"fallback is {fallback}")
+
     for service in services:
-        print(f"clients for {service} are at {clientLocations[service]}")
-        tree, treeSize = generateServiceTree(fallback, service)
+        tree, treeSize = generateServiceTree(fallback, service, nodesChildren, nodesLocations, clientLocations)
         trees.append(tree)
         treeSizes.append(treeSize)
-    return trees, treeSizes
+
+    return trees, treeSizes, fallback, nodesLocations, nodesChildren, clientLocations, neighborhoods
 
 
 if len(sys.argv) < 4:
@@ -253,39 +250,36 @@ for f in filelist:
 
 alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
-serviceLatencies = {}
-processingTimes = {}
-clientLocations = {}
-services = []
-nodesLocations = {}
-nodesChildren = {}
 done = False
 trees = []
-fallback = "empty"
 
-while not done:
-    serviceLatencies = {}
-    processingTimes = {}
-    clientLocations = {}
-    services = []
-    nodesLocations = {}
-    nodesChildren = {}
+neighSize = int(len(nodes) / 10)
+print(f"neighborhood size: {neighSize}")
 
-    fallback = nodes[random.randint(0, len(nodes) - 1)]
-    print(f"fallback is {fallback}")
+while True:
+    print("-------------------------------- TREE --------------------------------")
 
-    trees, treeSizes = gen_trees(fallback)
+    trees, treeSizes, fallback, nodesLocations, nodesChildren, clientLocations, neighborhoods = gen_trees(neighSize)
 
     minMet = True
     atLeast = False
 
+    maxSize = 0
+    minSize = -1
     for treeSize in treeSizes:
         if treeSize < minTreeSize:
             minMet = False
         if treeSize >= atLeastOneTreeSize:
             atLeast = True
+        if treeSize > maxSize:
+            maxSize = treeSize
+        if minSize == -1 or treeSize < minSize:
+            minSize = treeSize
 
-    done = minMet and atLeast
+    print(f"min: {minSize}, max: {maxSize}")
+
+    if minMet and atLeast:
+        break
 
 treesString = "\n".join(trees)
 
@@ -297,9 +291,16 @@ with open(f"{outputDir}services.tree", 'w') as treeFp:
     treeFp.write(treesString)
 
 locations = {"services": clientLocations, "nodes": nodesLocations}
-with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/locations.txt", 'w') as locFp:
+with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/locations.json", 'w') as locFp:
     locs = json.dumps(locations, indent=4, sort_keys=False)
     locFp.write(locs)
 
 with open(f"{os.path.dirname(os.path.realpath(__file__))}/../build/deployer/fallback.txt", 'w') as fallbackFp:
     fallbackFp.write(fallback)
+
+with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/neighborhoods.json", 'w') as neighsFp:
+    for neighborhood in neighborhoods.values():
+        del neighborhood[0]
+
+    neighs = json.dumps(neighborhoods, indent=4, sort_keys=False)
+    neighsFp.write(neighs)

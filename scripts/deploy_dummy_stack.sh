@@ -16,12 +16,11 @@ ALTERNATIVES_DIR="$CLOUD_EDGE_DEPLOYMENT/build/dummy_node/alternatives"
 OPTIONS="--mount type=bind,source=$ALTERNATIVES_DIR,target=/alternatives"
 
 function run() {
-	docker run -d --network=nodes-network --name="$HOSTNAME" -p $DEPLOYER_PORT_NUMBER:50002 -p \
-		$ARCHIMEDES_PORT_NUMBER:50000 $OPTIONS --hostname "$HOSTNAME" brunoanjos/dummy_node:latest
+	docker run -d --network=nodes-network --ip "192.168.19$((3+CARRY)).$NODE" --name="$HOSTNAME" $OPTIONS --hostname "$HOSTNAME" brunoanjos/dummy_node:latest
 }
 
 docker system prune -f
-docker network create nodes-network
+docker network create --subnet=192.168.192.1/20 nodes-network
 
 if [ $# -ne 1 ]; then
     echo "usage: deploy_dummy_stack.sh num_nodes"
@@ -33,8 +32,9 @@ fi
 for (( c=1; c<=$1; c++ ))
 do
 	HOSTNAME="dummy$c"
-	DEPLOYER_PORT_NUMBER=$((c+30000))
-	ARCHIMEDES_PORT_NUMBER=$((c+40000))
+	NODE=$((c % 255))
+	CARRY=$((c / 255))
+	echo "node: $NODE, carry: $CARRY"
 	echo "STARTING dummy$c with ports $DEPLOYER_PORT_NUMBER $ARCHIMEDES_PORT_NUMBER"
 	run &
 done
