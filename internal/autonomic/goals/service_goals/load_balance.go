@@ -12,15 +12,18 @@ import (
 )
 
 const (
-	maximumLoad        = 0.8
+	maximumLoad        = 0.7
 	equivalentLoadDiff = 0.20
 
-	lbNumArgs         = 1
-	actionArgMostBusy = 0
+	lbNumArgs = 2
 
 	defaultGroupSize = 0.10
 
 	loadBalanceGoalId = "GOAL_LOAD_BALANCE"
+)
+
+const (
+	lbActionTypeArgIndex = iota
 )
 
 var (
@@ -65,23 +68,47 @@ func (l *LoadBalance) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRa
 	}
 	log.Debugf("%s generated domain %+v", loadBalanceGoalId, candidateIds)
 
+	overloaded := false
+	for _, value := range sortingCriteria {
+		load := value.(float64)
+		if load > maximumLoad {
+			overloaded = true
+			break
+		}
+	}
+
+	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
+	if overloaded {
+		actionArgs[lbActionTypeArgIndex] = actions.AddServiceId
+		optRange = goals.Range{}
+		for _, candidateFromPreviousGoal := range optDomain {
+			_, cOK := l.serviceChildren.Load(candidateFromPreviousGoal)
+			if !cOK {
+				optRange = append(optRange, candidateFromPreviousGoal)
+				break
+			}
+		}
+
+		isAlreadyMax = false
+		return
+	}
+
 	filtered := l.Filter(candidateIds, optDomain)
 	log.Debugf("%s filtered result %+v", loadBalanceGoalId, filtered)
 
 	ordered := l.Order(filtered, sortingCriteria)
 	log.Debugf("%s ordered result %+v", loadBalanceGoalId, ordered)
 
-	if len(ordered) < 2 {
-		return
-	}
-
-	mostBusy := ordered[len(ordered)-1]
-
 	optRange, isAlreadyMax = l.Cutoff(ordered, sortingCriteria)
 	log.Debugf("%s cutoff result %+v", loadBalanceGoalId, optRange)
 
-	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
-	actionArgs[actionArgMostBusy] = mostBusy
+	// TODO understand where migrate action fits
+	// if furthestChild != "" {
+	// 	actionArgs[ilActionTypeArgIndex] = actions.MigrateServiceId
+	// 	actionArgs[ilFromIndex] = furthestChild
+	// } else {
+	// 	isAlreadyMax = true
+	// }
 
 	return
 }
@@ -143,14 +170,17 @@ func (l *LoadBalance) Cutoff(candidates goals.Domain, candidatesCriteria map[str
 	cutoff = nil
 	maxed = true
 
-	leastBusy := candidates[0]
-	if len(candidates)-1 < 1 {
+	if len(candidates) < 2 {
 		return
 	}
 
+	leastBusy := candidates[0]
 	mostBusy := candidates[len(candidates)-1]
 
-	if candidatesCriteria[mostBusy].(float64)-candidatesCriteria[leastBusy].(float64) < equivalentLoadDiff {
+	mostBusyLoad := candidatesCriteria[mostBusy].(float64)
+	leastBusyLoad := candidatesCriteria[leastBusy].(float64)
+
+	if mostBusyLoad-leastBusyLoad < equivalentLoadDiff {
 		cutoff = nil
 		maxed = true
 	} else {
@@ -166,8 +196,14 @@ func (l *LoadBalance) Cutoff(candidates goals.Domain, candidatesCriteria map[str
 }
 
 func (l *LoadBalance) GenerateAction(target string, args ...interface{}) actions.Action {
-	from := args[actionArgMostBusy].(string)
-	return actions.NewRedirectAction(l.serviceId, from, target, migrationGroupSize)
+	log.Debugf("generating action %s", (args[lbActionTypeArgIndex]).(string))
+
+	switch args[ilActionTypeArgIndex].(string) {
+	case actions.AddServiceId:
+		return actions.NewAddServiceAction(l.serviceId, target)
+	}
+
+	return nil
 }
 
 func (l *LoadBalance) TestDryRun() bool {
@@ -192,4 +228,52 @@ func (l *LoadBalance) ResetMigrationGroupSize() {
 
 func (l *LoadBalance) GetId() string {
 	return loadBalanceGoalId
+}
+
+func (l *LoadBalance) getHighLoads() map[string]float64 {
+	highLoads := map[string]float64{}
+	l.serviceChildren.Range(func(key, value interface{}) bool {
+		childId := key.(serviceChildrenMapKey)
+		metric := metrics.GetLoadPerServiceInChildMetricId(l.serviceId, childId)
+		value, mOk := l.environment.GetMetric(metric)
+		if !mOk {
+			log.Debugf("no value for metric %s", metric)
+			return true
+		}
+
+		load := value.(float64)
+		if load > maximumLoad {
+			highLoads[childId] = load
+		}
+
+		return true
+	})
+
+	return highLoads
+}
+
+func (l *LoadBalance) getAlternativeForHighLoad(highLoads map[string]float64, candidates goals.Range) (alternative string,
+	ok bool) {
+	var highLoadChildIds []string
+	for childId := range highLoads {
+		highLoadChildIds = append(highLoadChildIds, childId)
+	}
+
+	log.Debugf("children with high loads: %v", highLoadChildIds)
+
+	var filteredCandidates []string
+	for _, candidate := range candidates {
+		_, ok = highLoads[candidate]
+		if !ok {
+			filteredCandidates = append(filteredCandidates, candidate)
+		}
+	}
+
+	if len(filteredCandidates) == 0 {
+		ok = false
+		return
+	}
+
+	alternative = filteredCandidates[0]
+	return
 }

@@ -90,32 +90,14 @@ func (i *idealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 	}
 
 	// check if processing time is the main reason for latency
-	processintTimeMetric := metrics.GetProcessingTimePerServiceMetricId(i.serviceId)
-	value, ok := i.environment.GetMetric(processintTimeMetric)
-	if !ok {
-		log.Debugf("no value for metric %s", processintTimeMetric)
-	} else {
-		processingTime := value.(float64)
-
-		clientLatencyMetric := metrics.GetClientLatencyPerServiceMetricId(i.serviceId)
-		value, ok = i.environment.GetMetric(clientLatencyMetric)
-		if !ok {
-			log.Debugf("no value for metric %s", clientLatencyMetric)
-			return
-		}
-
-		latency := value.(float64)
-
-		processingTimePart := float32(processingTime) / float32(latency)
-		if processingTimePart > processingThreshold {
-			log.Debugf("most of the client latency is due to processing time (%f)", processingTimePart)
-			isAlreadyMax = true
-			return
-		}
+	processingTimeTooHigh := i.checkProcessingTime()
+	if processingTimeTooHigh {
+		isAlreadyMax = true
+		return
 	}
 
 	avgClientLocMetric := metrics.GetAverageClientLocationPerServiceMetricId(i.serviceId)
-	value, ok = i.environment.GetMetric(avgClientLocMetric)
+	value, ok := i.environment.GetMetric(avgClientLocMetric)
 	if !ok {
 		log.Debugf("no value for metric %s", avgClientLocMetric)
 		return
@@ -171,14 +153,6 @@ func (i *idealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 	} else {
 		isAlreadyMax = true
 	}
-
-	// TODO understand where migrate action fits
-	// if furthestChild != "" {
-	// 	actionArgs[ilActionTypeArgIndex] = actions.MigrateServiceId
-	// 	actionArgs[ilFromIndex] = furthestChild
-	// } else {
-	// 	isAlreadyMax = true
-	// }
 
 	return
 }
@@ -407,4 +381,31 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation *utils.Location) (f
 
 func (i *idealLatency) GetId() string {
 	return idealLatencyGoalId
+}
+
+func (i *idealLatency) checkProcessingTime() bool {
+	processintTimeMetric := metrics.GetProcessingTimePerServiceMetricId(i.serviceId)
+	value, ok := i.environment.GetMetric(processintTimeMetric)
+	if !ok {
+		log.Debugf("no value for metric %s", processintTimeMetric)
+	} else {
+		processingTime := value.(float64)
+
+		clientLatencyMetric := metrics.GetClientLatencyPerServiceMetricId(i.serviceId)
+		value, ok = i.environment.GetMetric(clientLatencyMetric)
+		if !ok {
+			log.Debugf("no value for metric %s", clientLatencyMetric)
+			return true
+		}
+
+		latency := value.(float64)
+
+		processingTimePart := float32(processingTime) / float32(latency)
+		if processingTimePart > processingThreshold {
+			log.Debugf("most of the client latency is due to processing time (%f)", processingTimePart)
+			return true
+		}
+	}
+
+	return false
 }
