@@ -17,6 +17,7 @@ const (
 	metricClientLatencyPerService         = "METRIC_CLIENT_LATENCY_PER_SERVICE_%s"
 	metricProcessingTimePerService        = "METRIC_PROCESSING_TIME_PER_SERVICE_%s"
 	metricAverageClientLocationPerService = "METRIC_AVERAGE_CLIENT_LOCATION_PER_SERVICE_%s"
+	metricLoadPerService                  = "METRIC_LOAD_PER_SERVICE_%s"
 )
 
 func GetNumInstancesMetricId(serviceId string) string {
@@ -45,4 +46,8 @@ func GetProcessingTimePerServiceMetricId(serviceId string) string {
 
 func GetAverageClientLocationPerServiceMetricId(serviceId string) string {
 	return fmt.Sprintf(metricAverageClientLocationPerService, serviceId)
+}
+
+func GetLoadPerService(serviceId string) string {
+	return fmt.Sprintf(metricLoadPerService, serviceId)
 }

@@ -20,6 +20,7 @@ const (
 	closestNodeName        = "CLOSEST_NODE"
 	getVicinityName        = "GET_VICINITY"
 	getMyLocationName      = "GET_MY_LOCATION"
+	getLoadName            = "GET_LOAD"
 )
 
 // Path variables
@@ -44,9 +45,17 @@ var (
 	closestNodeRoute      = autonomic.ClosestNodePath
 	getVicinityRoute      = autonomic.VicinityPath
 	getMyLocationRoute    = autonomic.MyLocationPath
+	getLoadRoute          = fmt.Sprintf(autonomic.LoadPath, _serviceIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        getLoadName,
+		Method:      http.MethodGet,
+		Pattern:     getLoadRoute,
+		HandlerFunc: getLoadForServiceHandler,
+	},
+
 	{
 		Name:        getMyLocationName,
 		Method:      http.MethodGet,

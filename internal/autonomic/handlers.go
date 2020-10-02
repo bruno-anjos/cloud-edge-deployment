@@ -125,3 +125,14 @@ func getMyLocationHandler(w http.ResponseWriter, _ *http.Request) {
 
 	utils.SendJSONReplyOK(w, respBody)
 }
+
+func getLoadForServiceHandler(w http.ResponseWriter, r *http.Request) {
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	load, ok := autonomicSystem.getLoad(serviceId)
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	utils.SendJSONReplyOK(w, load)
+}

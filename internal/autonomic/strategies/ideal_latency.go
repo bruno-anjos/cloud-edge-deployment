@@ -61,7 +61,7 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 		log.Debugf("%s generated optRange %+v", goal.GetId(), optRange)
 		if isAlreadyMax {
 			log.Debugf("%s is already maximized", goal.GetId())
-		} else {
+		} else if goalToChooseActionFrom == nil {
 			log.Debugf("%s not maximized", goal.GetId())
 			goalToChooseActionFrom = goal
 			goalActionArgs = actionArgs

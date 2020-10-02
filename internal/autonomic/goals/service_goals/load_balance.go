@@ -1,13 +1,18 @@
 package service_goals
 
 import (
+	"net/http"
 	"sort"
+	"strconv"
 	"sync"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -68,6 +73,15 @@ func (l *LoadBalance) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRa
 	}
 	log.Debugf("%s generated domain %+v", loadBalanceGoalId, candidateIds)
 
+	filtered := l.Filter(candidateIds, optDomain)
+	log.Debugf("%s filtered result %+v", loadBalanceGoalId, filtered)
+
+	ordered := l.Order(filtered, sortingCriteria)
+	log.Debugf("%s ordered result %+v", loadBalanceGoalId, ordered)
+
+	optRange, isAlreadyMax = l.Cutoff(ordered, sortingCriteria)
+	log.Debugf("%s cutoff result %+v", loadBalanceGoalId, optRange)
+
 	overloaded := false
 	for _, value := range sortingCriteria {
 		load := value.(float64)
@@ -80,27 +94,21 @@ func (l *LoadBalance) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRa
 	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
 	if overloaded {
 		actionArgs[lbActionTypeArgIndex] = actions.AddServiceId
-		optRange = goals.Range{}
-		for _, candidateFromPreviousGoal := range optDomain {
-			_, cOK := l.serviceChildren.Load(candidateFromPreviousGoal)
-			if !cOK {
-				optRange = append(optRange, candidateFromPreviousGoal)
+		newOptRange := goals.Range{}
+		for _, candidate := range optRange {
+			_, okC := l.serviceChildren.Load(candidate)
+			if !okC {
+				newOptRange = append(newOptRange, candidate)
 				break
 			}
 		}
 
-		isAlreadyMax = false
+		log.Debugf("%s new opt range %+v", loadBalanceGoalId, newOptRange)
+
+		optRange = newOptRange
+		isAlreadyMax = !(len(optRange) > 0)
 		return
 	}
-
-	filtered := l.Filter(candidateIds, optDomain)
-	log.Debugf("%s filtered result %+v", loadBalanceGoalId, filtered)
-
-	ordered := l.Order(filtered, sortingCriteria)
-	log.Debugf("%s ordered result %+v", loadBalanceGoalId, ordered)
-
-	optRange, isAlreadyMax = l.Cutoff(ordered, sortingCriteria)
-	log.Debugf("%s cutoff result %+v", loadBalanceGoalId, optRange)
 
 	// TODO understand where migrate action fits
 	// if furthestChild != "" {
@@ -118,15 +126,17 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 	info = nil
 	success = false
 
-	// TODO GET LOAD PER CHILD
-	loadPerServiceInChildren := metrics.GetLoadPerServiceInChildrenMetricId(l.serviceId)
-	value, ok := l.environment.GetMetric(loadPerServiceInChildren)
+	value, ok := l.environment.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
-		log.Debugf("no value for metric %s", loadPerServiceInChildren)
-		return
+		log.Debugf("no value for metric %s", metrics.MetricLocationInVicinity)
+		return nil, nil, false
 	}
 
-	info = value.(map[string]interface{})
+	var locationsInVicinity map[string]utils.Location
+	err := mapstructure.Decode(value, &locationsInVicinity)
+	if err != nil {
+		panic(err)
+	}
 
 	value, ok = l.environment.GetMetric(metrics.MetricNodeAddr)
 	if !ok {
@@ -134,17 +144,44 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 		return nil, nil, false
 	}
 
+	numNodes := 1
+	l.serviceChildren.Range(func(key, value interface{}) bool {
+		numNodes++
+		return true
+	})
+
 	myself := value.(string)
-	for nodeId := range info {
-		_, okC := l.serviceChildren.Load(nodeId)
+	info = map[string]interface{}{}
+	autoClient := autonomic.NewAutonomicClient("")
+
+	for nodeId := range locationsInVicinity {
 		_, okS := l.suspected.Load(nodeId)
-		if okC || okS || nodeId == myself || nodeId == **l.parentId {
+		if okS || nodeId == myself || nodeId == **l.parentId {
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}
 		domain = append(domain, nodeId)
+		autoClient.SetHostPort(nodeId + ":" + strconv.Itoa(autonomic.Port))
+		load, status := autoClient.GetLoadForService(l.serviceId)
+		if status != http.StatusOK {
+			info[nodeId] = 0.
+		} else {
+			info[nodeId] = load / float64(numNodes)
+		}
+		log.Debugf("%s has load: %f", nodeId, load)
 	}
+
 	success = true
+
+	// TODO GET LOAD PER CHILD
+	// loadPerServiceInChildren := metrics.GetLoadPerServiceInChildrenMetricId(l.serviceId)
+	// value, ok := l.environment.GetMetric(loadPerServiceInChildren)
+	// if !ok {
+	// 	log.Debugf("no value for metric %s", loadPerServiceInChildren)
+	// 	return
+	// }
+	//
+	// info = value.(map[string]interface{})
 
 	return
 }
@@ -179,17 +216,15 @@ func (l *LoadBalance) Cutoff(candidates goals.Domain, candidatesCriteria map[str
 
 	mostBusyLoad := candidatesCriteria[mostBusy].(float64)
 	leastBusyLoad := candidatesCriteria[leastBusy].(float64)
+	maxed = mostBusyLoad-leastBusyLoad < equivalentLoadDiff
+	if maxed {
+		return
+	}
 
-	if mostBusyLoad-leastBusyLoad < equivalentLoadDiff {
-		cutoff = nil
-		maxed = true
-	} else {
-		for _, candidate := range candidates {
-			if candidatesCriteria[candidate].(float64) <= maximumLoad {
-				cutoff = append(cutoff, candidate)
-			}
+	for _, candidate := range candidates {
+		if candidatesCriteria[candidate].(float64) <= maximumLoad {
+			cutoff = append(cutoff, candidate)
 		}
-		maxed = false
 	}
 
 	return

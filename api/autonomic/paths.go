@@ -18,6 +18,7 @@ const (
 	ClosestNodePath      = "/closest"
 	VicinityPath         = "/vicinity"
 	MyLocationPath       = "/location"
+	LoadPath             = "/load/%s"
 )
 
 func GetServicesPath() string {
@@ -50,4 +51,8 @@ func GetVicinityPath() string {
 
 func GetMyLocationPath() string {
 	return PrefixPath + MyLocationPath
+}
+
+func GetGetLoadForServicePath(serviceId string) string {
+	return PrefixPath + fmt.Sprintf(LoadPath, serviceId)
 }

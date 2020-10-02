@@ -16,7 +16,7 @@ import (
 const (
 	processingThreshold = 0.8
 
-	maximumDistancePercentage   = 1.1
+	maximumDistancePercentage   = 1.4
 	equivalenDistancePercentage = 0.8
 	loadToAddServiceThreshold   = 0.7
 

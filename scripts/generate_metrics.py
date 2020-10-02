@@ -65,7 +65,8 @@ def generateServiceTree(startNode, sName, nodesChildren, nodesLocations, clientL
         else:
             better = False
 
-    return tree, treeSize
+    lastNode = best
+    return tree, treeSize, lastNode
 
 
 def generateDictsForServiceTree():
@@ -82,7 +83,7 @@ def generateDictsForServiceTree():
 
 
 def generateNodeMetrics(nodeId, loc, visibleNodes, children, nodesLocations, services, serviceLatencies,
-                        processingTimes, clientLocations):
+                        processingTimes, clientLocations, lastNode):
     visibleNodesLocation = ",\n".join([f""""{nodeId}": {{
         "X": {nodesLocations[nodeId]["X"]},
         "Y": {nodesLocations[nodeId]["Y"]}
@@ -95,6 +96,7 @@ def generateNodeMetrics(nodeId, loc, visibleNodes, children, nodesLocations, ser
                   f"\"METRIC_CLIENT_LATENCY_PER_SERVICE_{s}\": {serviceLatencies[s]}",
                   f"\"METRIC_PROCESSING_TIME_PER_SERVICE_{s}\": {processingTimes[s]}",
                   f"\"METRIC_NUMBER_OF_INSTANCES_PER_SERVICE_{s}\": 0",
+                  f"\"METRIC_LOAD_PER_SERVICE_{s}\": {2.7 if s in lastNode else 0.}",
                   f"""\"METRIC_AVERAGE_CLIENT_LOCATION_PER_SERVICE_{s}\": {{
                         "X": {clientLocations[s]["X"]},
                         "Y": {clientLocations[s]["Y"]}
@@ -130,18 +132,55 @@ def sortByDistance(n, nodesLocations):
 def get_neighborhood(node, nodesLocations, neighSize):
     global nodes
     global sortingLocation
+
     nodesCopy = nodes[:]
     sortingLocation = nodesLocations[node]
     nodesCopy.sort(key=lambda elem: (sortByDistance(elem, nodesLocations)))
+
     return nodesCopy[:neighSize]
 
 
-def gen_trees(neighSize):
-    services = []
+def loadChildrenFromConfig(node, config):
+    global fromDummyToOriginal
+    global fromOriginalToDummy
 
-    nodesChildren = {}
+    originalNode = fromDummyToOriginal[node]
+    originalChildren = config[originalNode]["neighbours"]
+    children = []
+    for child in originalChildren:
+        children.append(fromOriginalToDummy[child])
+    return children
+
+
+def loadLocationsFromConfig(config):
+    global fromOriginalToDummy
+
+    locations = {}
+    for node, nodeConfig in config.items():
+        originalNode = fromOriginalToDummy[node]
+        x = nodeConfig["coords"][0]
+        y = nodeConfig["coords"][1]
+        locations[originalNode] = {"X": x, "Y": y}
+    return locations
+
+
+def calcMidNode(nodesLocations):
+    midNode = ""
+    minDistToMid = -1
+    minNodeLoc, maxNodeLoc = 0, 10000
+
+    midPoint = ((maxNodeLoc - minNodeLoc) / 2) + minNodeLoc
+
+    for node, location in nodesLocations.items():
+        dist = calcDist(location, {"X": midPoint, "Y": midPoint})
+        if minDistToMid == -1 or dist < minDistToMid:
+            midNode = node
+            minDistToMid = dist
+    return midNode
+
+
+def generateLocations():
     nodesLocations = {}
-
     minNodeLoc, maxNodeLoc = 0, 10000
 
     midNode = ""
@@ -150,16 +189,32 @@ def gen_trees(neighSize):
     for node in nodes:
         location = {"X": random.randint(minNodeLoc, maxNodeLoc), "Y": random.randint(minNodeLoc, maxNodeLoc)}
         nodesLocations[node] = location
-        dist = calcDist(location, {"X":  midPoint, "Y": midPoint})
+        dist = calcDist(location, {"X": midPoint, "Y": midPoint})
         if minDistToMid == -1 or dist < minDistToMid:
             midNode = node
             minDistToMid = dist
+
+    return nodesLocations, midNode
+
+
+def gen_trees(neighSize, config):
+    global nodes
+
+    services = []
+
+    if config:
+        nodesLocations = loadLocationsFromConfig(config)
+        midNode = calcMidNode(nodesLocations)
+    else:
+        nodesLocations, midNode = generateLocations()
 
     clientLocations = {}
     processingTimes = {}
     serviceLatencies = {}
     for idx in range(numServices):
-        serviceName = alphabet[idx]
+        carry = idx // len(alphabet)
+        alphaIdx = idx - carry * len(alphabet)
+        serviceName = alphabet[alphaIdx] + alphabet[alphaIdx] * carry
         services.append(serviceName)
         serviceLocation, processingTime, serviceLatency = generateDictsForServiceTree()
         clientLocations[serviceName] = serviceLocation
@@ -167,17 +222,15 @@ def gen_trees(neighSize):
         serviceLatencies[serviceName] = serviceLatency
 
     neighborhoods = {}
+    nodesChildren = {}
     for node in nodes:
-        nodesVisible = get_neighborhood(node, nodesLocations, neighSize)
+        if config:
+            nodesVisible = loadChildrenFromConfig(node, config)
+        else:
+            nodesVisible = get_neighborhood(node, nodesLocations, neighSize)
         neighborhoods[node] = nodesVisible
         nodeChildren = nodesVisible
         nodesChildren[node] = nodeChildren
-        metrics = generateNodeMetrics(node, nodesLocations[node], nodesVisible, nodeChildren, nodesLocations,
-                                      services, serviceLatencies, processingTimes, clientLocations)
-        with open(f"{outputDir}{node}.met", 'w') as nodeFp:
-            parsed = json.loads(metrics)
-            metrics = json.dumps(parsed, indent=4, sort_keys=False)
-            nodeFp.write(metrics)
 
     trees = []
     treeSizes = []
@@ -185,10 +238,25 @@ def gen_trees(neighSize):
     fallback = midNode
     print(f"fallback is {fallback}")
 
+    lastNodes = {}
     for service in services:
-        tree, treeSize = generateServiceTree(fallback, service, nodesChildren, nodesLocations, clientLocations)
+        tree, treeSize, lastNode = generateServiceTree(fallback, service, nodesChildren, nodesLocations,
+                                                       clientLocations)
         trees.append(tree)
         treeSizes.append(treeSize)
+        if lastNode in lastNodes:
+            lastNodes[lastNode].append(service)
+        else:
+            lastNodes[lastNode] = [service]
+
+    for node in nodes:
+        metrics = generateNodeMetrics(node, nodesLocations[node], neighborhoods[node], nodesChildren[node],
+                                      nodesLocations, services, serviceLatencies, processingTimes, clientLocations,
+                                      lastNodes[node] if node in lastNodes else [])
+        with open(f"{outputDir}{node}.met", 'w') as nodeFp:
+            parsed = json.loads(metrics)
+            metrics = json.dumps(parsed, indent=4, sort_keys=False)
+            nodeFp.write(metrics)
 
     return trees, treeSizes, fallback, nodesLocations, nodesChildren, clientLocations, neighborhoods
 
@@ -205,6 +273,7 @@ hasOptions = True
 
 idx = 0
 idxsToIgnore = {}
+configFile = ""
 for arg in args:
     if arg == "--min":
         minTreeSize = int(args[idx + 1])
@@ -213,6 +282,11 @@ for arg in args:
         idxsToIgnore[idx + 1] = True
     elif arg == "--at_least_one":
         atLeastOneTreeSize = int(args[idx + 1])
+        hasOptions = True
+        idxsToIgnore[idx] = True
+        idxsToIgnore[idx + 1] = True
+    elif arg == "--config":
+        configFile = args[idx + 1]
         hasOptions = True
         idxsToIgnore[idx] = True
         idxsToIgnore[idx + 1] = True
@@ -234,13 +308,25 @@ if not outputDir.endswith("/"):
 numServices = int(args[1])
 prefix = args[2]
 numberOfNodes = int(args[3])
-print("Number of services: ", numServices)
-print("Prefix: ", prefix)
-print("Number of Nodes: ", numberOfNodes)
+print("Number of services:", numServices)
+print("Prefix:", prefix)
+print("Number of Nodes:", numberOfNodes)
 
 nodes = []
 for i in range(numberOfNodes):
     nodes.append(prefix + str(i + 1))
+
+fromOriginalToDummy = {}
+fromDummyToOriginal = {}
+loadedConfig = {}
+if configFile != "":
+    with open(configFile, 'r') as configFp:
+        loadedConfig = json.load(configFp)
+        print(f"config with {len(loadedConfig.keys())} nodes")
+        for nodeId, dummy in zip(loadedConfig.keys(), nodes):
+            print(f"{nodeId} -> {dummy}")
+            fromOriginalToDummy[nodeId] = dummy
+            fromDummyToOriginal[dummy] = nodeId
 
 print("Nodes: ", nodes)
 
@@ -253,13 +339,14 @@ alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 done = False
 trees = []
 
-neighSize = int(len(nodes) / 10)
+neighSize = int(len(nodes) / 30)
 print(f"neighborhood size: {neighSize}")
 
 while True:
     print("-------------------------------- TREE --------------------------------")
 
-    trees, treeSizes, fallback, nodesLocations, nodesChildren, clientLocations, neighborhoods = gen_trees(neighSize)
+    trees, treeSizes, fallback, nodesLocations, nodesChildren, \
+    clientLocations, neighborhoods = gen_trees(neighSize, loadedConfig)
 
     minMet = True
     atLeast = False

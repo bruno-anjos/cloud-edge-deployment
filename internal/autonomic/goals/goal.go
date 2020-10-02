@@ -27,15 +27,14 @@ func DefaultFilter(candidates, domain Domain) (filtered Range) {
 		return
 	}
 
-	mappedDomain := map[string]struct{}{}
-
-	for _, d := range domain {
-		mappedDomain[d] = struct{}{}
+	mappedCandidates := map[string]struct{}{}
+	for _, d := range candidates {
+		mappedCandidates[d] = struct{}{}
 	}
 
-	for _, candidate := range candidates {
-		if _, ok := mappedDomain[candidate]; ok {
-			filtered = append(filtered, candidate)
+	for _, nodeId := range domain {
+		if _, ok := mappedCandidates[nodeId]; ok {
+			filtered = append(filtered, nodeId)
 		}
 	}
 

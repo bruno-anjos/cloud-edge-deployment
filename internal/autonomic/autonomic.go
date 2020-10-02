@@ -31,20 +31,22 @@ const (
 )
 
 type service struct {
-	ServiceId string
-	Strategy  strategies.Strategy
-	Children  *sync.Map
-	ParentId  *string
-	Suspected *sync.Map
+	ServiceId   string
+	Strategy    strategies.Strategy
+	Children    *sync.Map
+	ParentId    *string
+	Suspected   *sync.Map
+	Environment *environment.Environment
 }
 
 func newService(serviceId, strategyId string, suspected *sync.Map,
 	env *environment.Environment) (*service, error) {
 	parentId := ""
 	s := &service{
-		Children:  &sync.Map{},
-		ParentId:  &parentId,
-		Suspected: suspected,
+		Children:    &sync.Map{},
+		ParentId:    &parentId,
+		Suspected:   suspected,
+		Environment: env,
 	}
 
 	var strategy strategies.Strategy
@@ -113,6 +115,16 @@ func (a *service) toDTO() *autonomic.ServiceDTO {
 		Children:   children,
 		ParentId:   *a.ParentId,
 	}
+}
+
+func (a *service) getLoad() float64 {
+	metric := metrics.GetLoadPerService(a.ServiceId)
+	value, ok := a.Environment.GetMetric(metric)
+	if !ok {
+		return 0
+	}
+
+	return value.(float64) / 100.
 }
 
 type system struct {
@@ -331,4 +343,13 @@ func (a *system) performAction(action actions.Action) {
 	default:
 		log.Errorf("could not execute action of type %s", action.GetActionId())
 	}
+}
+
+func (a *system) getLoad(serviceId string) (float64, bool) {
+	value, ok := a.services.Load(serviceId)
+	if !ok {
+		return 0, false
+	}
+
+	return value.(servicesMapValue).getLoad(), true
 }
