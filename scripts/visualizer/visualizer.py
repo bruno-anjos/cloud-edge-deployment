@@ -1,3 +1,4 @@
+import os
 import subprocess
 import time
 
@@ -30,6 +31,12 @@ def rsync_folder_from_server(target, origin):
         return False
     return True
 
+
+mypath = "/Users/banjos/Desktop/deployer_pngs/"
+onlyfiles = [os.path.join(mypath, f) for f in os.listdir(mypath) if os.path.isfile(os.path.join(mypath, f))]
+print(f"deleting {onlyfiles}")
+for file in onlyfiles:
+    os.remove(file)
 
 while True:
     deployer_failed = False

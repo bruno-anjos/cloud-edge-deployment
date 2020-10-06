@@ -265,7 +265,7 @@ def graph_deployer():
             loc = get_location(node, locations)
             layout.append((loc["X"], loc["Y"]))
 
-        visual_style["bbox"] = (3000, 3000)
+        visual_style["bbox"] = (4000, 4000)
         visual_style["margin"] = 200
         visual_style["layout"] = layout
         igraph.plot(g, f"/home/b.anjos/deployer_pngs/deployer_plot_{deploymentId}.png", **visual_style, autocurve=True)
@@ -290,7 +290,7 @@ def graph_deployer():
             loc = get_location(node, locations)
             layout.append((loc["X"], loc["Y"]))
         visual_style["layout"] = layout
-        visual_style["bbox"] = (3000, 3000)
+        visual_style["bbox"] = (4000, 4000)
         visual_style["margin"] = 200
         igraph.plot(combinedGraph, f"/home/b.anjos/deployer_pngs/combined_plot.png", **visual_style, autocurve=True)
 
@@ -307,7 +307,8 @@ def get_location(name, locations):
         return locations["services"][name]
     elif name in locations["nodes"]:
         return locations["nodes"][name]
-
+    else:
+        print(f"{name} has no location in {locations}")
 
 def graph_archimedes():
     sTables = get_all_services_tables()
