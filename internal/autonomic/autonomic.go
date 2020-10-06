@@ -47,6 +47,7 @@ func newService(serviceId, strategyId string, suspected *sync.Map,
 		ParentId:    &parentId,
 		Suspected:   suspected,
 		Environment: env,
+		ServiceId:   serviceId,
 	}
 
 	var strategy strategies.Strategy
@@ -121,10 +122,11 @@ func (a *service) getLoad() float64 {
 	metric := metrics.GetLoadPerService(a.ServiceId)
 	value, ok := a.Environment.GetMetric(metric)
 	if !ok {
+		log.Debugf("no value for metric %s", metric)
 		return 0
 	}
 
-	return value.(float64) / 100.
+	return value.(float64)
 }
 
 type system struct {

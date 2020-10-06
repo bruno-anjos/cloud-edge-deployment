@@ -12,6 +12,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
@@ -80,34 +81,21 @@ func (l *LoadBalance) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRa
 	log.Debugf("%s ordered result %+v", loadBalanceGoalId, ordered)
 
 	optRange, isAlreadyMax = l.Cutoff(ordered, sortingCriteria)
-	log.Debugf("%s cutoff result %+v", loadBalanceGoalId, optRange)
+	log.Debugf("%s cutoff result (%t)%+v", loadBalanceGoalId, isAlreadyMax, optRange)
 
 	overloaded := false
-	for _, value := range sortingCriteria {
+	for childId, value := range sortingCriteria {
 		load := value.(float64)
 		if load > maximumLoad {
+			log.Debugf("%s is overloaded (%f)", childId, load)
 			overloaded = true
 			break
 		}
 	}
 
-	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
 	if overloaded {
-		actionArgs[lbActionTypeArgIndex] = actions.AddServiceId
-		newOptRange := goals.Range{}
-		for _, candidate := range optRange {
-			_, okC := l.serviceChildren.Load(candidate)
-			if !okC {
-				newOptRange = append(newOptRange, candidate)
-				break
-			}
-		}
-
-		log.Debugf("%s new opt range %+v", loadBalanceGoalId, newOptRange)
-
-		optRange = newOptRange
+		actionArgs, optRange = l.handleOverload(filtered)
 		isAlreadyMax = !(len(optRange) > 0)
-		return
 	}
 
 	// TODO understand where migrate action fits
@@ -144,7 +132,7 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 		return nil, nil, false
 	}
 
-	numNodes := 1
+	numNodes := 0
 	l.serviceChildren.Range(func(key, value interface{}) bool {
 		numNodes++
 		return true
@@ -310,5 +298,27 @@ func (l *LoadBalance) getAlternativeForHighLoad(highLoads map[string]float64, ca
 	}
 
 	alternative = filteredCandidates[0]
+	return
+}
+
+func (l *LoadBalance) handleOverload(candidates goals.Range) (actionArgs []interface{}, newOptRange goals.Range) {
+	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
+	actionArgs[lbActionTypeArgIndex] = actions.AddServiceId
+	deplClient := deployer.NewDeployerClient("")
+	for _, candidate := range candidates {
+		_, okC := l.serviceChildren.Load(candidate)
+		if !okC {
+			deplClient.SetHostPort(candidate + ":" + strconv.Itoa(deployer.Port))
+			hasService, _ := deplClient.HasService(l.serviceId)
+			if hasService {
+				continue
+			}
+			newOptRange = append(newOptRange, candidate)
+			break
+		}
+	}
+
+	log.Debugf("%s new opt range %+v", loadBalanceGoalId, newOptRange)
+
 	return
 }

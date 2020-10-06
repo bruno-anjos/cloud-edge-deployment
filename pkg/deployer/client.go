@@ -370,3 +370,13 @@ func (c *Client) GetFallback() (fallback string, status int) {
 
 	return
 }
+
+func (c *Client) HasService(serviceId string) (has bool, status int) {
+	path := api.GetHasDeploymentPath(serviceId)
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	has = status == http.StatusOK
+	return
+}

@@ -410,6 +410,13 @@ func getFallbackHandler(w http.ResponseWriter, r *http.Request) {
 	utils.SendJSONReplyOK(w, respBody)
 }
 
+func hasDeploymentHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	if !hTable.hasDeployment(deploymentId) {
+		w.WriteHeader(http.StatusNotFound)
+	}
+}
+
 // TODO function simulating lower API
 func getNodeCloserTo(location *utils.Location, maxHopsToLookFor int, excludeNodes map[string]struct{}) (closest string,
 	found bool) {

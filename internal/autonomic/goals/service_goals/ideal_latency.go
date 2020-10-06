@@ -121,7 +121,7 @@ func (i *idealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 	log.Debugf("%s ordered result %+v", idealLatencyGoalId, ordered)
 
 	optRange, isAlreadyMax = i.Cutoff(ordered, sortingCriteria)
-	log.Debugf("%s cutoff result %+v", idealLatencyGoalId, optRange)
+	log.Debugf("%s cutoff result (%t) %+v", idealLatencyGoalId, isAlreadyMax, optRange)
 
 	actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
 
@@ -174,7 +174,18 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 		panic(err)
 	}
 
-	_, furthestChildDistance := i.calcFurthestChildDistance(&avgClientLocation)
+	value, ok = i.environment.GetMetric(metrics.MetricLocation)
+	if !ok {
+		log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
+	}
+
+	var location utils.Location
+	err = mapstructure.Decode(value, &location)
+	if err != nil {
+		panic(err)
+	}
+
+	myDist := avgClientLocation.CalcDist(&location)
 
 	value, ok = i.environment.GetMetric(metrics.MetricNodeAddr)
 	if !ok {
@@ -193,7 +204,6 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 			continue
 		}
 
-		var location utils.Location
 		err = mapstructure.Decode(locationValue, &location)
 		if err != nil {
 			panic(err)
@@ -204,12 +214,12 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 		if nodeId == **i.parentId {
 			candidates[hiddenParentId] = &nodeWithDistance{
 				NodeId:             nodeId,
-				DistancePercentage: delta / furthestChildDistance,
+				DistancePercentage: delta / myDist,
 			}
 		} else {
 			candidates[nodeId] = &nodeWithDistance{
 				NodeId:             nodeId,
-				DistancePercentage: delta / furthestChildDistance,
+				DistancePercentage: delta / myDist,
 			}
 			candidateIds = append(candidateIds, nodeId)
 		}

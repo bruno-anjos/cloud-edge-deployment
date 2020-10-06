@@ -134,5 +134,7 @@ func getLoadForServiceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Debugf("service %s has load %f", serviceId, load)
+
 	utils.SendJSONReplyOK(w, load)
 }
