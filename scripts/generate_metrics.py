@@ -77,6 +77,22 @@ def generateDictsForServiceTree():
     processingTime = random.randint(minProcess, maxProcess)
 
     minCLoc, maxCLoc = 0, 10000
+
+    # radius of the circle
+    circle_r = 10000
+    inner_circle_exclude = 7000
+    # center of the circle (x, y)
+    circle_x = 0
+    circle_y = 0
+
+    # random angle
+    alpha = 2 * math.pi * random.random()
+    # random radius
+    r = ((circle_r - inner_circle_exclude) * math.sqrt(random.random()) + inner_circle_exclude)
+    # calculating coordinates
+    x = r * math.cos(alpha) + circle_x
+    y = r * math.sin(alpha) + circle_y
+
     serviceLocation = {"X": random.randint(minCLoc, maxCLoc), "Y": random.randint(minCLoc, maxCLoc)}
 
     return serviceLocation, processingTime, serviceLatency
