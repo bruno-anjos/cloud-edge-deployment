@@ -132,9 +132,9 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 		return nil, nil, false
 	}
 
-	numNodes := 0
+	numChildren := 0
 	l.serviceChildren.Range(func(key, value interface{}) bool {
-		numNodes++
+		numChildren++
 		return true
 	})
 
@@ -151,12 +151,12 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 		domain = append(domain, nodeId)
 		autoClient.SetHostPort(nodeId + ":" + strconv.Itoa(autonomic.Port))
 		load, status := autoClient.GetLoadForService(l.serviceId)
-		if status != http.StatusOK {
+		if status != http.StatusOK || numChildren == 0{
 			info[nodeId] = 0.
 		} else {
-			info[nodeId] = load / float64(numNodes)
+			info[nodeId] = load / float64(numChildren)
 		}
-		log.Debugf("%s has load: %f", nodeId, load)
+		log.Debugf("%s has load: %f(%f/%d)", nodeId, info[nodeId], load, numChildren)
 	}
 
 	success = true
@@ -204,10 +204,14 @@ func (l *LoadBalance) Cutoff(candidates goals.Domain, candidatesCriteria map[str
 
 	mostBusyLoad := candidatesCriteria[mostBusy].(float64)
 	leastBusyLoad := candidatesCriteria[leastBusy].(float64)
-	maxed = mostBusyLoad-leastBusyLoad < equivalentLoadDiff
+	loadDiff := mostBusyLoad - leastBusyLoad
+	maxed = loadDiff < equivalentLoadDiff
 	if maxed {
 		return
 	}
+
+	log.Debugf("difference between %s(%f) and %s(%f) is %f", mostBusy, mostBusyLoad, leastBusy, leastBusyLoad,
+		loadDiff)
 
 	for _, candidate := range candidates {
 		if candidatesCriteria[candidate].(float64) <= maximumLoad {
