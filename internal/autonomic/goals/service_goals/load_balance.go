@@ -225,7 +225,7 @@ func (l *LoadBalance) Cutoff(candidates goals.Domain, candidatesCriteria map[str
 func (l *LoadBalance) GenerateAction(target string, args ...interface{}) actions.Action {
 	log.Debugf("generating action %s", (args[lbActionTypeArgIndex]).(string))
 
-	switch args[ilActionTypeArgIndex].(string) {
+	switch args[lbActionTypeArgIndex].(string) {
 	case actions.AddServiceId:
 		return actions.NewAddServiceAction(l.serviceId, target)
 	}
