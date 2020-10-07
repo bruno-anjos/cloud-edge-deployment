@@ -38,6 +38,12 @@ for num in range(numNodes):
 
 print("Got nodes: ", nodes)
 
+if os.path.exists("/home/b.anjos/results/results.json"):
+    os.remove("/home/b.anjos/results/results.json")
+
+for f in os.listdir("/home/b.anjos/deployer_pngs/"):
+    os.remove(os.path.join("/home/b.anjos/deployer_pngs/", f))
+
 with open(f"{os.path.dirname(os.path.realpath(__file__))}/../../build/deployer/fallback.txt", 'r') as fallbackFp:
     fallback = fallbackFp.readline()
 
@@ -176,6 +182,9 @@ def graph_deployer():
     graphs = {}
     inited_deployments = {}
     combinedGraph = igraph.Graph(directed=True)
+
+    resulting_tree = {}
+
     for node, table in tables.items():
         if "dead" in table:
             combinedGraph.add_vertex(node, color="black", service=False)
@@ -241,6 +250,13 @@ def graph_deployer():
                 g.add_edge(node, childId, relation=attr_child, deploymentId=deploymentId)
                 add_if_missing(combinedGraph, tables[childId], childId)
                 combinedGraph.add_edge(node, childId, deploymentId=deploymentId, relation=attr_child)
+                if deploymentId in resulting_tree:
+                    if node in resulting_tree[deploymentId]:
+                        resulting_tree[deploymentId][node].append(childId)
+                    else:
+                        resulting_tree[deploymentId][node] = [childId]
+                else:
+                    resulting_tree[deploymentId] = {node: [childId]}
 
     for deploymentId, g in graphs.items():
         visual_style = {}
@@ -293,6 +309,10 @@ def graph_deployer():
         visual_style["bbox"] = (4000, 4000)
         visual_style["margin"] = 200
         igraph.plot(combinedGraph, f"/home/b.anjos/deployer_pngs/combined_plot.png", **visual_style, autocurve=True)
+        with open(f"/home/b.anjos/results/results.json", "w") as resultsFp:
+            print("writing results.json")
+            results = json.dumps(resulting_tree, indent=4, sort_keys=False)
+            resultsFp.write(results)
 
     if not has_tables:
         mypath = "/home/b.anjos/deployer_pngs/"
@@ -309,6 +329,7 @@ def get_location(name, locations):
         return locations["nodes"][name]
     else:
         print(f"{name} has no location in {locations}")
+
 
 def graph_archimedes():
     sTables = get_all_services_tables()

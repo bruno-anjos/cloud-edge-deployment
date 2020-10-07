@@ -68,6 +68,8 @@ def generateServiceTree(startNode, sName, nodesChildren, nodesLocations, clientL
         else:
             better = False
 
+    print(f"closest node to {sName} is {best} at {nodesLocations[best]}")
+
     lastNode = best
     return tree, treeSize, lastNode
 
@@ -76,9 +78,11 @@ def generateServiceLatency():
     minLatency, maxLatency = 100, 1000
     return random.randint(minLatency, maxLatency)
 
+
 def generateServiceProcessingTime():
     minProcess, maxProcess = 0, 10
     return random.randint(minProcess, maxProcess)
+
 
 def generateDictsForServiceTree():
     processingTime = generateServiceProcessingTime()
@@ -91,8 +95,8 @@ def generateDictsForServiceTree():
 
     alpha = 2 * math.pi * random.random()
     r = ((circle_r - inner_circle_exclude) * math.sqrt(random.random()) + inner_circle_exclude)
-    x = r * math.cos(alpha) + circle_x
-    y = r * math.sin(alpha) + circle_y
+    x = int(r * math.cos(alpha) + circle_x)
+    y = int(r * math.sin(alpha) + circle_y)
 
     serviceLocation = {"X": x, "Y": y}
 
@@ -151,6 +155,7 @@ def get_neighborhood(node, nodesLocations, neighSize):
     global sortingLocation
 
     nodesCopy = nodes[:]
+    nodesCopy.remove(node)
     sortingLocation = nodesLocations[node]
     nodesCopy.sort(key=lambda elem: (sortByDistance(elem, nodesLocations)))
 
@@ -227,6 +232,7 @@ def gen_services(numServices):
         services.append(serviceName)
         serviceLocation, processingTime, serviceLatency = generateDictsForServiceTree()
         clientLocations[serviceName] = serviceLocation
+        print(f"service {serviceName} is at {serviceLocation}")
         processingTimes[serviceName] = processingTime
         serviceLatencies[serviceName] = serviceLatency
 
@@ -285,6 +291,7 @@ def gen_trees(numServices, neighSize, config):
     for service in services:
         tree, treeSize, lastNode = generateServiceTree(fallback, service, nodesChildren, nodesLocations,
                                                        clientLocations)
+        print(f"{lastNode} is last node for service {service}")
         trees.append(tree)
         treeSizes.append(treeSize)
         if lastNode in lastNodes:
@@ -428,7 +435,7 @@ while True:
     print("-------------------------------- TREE --------------------------------")
 
     trees, treeSizes, fallback, nodesLocations, nodesChildren, \
-    clientLocations, neighborhoods = gen_trees(numServices, neighSize, loadedConfig)
+        clientLocations, neighborhoods = gen_trees(numServices, neighSize, loadedConfig)
 
     minMet = True
     atLeast = False

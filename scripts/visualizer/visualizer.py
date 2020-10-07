@@ -9,6 +9,10 @@ archimedes_tex_local_path = "/Users/banjos/Desktop/archimedes_tables/archimedes_
 archimedes_pdf_local_path = "/Users/banjos/Desktop/archimedes_tables/archimedes_tables.pdf"
 archimedes_out_local_path = "/Users/banjos/Desktop/archimedes_tables/"
 archimedes_png_local_path = "/Users/banjos/Desktop/archimedes_tables/archimedes_tables.png"
+
+results_tree_filename = "dicluster:/home/b.anjos/results/results.json"
+results_tree_local_path = "/Users/banjos/Desktop/deployer_pngs/results.json"
+
 wait = 5
 
 
@@ -43,6 +47,8 @@ while True:
     archimedes_failed = False
     if not rsync_folder_from_server("dicluster:/home/b.anjos/deployer_pngs", "/Users/banjos/Desktop/"):
         deployer_failed = True
+
+    rsync_folder_from_server(results_tree_filename,results_tree_local_path)
 
     if get_scp_file(archimedes_tex_filename, archimedes_tex_local_path):
         try:
