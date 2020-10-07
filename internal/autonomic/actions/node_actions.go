@@ -42,6 +42,12 @@ func NewAddServiceAction(serviceId, target string) *AddServiceAction {
 func (m *AddServiceAction) Execute(client utils.Client) {
 	log.Debugf("executing %s to %s", AddServiceId, m.GetTarget())
 	deployerClient := client.(*deployer.Client)
+	has, _ := deployerClient.HasService(m.GetServiceId())
+	if has {
+		log.Debugf("%s already has service %s", m.GetTarget(), m.GetServiceId())
+		return
+	}
+
 	status := deployerClient.ExtendDeploymentTo(m.GetServiceId(), m.GetTarget())
 	if status != http.StatusOK {
 		log.Errorf("got status code %d while extending deployment", status)
