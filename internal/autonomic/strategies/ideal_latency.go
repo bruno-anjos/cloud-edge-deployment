@@ -72,7 +72,7 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 		}
 	}
 
-	if goalToChooseActionFrom == nil || nextDomain == nil  || len(nextDomain) == 0{
+	if goalToChooseActionFrom == nil || nextDomain == nil || len(nextDomain) == 0 {
 		return nil
 	}
 
