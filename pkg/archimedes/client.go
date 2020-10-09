@@ -5,6 +5,7 @@ import (
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/go-connections/nat"
 	log "github.com/sirupsen/logrus"
 )
@@ -107,7 +108,7 @@ func (c *Client) GetInstance(instanceId string) (instance *api.Instance, status 
 	return
 }
 
-func (c *Client) Resolve(host string, port nat.Port, deploymentId string, cLocation *utils.Location) (rHost, rPort string,
+func (c *Client) Resolve(host string, port nat.Port, deploymentId string, cLocation *publicUtils.Location) (rHost, rPort string,
 	status int) {
 	reqBody := api.ResolveRequestBody{
 		ToResolve: &api.ToResolveDTO{

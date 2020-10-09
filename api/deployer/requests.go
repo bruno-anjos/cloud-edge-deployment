@@ -3,6 +3,7 @@ package deployer
 import (
 	"github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 )
 
 const (
@@ -11,13 +12,13 @@ const (
 )
 
 type (
-	ExpandTreeRequestBody      = *utils.Location
+	ExpandTreeRequestBody      = *publicUtils.Location
 	RegisterServiceRequestBody = DeploymentDTO
 	AddNodeRequestBody         = string
 	DeadChildRequestBody       = struct {
 		Grandchild   *utils.Node
 		Alternatives map[string]*utils.Node
-		Location     *utils.Location
+		Location     *publicUtils.Location
 	}
 	TakeChildRequestBody               = utils.Node
 	IAmYourParentRequestBody           = []*utils.Node
@@ -26,12 +27,12 @@ type (
 	SetGrandparentRequestBody          = utils.Node
 	FallbackRequestBody                = struct {
 		OrphanId       string
-		OrphanLocation *utils.Location
+		OrphanLocation *publicUtils.Location
 	}
 	StartResolveUpTheTreeRequestBody = archimedes.ToResolveDTO
 	ResolveUpTheTreeRequestBody      = struct {
 		Origin    string
 		ToResolve *archimedes.ToResolveDTO
 	}
-	RedirectClientDownTheTreeRequestBody = *utils.Location
+	RedirectClientDownTheTreeRequestBody = *publicUtils.Location
 )

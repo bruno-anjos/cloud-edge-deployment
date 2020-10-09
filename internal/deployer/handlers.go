@@ -12,6 +12,7 @@ import (
 
 	archimedesApi "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -53,7 +54,7 @@ var (
 
 var (
 	hostname string
-	location *utils.Location
+	location *publicUtils.Location
 	fallback string
 	myself   *utils.Node
 
@@ -101,7 +102,7 @@ func init() {
 
 	var status int
 	for status != http.StatusOK {
-		location, status = hTable.autonomicClient.GetMyLocation()
+		location, status = hTable.autonomicClient.GetLocation()
 	}
 
 	log.Debugf("got location %f", location)
@@ -308,7 +309,6 @@ func resolveUp(parentId, deploymentId, origin string, toResolve *archimedesApi.T
 func resolveUpTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-
 	var reqBody api.ResolveUpTheTreeRequestBody
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
@@ -317,7 +317,7 @@ func resolveUpTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("resolving (%s) %s for %s", deploymentId, reqBody.ToResolve.Host, reqBody.Origin)
 
-	archClient := archimedes.NewArchimedesClient(utils.ArchimedesServiceName + ":" + strconv.Itoa(archimedes.Port))
+	archClient := archimedes.NewArchimedesClient(publicUtils.ArchimedesServiceName + ":" + strconv.Itoa(archimedes.Port))
 	rHost, rPort, status := archClient.ResolveLocally(reqBody.ToResolve.Host, reqBody.ToResolve.Port)
 
 	archClient.SetHostPort(reqBody.Origin + ":" + strconv.Itoa(archimedes.Port))
@@ -363,7 +363,7 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	myLocation, status := hTable.autonomicClient.GetMyLocation()
+	myLocation, status := hTable.autonomicClient.GetLocation()
 	if status != http.StatusOK {
 		log.Error("could not get my location")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -373,13 +373,13 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 	var (
 		bestDiff    = myLocation.CalcDist(clientLocation)
 		bestNode    = myself.Id
-		auxLocation *utils.Location
+		auxLocation *publicUtils.Location
 	)
 
 	autoClient := autonomic.NewAutonomicClient("")
 	for id := range auxChildren {
 		autoClient.SetHostPort(id + ":" + strconv.Itoa(autonomic.Port))
-		auxLocation, status = autoClient.GetMyLocation()
+		auxLocation, status = autoClient.GetLocation()
 		if status != http.StatusOK {
 			log.Errorf("got %d while trying to get %s location", status, id)
 			continue
@@ -418,8 +418,8 @@ func hasDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // TODO function simulating lower API
-func getNodeCloserTo(location *utils.Location, maxHopsToLookFor int, excludeNodes map[string]struct{}) (closest string,
-	found bool) {
+func getNodeCloserTo(location *publicUtils.Location, maxHopsToLookFor int,
+	excludeNodes map[string]struct{}) (closest string, found bool) {
 	closest = hTable.autonomicClient.GetClosestNode(location, excludeNodes)
 	found = closest != ""
 	return

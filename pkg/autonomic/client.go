@@ -6,6 +6,7 @@ import (
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 )
 
 type Client struct {
@@ -91,7 +92,7 @@ func (c *Client) IsNodeInVicinity(nodeId string) (isInVicinity bool) {
 	return
 }
 
-func (c *Client) GetClosestNode(location *utils.Location, toExclude map[string]struct{}) (closest string) {
+func (c *Client) GetClosestNode(location *publicUtils.Location, toExclude map[string]struct{}) (closest string) {
 	reqBody := api.ClosestNodeRequestBody{
 		Location:  location,
 		ToExclude: toExclude,
@@ -136,7 +137,7 @@ func (c *Client) GetVicinity() (vicinity map[string]interface{}, status int) {
 	return
 }
 
-func (c *Client) GetMyLocation() (location *utils.Location, status int) {
+func (c *Client) GetLocation() (location *publicUtils.Location, status int) {
 	path := api.GetMyLocationPath()
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 

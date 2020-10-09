@@ -11,9 +11,9 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals/service_goals"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/strategies"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -34,17 +34,16 @@ type service struct {
 	ServiceId   string
 	Strategy    strategies.Strategy
 	Children    *sync.Map
-	ParentId    *string
+	ParentId    string
 	Suspected   *sync.Map
 	Environment *environment.Environment
 }
 
 func newService(serviceId, strategyId string, suspected *sync.Map,
 	env *environment.Environment) (*service, error) {
-	parentId := ""
 	s := &service{
 		Children:    &sync.Map{},
-		ParentId:    &parentId,
+		ParentId:    "",
 		Suspected:   suspected,
 		Environment: env,
 		ServiceId:   serviceId,
@@ -95,7 +94,7 @@ func (a *service) removeSuspectedChild(childId string) {
 }
 
 func (a *service) setParent(parentId string) {
-	*a.ParentId = parentId
+	a.ParentId = parentId
 }
 
 func (a *service) generateAction() actions.Action {
@@ -114,7 +113,7 @@ func (a *service) toDTO() *autonomic.ServiceDTO {
 		ServiceId:  a.ServiceId,
 		StrategyId: a.Strategy.GetId(),
 		Children:   children,
-		ParentId:   *a.ParentId,
+		ParentId:   a.ParentId,
 	}
 }
 

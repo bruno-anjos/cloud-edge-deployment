@@ -2,6 +2,7 @@ package actions
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -42,7 +43,9 @@ func NewAddServiceAction(serviceId, target string) *AddServiceAction {
 func (m *AddServiceAction) Execute(client utils.Client) {
 	log.Debugf("executing %s to %s", AddServiceId, m.GetTarget())
 	deployerClient := client.(*deployer.Client)
-	has, _ := deployerClient.HasService(m.GetServiceId())
+
+	targetClient := deployer.NewDeployerClient(m.GetTarget() + ":" + strconv.Itoa(deployer.Port))
+	has, _ := targetClient.HasService(m.GetServiceId())
 	if has {
 		log.Debugf("%s already has service %s", m.GetTarget(), m.GetServiceId())
 		return

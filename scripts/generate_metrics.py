@@ -28,6 +28,7 @@ import sys
 sortingService = ""
 nodes_config_name = "NODES_CONFIG"
 services_config_name = "SERVICES_CONFIG"
+fallback_config_name = "FALLBACK_CONFIG"
 
 
 def calcDist(l1, l2):
@@ -264,7 +265,7 @@ def gen_trees(numServices, neighSize, config):
     else:
         nodesLocations, midNode = generateLocations()
 
-    if config and config[services_config_name]:
+    if config and services_config_name in config:
         services, clientLocations, processingTimes, serviceLatencies = loadServicesFromConfig(
             config[services_config_name])
     else:
@@ -284,7 +285,10 @@ def gen_trees(numServices, neighSize, config):
     trees = []
     treeSizes = []
 
-    fallback = midNode
+    if fallback_config_name in config:
+        fallback = fromOriginalToDummy[config[fallback_config_name]]
+    else:
+        fallback = midNode
     print(f"fallback is {fallback}")
 
     lastNodes = {}
@@ -349,7 +353,7 @@ def writeFinalTree(trees, clientLocations, nodesLocations, outputDir, fallback, 
     with open(f"{os.path.dirname(os.path.realpath(__file__))}/../build/deployer/fallback.txt", 'w') as fallbackFp:
         fallbackFp.write(fallback)
 
-    with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/neighborhoods.json", 'w') as neighsFp:
+    with open(f"/visualizer/neighborhoods.json", 'w') as neighsFp:
         neighs = json.dumps(neighborhoods, indent=4, sort_keys=False)
         neighsFp.write(neighs)
 
@@ -368,6 +372,7 @@ idx = 0
 idxsToIgnore = {}
 nodesConfig = ""
 servicesConfig = ""
+fallbackConfig = ""
 for arg in args:
     if arg == "--min":
         minTreeSize = int(args[idx + 1])
@@ -389,6 +394,12 @@ for arg in args:
         hasOptions = True
         idxsToIgnore[idx] = True
         idxsToIgnore[idx + 1] = True
+    elif arg == "--fallback":
+        fallbackConfig = args[idx + 1]
+        hasOptions = True
+        idxsToIgnore[idx] = True
+        idxsToIgnore[idx + 1] = True
+
     idx += 1
 
 newArgs = []
@@ -417,6 +428,9 @@ for i in range(numberOfNodes):
 
 fromOriginalToDummy, fromDummyToOriginal, loadedConfig = loadConfig(nodes, nodesConfig, servicesConfig)
 
+if fallbackConfig:
+    loadedConfig[fallback_config_name] = fallbackConfig
+
 print("Nodes: ", nodes)
 
 filelist = os.listdir(outputDir)
@@ -435,7 +449,7 @@ while True:
     print("-------------------------------- TREE --------------------------------")
 
     trees, treeSizes, fallback, nodesLocations, nodesChildren, \
-        clientLocations, neighborhoods = gen_trees(numServices, neighSize, loadedConfig)
+    clientLocations, neighborhoods = gen_trees(numServices, neighSize, loadedConfig)
 
     minMet = True
     atLeast = False

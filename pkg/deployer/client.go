@@ -11,6 +11,7 @@ import (
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/go-connections/nat"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -30,7 +31,7 @@ func NewDeployerClient(addr string) *Client {
 	}
 }
 
-func (c *Client) ExpandTree(serviceId string, location *utils.Location) (status int) {
+func (c *Client) ExpandTree(serviceId string, location *publicUtils.Location) (status int) {
 	var reqBody api.ExpandTreeRequestBody
 	reqBody = location
 
@@ -131,7 +132,7 @@ func (c *Client) SendHearbeatServiceInstance(serviceId, instanceId string) (stat
 }
 
 func (c *Client) WarnOfDeadChild(serviceId, deadChildId string, grandChild *utils.Node,
-	alternatives map[string]*utils.Node, location *utils.Location) (status int) {
+	alternatives map[string]*utils.Node, location *publicUtils.Location) (status int) {
 	var reqBody api.DeadChildRequestBody
 	reqBody.Grandchild = grandChild
 	reqBody.Alternatives = alternatives
@@ -296,7 +297,7 @@ func (c *Client) SendAlternatives(myId string, alternatives []*utils.Node) (stat
 	return
 }
 
-func (c *Client) Fallback(deploymentId, orphanId string, orphanLocation *utils.Location) (status int) {
+func (c *Client) Fallback(deploymentId, orphanId string, orphanLocation *publicUtils.Location) (status int) {
 	var reqBody api.FallbackRequestBody
 	reqBody.OrphanId = orphanId
 	reqBody.OrphanLocation = orphanLocation
@@ -334,7 +335,7 @@ func (c *Client) ResolveUpTheTree(deploymentId, origin string, toResolve *archim
 	return
 }
 
-func (c *Client) RedirectDownTheTree(deploymentId string, location *utils.Location) (redirectTo string, status int) {
+func (c *Client) RedirectDownTheTree(deploymentId string, location *publicUtils.Location) (redirectTo string, status int) {
 	var reqBody api.RedirectClientDownTheTreeRequestBody
 	reqBody = location
 

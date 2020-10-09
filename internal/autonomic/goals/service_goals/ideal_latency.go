@@ -8,7 +8,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
@@ -53,11 +53,11 @@ type idealLatency struct {
 	suspected       *sync.Map
 	environment     *environment.Environment
 	dependencies    []string
-	parentId        **string
+	parentId        *string
 }
 
 func NewIdealLatency(serviceId string, serviceChildren, suspected *sync.Map,
-	parentId **string, env *environment.Environment) *idealLatency {
+	parentId *string, env *environment.Environment) *idealLatency {
 	dependencies := []string{
 		metrics.GetProcessingTimePerServiceMetricId(serviceId),
 		metrics.GetClientLatencyPerServiceMetricId(serviceId),
@@ -211,7 +211,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 
 		delta := location.CalcDist(&avgClientLocation)
 
-		if nodeId == **i.parentId {
+		if nodeId == *i.parentId {
 			candidates[hiddenParentId] = &nodeWithDistance{
 				NodeId:             nodeId,
 				DistancePercentage: delta / myDist,
@@ -307,7 +307,7 @@ func (i *idealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[st
 	parentDist := value.(*nodeWithDistance).DistancePercentage
 	bestNode := candidatesCriteria[candidates[0]].(*nodeWithDistance).DistancePercentage
 	if parentDist < bestNode {
-		log.Debugf("parent (%s) is better than child %s", **i.parentId, candidates[0])
+		log.Debugf("parent (%s) is better than child %s", *i.parentId, candidates[0])
 		maxed = true
 	}
 

@@ -29,7 +29,7 @@ type idealLatencyStrategy struct {
 	serviceId           string
 }
 
-func NewDefaultIdealLatencyStrategy(serviceId string, serviceChildren, suspected *sync.Map, parentId **string,
+func NewDefaultIdealLatencyStrategy(serviceId string, serviceChildren, suspected *sync.Map, parentId *string,
 	env *environment.Environment) *idealLatencyStrategy {
 	lbGoal := service_goals.NewLoadBalance(serviceId, serviceChildren, suspected, parentId, env)
 

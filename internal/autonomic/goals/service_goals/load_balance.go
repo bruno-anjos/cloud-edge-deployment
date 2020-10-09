@@ -10,9 +10,9 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
@@ -42,10 +42,10 @@ type LoadBalance struct {
 	suspected       *sync.Map
 	environment     *environment.Environment
 	dependencies    []string
-	parentId        **string
+	parentId        *string
 }
 
-func NewLoadBalance(serviceId string, children, suspected *sync.Map, parentId **string,
+func NewLoadBalance(serviceId string, children, suspected *sync.Map, parentId *string,
 	env *environment.Environment) *LoadBalance {
 	dependencies := []string{
 		metrics.GetAggLoadPerServiceInChildrenMetricId(serviceId),
@@ -120,7 +120,7 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 		return nil, nil, false
 	}
 
-	var locationsInVicinity map[string]utils.Location
+	var locationsInVicinity map[string]publicUtils.Location
 	err := mapstructure.Decode(value, &locationsInVicinity)
 	if err != nil {
 		panic(err)
@@ -144,7 +144,7 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 
 	for nodeId := range locationsInVicinity {
 		_, okS := l.suspected.Load(nodeId)
-		if okS || nodeId == myself || nodeId == **l.parentId {
+		if okS || nodeId == myself || nodeId == *l.parentId {
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}

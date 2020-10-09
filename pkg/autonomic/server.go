@@ -3,7 +3,7 @@ package autonomic
 import (
 	"strconv"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 )
 
 const (
@@ -11,5 +11,5 @@ const (
 )
 
 var (
-	DefaultHostPort = utils.AutonomicServiceName + ":" + strconv.Itoa(Port)
+	DefaultHostPort = publicUtils.AutonomicServiceName + ":" + strconv.Itoa(Port)
 )

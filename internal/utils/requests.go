@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -21,7 +22,8 @@ func resolve(toResolve string) (resolved string) {
 	resolved = toResolve
 
 	switch host {
-	case ArchimedesServiceName, DeployerServiceName, SchedulerServiceName, AutonomicServiceName:
+	case publicUtils.ArchimedesServiceName, publicUtils.DeployerServiceName, publicUtils.SchedulerServiceName,
+		publicUtils.AutonomicServiceName:
 		resolved = "localhost" + ":" + port
 	}
 

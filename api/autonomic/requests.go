@@ -1,13 +1,13 @@
 package autonomic
 
 import (
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 )
 
 type (
 	AddServiceRequestBody  = serviceConfig
 	ClosestNodeRequestBody = struct {
-		Location  *utils.Location
+		Location  *publicUtils.Location
 		ToExclude map[string]struct{}
 	}
 )

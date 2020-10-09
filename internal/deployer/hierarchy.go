@@ -13,6 +13,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -513,7 +514,8 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 	}
 }
 
-func attemptToExtend(deploymentId, target string, targetLocation *utils.Location, grandchild *utils.Node, maxHops int,
+func attemptToExtend(deploymentId, target string, targetLocation *publicUtils.Location, grandchild *utils.Node,
+	maxHops int,
 	alternatives map[string]*utils.Node) {
 	var extendTimer *time.Timer
 

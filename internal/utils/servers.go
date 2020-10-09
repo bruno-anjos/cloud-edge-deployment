@@ -13,11 +13,6 @@ import (
 const (
 	// LocalhostAddr contains the default interface address
 	LocalhostAddr = "0.0.0.0"
-
-	ArchimedesServiceName = "archimedes"
-	DeployerServiceName = "deployer"
-	SchedulerServiceName = "scheduler"
-	AutonomicServiceName = "autonomic"
 )
 
 // StartServer seeds the random generator and starts a server on the

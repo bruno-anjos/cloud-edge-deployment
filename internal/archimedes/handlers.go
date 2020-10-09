@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -282,7 +283,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
 	}
 
-	deplClient := deployer.NewDeployerClient(utils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
+	deplClient := deployer.NewDeployerClient(publicUtils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
 	redirectTo, status := deplClient.RedirectDownTheTree(reqBody.DeploymentId, reqBody.Location)
 	switch status {
 	case http.StatusNoContent:
@@ -369,7 +370,7 @@ func resolveInTree(id, deploymentId string, toResolve *api.ToResolveDTO) (resolv
 	waitChan := make(chan struct{})
 	waitingChannels.Store(id, waitChan)
 	resolvingInTree.Store(id, nil)
-	deplClient := deployer.NewDeployerClient(utils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
+	deplClient := deployer.NewDeployerClient(publicUtils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
 	status := deplClient.StartResolveUpTheTree(deploymentId, toResolve)
 	if status != http.StatusOK {
 		log.Debugf("got %d while attempting to start resolving (%s) %s", status, deploymentId, toResolve.Host)

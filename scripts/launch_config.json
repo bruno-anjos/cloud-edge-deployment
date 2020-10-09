@@ -1,0 +1,33 @@
+{
+    "A": [
+        {
+            "request_timeout": 10,
+            "max_requests": 1000,
+            "number_of_clients": 200,
+            "location": {
+                "X": 0.0,
+                "Y": 0.0
+            }
+        }
+    ],
+    "B": [
+        {
+            "request_timeout": 10,
+            "max_requests": 200,
+            "number_of_clients": 500,
+            "location": {
+                "X": 0.0,
+                "Y": 0.0
+            }
+        },
+        {
+            "request_timeout": 10,
+            "max_requests": 3000,
+            "number_of_clients": 500,
+            "location": {
+                "X": 0.0,
+                "Y": 0.0
+            }
+        }
+    ]
+}

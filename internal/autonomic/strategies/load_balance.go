@@ -16,7 +16,7 @@ type loadBalanceStrategy struct {
 	*basicStrategy
 }
 
-func NewDefaultLoadBalanceStrategy(serviceId string, serviceChildren, suspected *sync.Map, parentId **string,
+func NewDefaultLoadBalanceStrategy(serviceId string, serviceChildren, suspected *sync.Map, parentId *string,
 	env *environment.Environment) *loadBalanceStrategy {
 	defaultGoals := []goals.Goal{
 		service_goals.NewLoadBalance(serviceId, serviceChildren, suspected, parentId, env),
