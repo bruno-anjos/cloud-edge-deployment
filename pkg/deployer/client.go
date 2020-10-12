@@ -381,3 +381,17 @@ func (c *Client) HasService(serviceId string) (has bool, status int) {
 	has = status == http.StatusOK
 	return
 }
+
+func (c *Client) SetTerminalLocation(deploymentId, origin string, location *publicUtils.Location) (status int) {
+	reqBody := api.TerminalLocationRequestBody{
+		Child:    origin,
+		Location: location,
+	}
+
+	path := api.GetTerminalLocationPath(deploymentId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}

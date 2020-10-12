@@ -35,6 +35,7 @@ const (
 	redirectDownTheTreeName     = "REDIRECT_DOWN_THE_TREE"
 	getFallbackIdName           = "GET_FALLBACK"
 	hasDeploymentName           = "HAS_DEPLOYMENT"
+	terminalLocationName        = "TERMINAL_LOCATION"
 
 	// scheduler
 	heartbeatServiceInstanceName         = "HEARTBEAT_SERVICE_INSTANCE"
@@ -76,6 +77,7 @@ var (
 	redirectDownTheTreeRoute   = fmt.Sprintf(deployer.RedirectDownTheTreePath, _deploymentIdPathVarFormatted)
 	getFallbackRoute           = deployer.GetFallbackIdPath
 	hasDeploymentRoute         = fmt.Sprintf(deployer.HasDeploymentPath, _deploymentIdPathVarFormatted)
+	terminalLocationRoute      = fmt.Sprintf(deployer.TerminalLocationPath, _deploymentIdPathVarFormatted)
 
 	// scheduler
 	deploymentInstanceAliveRoute = fmt.Sprintf(deployer.DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
@@ -86,6 +88,13 @@ var (
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        terminalLocationName,
+		Method:      http.MethodPost,
+		Pattern:     terminalLocationRoute,
+		HandlerFunc: terminalLocationHandler,
+	},
+
 	{
 		Name:        hasDeploymentName,
 		Method:      http.MethodGet,

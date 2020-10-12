@@ -54,6 +54,7 @@ type idealLatency struct {
 	environment     *environment.Environment
 	dependencies    []string
 	parentId        *string
+	blacklist       map[string]interface{}
 }
 
 func NewIdealLatency(serviceId string, serviceChildren, suspected *sync.Map,
@@ -123,35 +124,42 @@ func (i *idealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 	optRange, isAlreadyMax = i.Cutoff(ordered, sortingCriteria)
 	log.Debugf("%s cutoff result (%t) %+v", idealLatencyGoalId, isAlreadyMax, optRange)
 
-	actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
-
-	childrenLoadMetric := metrics.GetLoadPerServiceInChildrenMetricId(i.serviceId)
-	value, ok = i.environment.GetMetric(childrenLoadMetric)
-	if !ok {
-		log.Debugf("no value for metric %s", childrenLoadMetric)
+	if len(optRange) < 0 {
 		return
 	}
 
-	childrenLoad := value.(map[string]interface{})
-	add := false
-	for _, value = range childrenLoad {
-		childLoad := value.(float64)
-		if childLoad > loadToAddServiceThreshold {
-			add = true
-			break
+	explore := i.checkShouldExplore(&avgClientLocation)
+
+	actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
+
+	// in case it is not optimized check if we want to add a service or migrate the furthest one
+	if !isAlreadyMax {
+		childrenLoadMetric := metrics.GetLoadPerServiceInChildrenMetricId(i.serviceId)
+		value, ok = i.environment.GetMetric(childrenLoadMetric)
+		if !ok {
+			log.Debugf("no value for metric %s", childrenLoadMetric)
+			return
 		}
-	}
 
-	imTooFar := false
-	furthestChild, furthestChildDistance := i.calcFurthestChildDistance(&avgClientLocation)
-	if furthestChild == "" {
-		imTooFar = furthestChildDistance > 500
-	}
+		childrenLoad := value.(map[string]interface{})
+		add := false
+		for _, value = range childrenLoad {
+			childLoad := value.(float64)
+			if childLoad > loadToAddServiceThreshold {
+				add = true
+				break
+			}
+		}
 
-	if add || imTooFar {
-		actionArgs[ilActionTypeArgIndex] = actions.AddServiceId
-	} else {
-		isAlreadyMax = true
+		if add {
+			actionArgs[ilActionTypeArgIndex] = actions.AddServiceId
+		} else {
+			// TODO should migrate service
+			isAlreadyMax = true
+		}
+	} else if explore {
+		isAlreadyMax = false
+		actionArgs[ilActionTypeArgIndex] = actions.ExploreId
 	}
 
 	return
@@ -261,40 +269,13 @@ func (i *idealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[st
 		panic(err)
 	}
 
-	value, ok = i.environment.GetMetric(metrics.MetricLocation)
-	if !ok {
-		log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
-	}
-
-	var location utils.Location
-	err = mapstructure.Decode(value, &location)
-	if err != nil {
-		panic(err)
-	}
-
-	currDistance := location.CalcDist(&avgClientLocation)
-
-	numChildren := 0
-	i.serviceChildren.Range(func(key, value interface{}) bool {
-		numChildren++
-		return true
-	})
-	// TODO this has to be tuned for real distances
-	branchingFactor := ((1 / (currDistance / 500)) * 100) + (20 / float64(numChildren))
-
-	// TODO these values seem to make sense for now
-	branch := (branchingFactor / float64(numChildren+1)) > 20
-
-	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
-	log.Debugf("should i branch? %t", branch)
-
 	for _, candidate := range candidates {
 		percentage := candidatesCriteria[candidate].(*nodeWithDistance).DistancePercentage
 		log.Debugf("candidate %s distance percentage from furthest child %f", candidate, percentage)
 		if percentage < maximumDistancePercentage {
 			cutoff = append(cutoff, candidate)
 		}
-		if branch {
+		if percentage < equivalenDistancePercentage {
 			maxed = false
 		}
 	}
@@ -302,13 +283,6 @@ func (i *idealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[st
 	value, ok = candidatesCriteria[hiddenParentId]
 	if !ok {
 		return
-	}
-
-	parentDist := value.(*nodeWithDistance).DistancePercentage
-	bestNode := candidatesCriteria[candidates[0]].(*nodeWithDistance).DistancePercentage
-	if parentDist < bestNode {
-		log.Debugf("parent (%s) is better than child %s", *i.parentId, candidates[0])
-		maxed = true
 	}
 
 	return
@@ -323,6 +297,8 @@ func (i *idealLatency) GenerateAction(target string, args ...interface{}) action
 	case actions.MigrateServiceId:
 		from := args[ilFromIndex].(string)
 		return actions.NewMigrateAction(i.serviceId, from, target)
+	case actions.ExploreId:
+		return actions.NewExploreAction(i.serviceId, target)
 	}
 
 	return nil
@@ -418,4 +394,36 @@ func (i *idealLatency) checkProcessingTime() bool {
 	}
 
 	return false
+}
+
+func (i *idealLatency) checkShouldExplore(avgClientLocation *utils.Location) bool {
+	numChildren := 0
+	i.serviceChildren.Range(func(key, value interface{}) bool {
+		numChildren++
+		return true
+	})
+
+	value, ok := i.environment.GetMetric(metrics.MetricLocation)
+	if !ok {
+		log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
+	}
+
+	var location utils.Location
+	err := mapstructure.Decode(value, &location)
+	if err != nil {
+		panic(err)
+	}
+
+	currDistance := location.CalcDist(avgClientLocation)
+
+	// TODO this has to be tuned for real distances
+	branchingFactor := ((1 / (currDistance / 500)) * 100) + (20 / float64(numChildren))
+
+	// TODO these values seem to make sense for now
+	explore := (branchingFactor / float64(numChildren+1)) > 20
+
+	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
+	log.Debugf("should i explore? %t", explore)
+
+	return explore
 }

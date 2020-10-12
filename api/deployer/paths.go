@@ -35,6 +35,7 @@ const (
 	RedirectDownTheTreePath   = "/deployments/%s/redirect_down"
 	GetFallbackIdPath         = "/deployments/fallback"
 	HasDeploymentPath         = "/deployments/%s/has"
+	TerminalLocationPath      = "/deployments/%s/terminal"
 
 	// scheduler
 	DeploymentInstanceAlivePath = "/deployments/%s/%s/alive"
@@ -139,4 +140,8 @@ func GetGetFallbackIdPath() string {
 
 func GetHasDeploymentPath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(HasDeploymentPath, deploymentId)
+}
+
+func GetTerminalLocationPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(TerminalLocationPath, deploymentId)
 }

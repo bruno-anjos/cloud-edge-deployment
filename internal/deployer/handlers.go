@@ -30,6 +30,13 @@ type (
 	typeChildrenMapValue       = *utils.Node
 
 	typeSuspectedChildMapKey = string
+
+	typeServicesLocationsValue = terminalServiceLocations
+
+	terminalServiceLocations = *sync.Map
+
+	typeTerminalLocationKey   = string
+	typeTerminalLocationValue = *publicUtils.Location
 )
 
 // Timeouts
@@ -65,6 +72,9 @@ var (
 	hTable *hierarchyTable
 	pTable *parentsTable
 
+	serviceLocations       sync.Map
+	addServiceLocationLock sync.Mutex
+
 	suspectedChild       sync.Map
 	suspectedDeployments sync.Map
 	children             sync.Map
@@ -91,6 +101,9 @@ func init() {
 	suspectedChild = sync.Map{}
 	suspectedDeployments = sync.Map{}
 	children = sync.Map{}
+
+	serviceLocations = sync.Map{}
+	addServiceLocationLock = sync.Mutex{}
 
 	timer = time.NewTimer(sendAlternativesTimeout * time.Second)
 
@@ -392,6 +405,25 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	log.Debugf("best node in vicinity to redirect to is %s", bestNode)
+
+	value, ok := serviceLocations.Load(deploymentId)
+	if ok {
+		terminalLocations := value.(terminalServiceLocations)
+		terminalLocations.Range(func(key, value interface{}) bool {
+			nodeId := key.(typeTerminalLocationKey)
+			nodeLoc := value.(typeTerminalLocationValue)
+
+			diff := nodeLoc.CalcDist(clientLocation)
+			if diff < bestDiff {
+				bestNode = nodeId
+				bestDiff = diff
+			}
+
+			return true
+		})
+	}
+
 	if bestNode != myself.Id {
 		log.Debugf("will redirect client at %f to %s", clientLocation, bestNode)
 		var respBody api.RedirectClientDownTheTreeResponseBody
@@ -403,7 +435,7 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getFallbackHandler(w http.ResponseWriter, r *http.Request) {
+func getFallbackHandler(w http.ResponseWriter, _ *http.Request) {
 	var respBody api.GetFallbackResponseBody
 	respBody = fallback
 
@@ -415,6 +447,34 @@ func hasDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	if !hTable.hasDeployment(deploymentId) {
 		w.WriteHeader(http.StatusNotFound)
 	}
+}
+
+func terminalLocationHandler(_ http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+
+	var reqBody api.TerminalLocationRequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		panic(err)
+	}
+
+	var terminalLocations terminalServiceLocations
+	value, ok := serviceLocations.Load(deploymentId)
+	if !ok {
+		addServiceLocationLock.Lock()
+		_, ok = serviceLocations.Load(deploymentId)
+		if !ok {
+			terminalLocations = &sync.Map{}
+			serviceLocations.Store(deploymentId, terminalLocations)
+		} else {
+			terminalLocations = value.(typeServicesLocationsValue)
+		}
+		addServiceLocationLock.Unlock()
+	} else {
+		terminalLocations = value.(typeServicesLocationsValue)
+	}
+
+	terminalLocations.Store(reqBody.Child, reqBody.Location)
 }
 
 // TODO function simulating lower API

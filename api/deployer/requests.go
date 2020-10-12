@@ -35,4 +35,8 @@ type (
 		ToResolve *archimedes.ToResolveDTO
 	}
 	RedirectClientDownTheTreeRequestBody = *publicUtils.Location
+	TerminalLocationRequestBody          = struct {
+		Child    string
+		Location *publicUtils.Location
+	}
 )

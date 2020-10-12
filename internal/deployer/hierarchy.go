@@ -185,10 +185,31 @@ func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node) {
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
+	if _, ok = entry.Children.Load(child.Id); ok {
+		return
+	}
+
 	entry.Children.Store(child.Id, child)
 	atomic.AddInt32(&entry.NumChildren, 1)
 
 	t.autonomicClient.AddServiceChild(deploymentId, child.Id)
+
+	parent := t.getParent(deploymentId)
+	if parent != nil {
+		autoClient := autonomic.NewAutonomicClient(child.Addr + ":" + strconv.Itoa(autonomic.Port))
+		nodeLoc, status := autoClient.GetLocation()
+		if status != http.StatusOK {
+			log.Errorf("got status %d asking for %s location", status, child.Id)
+			return
+		}
+
+		deplClient := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
+		status = deplClient.SetTerminalLocation(deploymentId, myself.Id, nodeLoc)
+		if status != http.StatusOK {
+			log.Errorf("got status %d setting terminal location in %s", status, parent.Id)
+			return
+		}
+	}
 
 	return
 }
@@ -515,8 +536,7 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 }
 
 func attemptToExtend(deploymentId, target string, targetLocation *publicUtils.Location, grandchild *utils.Node,
-	maxHops int,
-	alternatives map[string]*utils.Node) {
+	maxHops int, alternatives map[string]*utils.Node) {
 	var extendTimer *time.Timer
 
 	toExclude := map[string]struct{}{myself.Id: {}}
