@@ -353,7 +353,7 @@ def writeFinalTree(trees, clientLocations, nodesLocations, outputDir, fallback, 
     with open(f"{os.path.dirname(os.path.realpath(__file__))}/../build/deployer/fallback.txt", 'w') as fallbackFp:
         fallbackFp.write(fallback)
 
-    with open(f"/visualizer/neighborhoods.json", 'w') as neighsFp:
+    with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/neighborhoods.json", 'w') as neighsFp:
         neighs = json.dumps(neighborhoods, indent=4, sort_keys=False)
         neighsFp.write(neighs)
 
