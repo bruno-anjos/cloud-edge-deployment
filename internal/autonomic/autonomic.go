@@ -128,14 +128,19 @@ func (a *service) getLoad() float64 {
 	return value.(float64)
 }
 
-type system struct {
-	services  *sync.Map
-	env       *environment.Environment
-	suspected *sync.Map
+type (
+	system struct {
+		services  *sync.Map
+		env       *environment.Environment
+		suspected *sync.Map
 
-	deployerClient   *deployer.Client
-	archimedesClient *archimedes.Client
-}
+		deployerClient   *deployer.Client
+		archimedesClient *archimedes.Client
+		exploring        sync.Map
+	}
+
+	exploringMapValue = chan struct{}
+)
 
 func newSystem() *system {
 	return &system{
@@ -144,6 +149,7 @@ func newSystem() *system {
 		suspected:        &sync.Map{},
 		deployerClient:   deployer.NewDeployerClient(deployer.DefaultHostPort),
 		archimedesClient: archimedes.NewArchimedesClient(archimedes.DefaultHostPort),
+		exploring:        sync.Map{},
 	}
 }
 
@@ -307,7 +313,6 @@ func (a *system) getMyLocation() *utils.Location {
 
 func (a *system) start() {
 	go func() {
-		time.Sleep(time.Duration(30) * time.Second)
 		timer := time.NewTimer(defaultInterval)
 
 		for {
@@ -338,6 +343,10 @@ func (a *system) performAction(action actions.Action) {
 	case *actions.RedirectAction:
 		assertedAction.Execute(a.archimedesClient)
 	case *actions.AddServiceAction:
+		if assertedAction.ExploreChan != nil {
+			id := assertedAction.GetServiceId() + "_" + assertedAction.GetTarget()
+			a.exploring.Store(id, assertedAction.ExploreChan)
+		}
 		assertedAction.Execute(a.deployerClient)
 	case *actions.MigrateAction:
 		assertedAction.Execute(a.deployerClient)
@@ -353,4 +362,19 @@ func (a *system) getLoad(serviceId string) (float64, bool) {
 	}
 
 	return value.(servicesMapValue).getLoad(), true
+}
+
+func (a *system) setExploreSuccess(deploymentId, childId string) bool {
+	id := deploymentId + "_" + childId
+	value, ok := a.exploring.Load(id)
+	if !ok {
+		return false
+	}
+
+	a.exploring.Delete(id)
+
+	exploreChan := value.(exploringMapValue)
+	close(exploreChan)
+
+	return true
 }

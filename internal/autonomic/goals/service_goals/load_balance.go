@@ -151,7 +151,7 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 		domain = append(domain, nodeId)
 		autoClient.SetHostPort(nodeId + ":" + strconv.Itoa(autonomic.Port))
 		load, status := autoClient.GetLoadForService(l.serviceId)
-		if status != http.StatusOK || numChildren == 0{
+		if status != http.StatusOK || numChildren == 0 {
 			info[nodeId] = 0.
 		} else {
 			info[nodeId] = load / float64(numChildren)
@@ -227,7 +227,7 @@ func (l *LoadBalance) GenerateAction(target string, args ...interface{}) actions
 
 	switch args[lbActionTypeArgIndex].(string) {
 	case actions.AddServiceId:
-		return actions.NewAddServiceAction(l.serviceId, target)
+		return actions.NewAddServiceAction(l.serviceId, target, nil)
 	}
 
 	return nil

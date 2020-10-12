@@ -36,6 +36,7 @@ const (
 	getFallbackIdName           = "GET_FALLBACK"
 	hasDeploymentName           = "HAS_DEPLOYMENT"
 	terminalLocationName        = "TERMINAL_LOCATION"
+	exploringName               = "EXPLORING"
 
 	// scheduler
 	heartbeatServiceInstanceName         = "HEARTBEAT_SERVICE_INSTANCE"
@@ -78,6 +79,7 @@ var (
 	getFallbackRoute           = deployer.GetFallbackIdPath
 	hasDeploymentRoute         = fmt.Sprintf(deployer.HasDeploymentPath, _deploymentIdPathVarFormatted)
 	terminalLocationRoute      = fmt.Sprintf(deployer.TerminalLocationPath, _deploymentIdPathVarFormatted)
+	setExploringRoute          = fmt.Sprintf(deployer.SetExploringPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
 
 	// scheduler
 	deploymentInstanceAliveRoute = fmt.Sprintf(deployer.DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
@@ -88,6 +90,14 @@ var (
 )
 
 var Routes = []utils.Route{
+
+	{
+		Name:        exploringName,
+		Method:      http.MethodPost,
+		Pattern:     setExploringRoute,
+		HandlerFunc: setExploringHandler,
+	},
+
 	{
 		Name:        terminalLocationName,
 		Method:      http.MethodPost,

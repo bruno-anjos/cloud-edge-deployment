@@ -80,6 +80,8 @@ var (
 	children             sync.Map
 	childrenClient       = deployer.NewDeployerClient("")
 
+	exploring sync.Map
+
 	timer *time.Timer
 )
 
@@ -104,6 +106,8 @@ func init() {
 
 	serviceLocations = sync.Map{}
 	addServiceLocationLock = sync.Mutex{}
+
+	exploring = sync.Map{}
 
 	timer = time.NewTimer(sendAlternativesTimeout * time.Second)
 
@@ -426,6 +430,18 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 
 	if bestNode != myself.Id {
 		log.Debugf("will redirect client at %f to %s", clientLocation, bestNode)
+
+		id := deploymentId + "_" + bestNode
+		_, ok = exploring.Load(id)
+		if ok {
+			childAutoClient := autonomic.NewAutonomicClient(bestNode + ":" + strconv.Itoa(autonomic.Port))
+			status = childAutoClient.SetExploredSuccessfully(deploymentId, bestNode)
+			if status != http.StatusOK {
+				log.Errorf("got status %d when setting %s exploration as success", status, bestNode)
+			}
+			exploring.Delete(id)
+		}
+
 		var respBody api.RedirectClientDownTheTreeResponseBody
 		respBody = bestNode
 		utils.SendJSONReplyOK(w, respBody)
@@ -475,6 +491,20 @@ func terminalLocationHandler(_ http.ResponseWriter, r *http.Request) {
 	}
 
 	terminalLocations.Store(reqBody.Child, reqBody.Location)
+}
+
+func setExploringHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	childId := utils.ExtractPathVar(r, nodeIdPathVar)
+
+	ok := hTable.hasDeployment(deploymentId)
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	id := deploymentId + "_" + childId
+	exploring.Store(id, nil)
 }
 
 // TODO function simulating lower API

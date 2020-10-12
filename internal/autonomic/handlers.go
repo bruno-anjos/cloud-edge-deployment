@@ -138,3 +138,22 @@ func getLoadForServiceHandler(w http.ResponseWriter, r *http.Request) {
 
 	utils.SendJSONReplyOK(w, load)
 }
+
+func setExploreSuccessfullyHandler(w http.ResponseWriter, r *http.Request) {
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	childId := utils.ExtractPathVar(r, childIdPathVar)
+
+	_, ok := autonomicSystem.services.Load(serviceId)
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	ok = autonomicSystem.setExploreSuccess(serviceId, childId)
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	log.Debugf("explored service %s through %s successfully", serviceId, childId)
+}

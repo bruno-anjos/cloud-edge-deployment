@@ -117,6 +117,24 @@ def get_all_services_tables():
     return tables_aux
 
 
+def get_load(deploymentId, node_arg, number):
+    autonomicURLf = "http://%s:50003/autonomic"
+    loadPath = "/load/%s"
+
+    if dummy:
+        nodeNum = number % 255
+        carry = number // 255
+        url = (autonomicURLf % (dummyContainerFormatf % (3 + carry, nodeNum))) + (loadPath % deploymentId)
+    else:
+        url = (autonomicURLf % node_arg) + (loadPath % deploymentId)
+
+    try:
+        table_resp = check_resp_and_get_json(requests.get(url))
+        return table_resp
+    except requests.ConnectionError:
+        return 0.
+
+
 """
 table json schema:
 
@@ -173,6 +191,14 @@ def graph_deployer():
     orphan_dict = {}
 
     tables = get_all_hierarchy_tables()
+    loads = {}
+
+    for node in tables:
+        loads[node] = []
+        node_number = int(node.split("dummy")[1])
+        for deploymentId in tables[node].keys():
+            load_string = f"{deploymentId}: {get_load(deploymentId, node, node_number)}"
+            loads[node].append(load_string)
 
     # add all connections
     deployment_colors = {}
@@ -260,9 +286,9 @@ def graph_deployer():
 
     for deploymentId, g in graphs.items():
         visual_style = {}
-        g.vs["label"] = [name + f"\n({get_location(name, locations)})\n(orphan): " + ",".join(orphan_dict[name])
+        g.vs["label"] = [name + f"\n(orphan): " + ",".join(orphan_dict[name])
                          if name in orphan_dict
-                         else name + f"\n({get_location(name, locations)})" for name in g.vs["name"]]
+                         else name + f"\n{', '.join(loads[name])}" if name in loads else name for name in g.vs["name"]]
         visual_style["vertex_size"] = 30
         visual_style["vertex_color"] = [color for color in g.vs["color"]]
         visual_style["vertex_label"] = g.vs["label"]
@@ -288,7 +314,8 @@ def graph_deployer():
 
     if has_tables:
         visual_style = {}
-        combinedGraph.vs["label"] = [name + f"\n({get_location(name, locations)})" for name in combinedGraph.vs["name"]]
+        combinedGraph.vs["label"] = [name + f"\n{', '.join(loads[name])}" if name in loads else name for name in
+                                     combinedGraph.vs["name"]]
         visual_style["vertex_size"] = 30
         visual_style["vertex_color"] = [color for color in combinedGraph.vs["color"]]
         visual_style["vertex_label"] = combinedGraph.vs["label"]

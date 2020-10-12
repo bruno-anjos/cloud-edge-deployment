@@ -115,10 +115,10 @@ def generateNodeMetrics(nodeId, loc, visibleNodes, children, nodesLocations, ser
     for s in services:
         other += [f"\"METRIC_LOAD_PER_SERVICE_{s}_IN_CHILDREN\": {{}}",
                   f"\"METRIC_AGG_LOAD_PER_SERVICE_{s}_IN_CHILDREN\": 0",
-                  f"\"METRIC_CLIENT_LATENCY_PER_SERVICE_{s}\": {serviceLatencies[s]}",
+                  f"\"METRIC_CLIENT_LATENCY_PER_SE RVICE_{s}\": {serviceLatencies[s]}",
                   f"\"METRIC_PROCESSING_TIME_PER_SERVICE_{s}\": {processingTimes[s]}",
                   f"\"METRIC_NUMBER_OF_INSTANCES_PER_SERVICE_{s}\": 0",
-                  f"\"METRIC_LOAD_PER_SERVICE_{s}\": {2.7 if s in lastNode else 0.}",
+                  f"\"METRIC_LOAD_PER_SERVICE_{s}\": 0",
                   f"""\"METRIC_AVERAGE_CLIENT_LOCATION_PER_SERVICE_{s}\": {{
                         "X": {clientLocations[s]["X"]},
                         "Y": {clientLocations[s]["Y"]}

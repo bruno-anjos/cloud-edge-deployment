@@ -10,17 +10,18 @@ import (
 
 // Route names
 const (
-	registerServiceName    = "REGISTER_SERVICE"
-	deleteServiceName      = "DELETE_SERVICE"
-	getAllServicesName     = "GET_ALL_SERVICES"
-	addServiceChildName    = "ADD_SERVICE_CHILD"
-	removeServiceChildName = "REMOVE_SERVICE_CHILD"
-	setServiceParentName   = "SET_SERVICE_PARENT"
-	isNodeInVicinityName   = "IS_NODE_IN_VICINITY"
-	closestNodeName        = "CLOSEST_NODE"
-	getVicinityName        = "GET_VICINITY"
-	getMyLocationName      = "GET_MY_LOCATION"
-	getLoadName            = "GET_LOAD"
+	registerServiceName      = "REGISTER_SERVICE"
+	deleteServiceName        = "DELETE_SERVICE"
+	getAllServicesName       = "GET_ALL_SERVICES"
+	addServiceChildName      = "ADD_SERVICE_CHILD"
+	removeServiceChildName   = "REMOVE_SERVICE_CHILD"
+	setServiceParentName     = "SET_SERVICE_PARENT"
+	isNodeInVicinityName     = "IS_NODE_IN_VICINITY"
+	closestNodeName          = "CLOSEST_NODE"
+	getVicinityName          = "GET_VICINITY"
+	getMyLocationName        = "GET_MY_LOCATION"
+	getLoadName              = "GET_LOAD"
+	exploredSuccessfullyName = "EXPLORED_SUCCESSFULLY"
 )
 
 // Path variables
@@ -37,18 +38,26 @@ var (
 	_parentIdPathVarFormatted  = fmt.Sprintf(utils.PathVarFormat, parentIdPathVar)
 	_nodeIdPathVarFormatted    = fmt.Sprintf(utils.PathVarFormat, nodeIdPathVar)
 
-	servicesRoute         = autonomic.ServicesPath
-	serviceRoute          = fmt.Sprintf(autonomic.ServicePath, _serviceIdPathVarFormatted)
-	serviceChildRoute     = fmt.Sprintf(autonomic.ServiceChildPath, _serviceIdPathVarFormatted, _childIdPathVarFormatted)
-	serviceParentRoute    = fmt.Sprintf(autonomic.ServiceParentPath, _serviceIdPathVarFormatted, _parentIdPathVarFormatted)
-	isNodeInVicinityRoute = fmt.Sprintf(autonomic.IsNodeInVicinityPath, _nodeIdPathVarFormatted)
-	closestNodeRoute      = autonomic.ClosestNodePath
-	getVicinityRoute      = autonomic.VicinityPath
-	getMyLocationRoute    = autonomic.MyLocationPath
-	getLoadRoute          = fmt.Sprintf(autonomic.LoadPath, _serviceIdPathVarFormatted)
+	servicesRoute             = autonomic.ServicesPath
+	serviceRoute              = fmt.Sprintf(autonomic.ServicePath, _serviceIdPathVarFormatted)
+	serviceChildRoute         = fmt.Sprintf(autonomic.ServiceChildPath, _serviceIdPathVarFormatted, _childIdPathVarFormatted)
+	serviceParentRoute        = fmt.Sprintf(autonomic.ServiceParentPath, _serviceIdPathVarFormatted, _parentIdPathVarFormatted)
+	isNodeInVicinityRoute     = fmt.Sprintf(autonomic.IsNodeInVicinityPath, _nodeIdPathVarFormatted)
+	closestNodeRoute          = autonomic.ClosestNodePath
+	getVicinityRoute          = autonomic.VicinityPath
+	getMyLocationRoute        = autonomic.MyLocationPath
+	getLoadRoute              = fmt.Sprintf(autonomic.LoadPath, _serviceIdPathVarFormatted)
+	exploredSuccessfullyRoute = fmt.Sprintf(autonomic.ExplorePath, _serviceIdPathVarFormatted, _childIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        exploredSuccessfullyName,
+		Method:      http.MethodPost,
+		Pattern:     exploredSuccessfullyRoute,
+		HandlerFunc: setExploreSuccessfullyHandler,
+	},
+
 	{
 		Name:        getLoadName,
 		Method:      http.MethodGet,

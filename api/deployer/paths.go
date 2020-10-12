@@ -36,6 +36,7 @@ const (
 	GetFallbackIdPath         = "/deployments/fallback"
 	HasDeploymentPath         = "/deployments/%s/has"
 	TerminalLocationPath      = "/deployments/%s/terminal"
+	SetExploringPath          = "/deployments/%s/exploring/%s"
 
 	// scheduler
 	DeploymentInstanceAlivePath = "/deployments/%s/%s/alive"
@@ -144,4 +145,8 @@ func GetHasDeploymentPath(deploymentId string) string {
 
 func GetTerminalLocationPath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(TerminalLocationPath, deploymentId)
+}
+
+func GetSetExploringPath(deploymentId, childId string) string {
+	return PrefixPath + fmt.Sprintf(SetExploringPath, deploymentId, childId)
 }

@@ -3,6 +3,7 @@ package service_goals
 import (
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
@@ -20,16 +21,19 @@ const (
 	equivalenDistancePercentage = 0.8
 	loadToAddServiceThreshold   = 0.7
 
-	ilArgsNum = 2
+	ilArgsNum = 3
 
 	idealLatencyGoalId = "GOAL_IDEAL_LATENCY"
 
 	hiddenParentId = "_parent"
+
+	blacklistDuration = 5
 )
 
 const (
 	ilActionTypeArgIndex = iota
 	ilFromIndex
+	ilExploreIndex
 )
 
 type NodeWithLocation struct {
@@ -54,7 +58,8 @@ type idealLatency struct {
 	environment     *environment.Environment
 	dependencies    []string
 	parentId        *string
-	blacklist       map[string]interface{}
+	exploring       sync.Map
+	blacklist       sync.Map
 }
 
 func NewIdealLatency(serviceId string, serviceChildren, suspected *sync.Map,
@@ -124,42 +129,23 @@ func (i *idealLatency) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optR
 	optRange, isAlreadyMax = i.Cutoff(ordered, sortingCriteria)
 	log.Debugf("%s cutoff result (%t) %+v", idealLatencyGoalId, isAlreadyMax, optRange)
 
-	if len(optRange) < 0 {
+	if len(optRange) == 0 {
 		return
 	}
 
-	explore := i.checkShouldExplore(&avgClientLocation)
+	isAlreadyMax = !i.checkShouldBranch(&avgClientLocation)
 
-	actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
-
-	// in case it is not optimized check if we want to add a service or migrate the furthest one
 	if !isAlreadyMax {
-		childrenLoadMetric := metrics.GetLoadPerServiceInChildrenMetricId(i.serviceId)
-		value, ok = i.environment.GetMetric(childrenLoadMetric)
-		if !ok {
-			log.Debugf("no value for metric %s", childrenLoadMetric)
-			return
+		actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
+
+		exploring := sortingCriteria[optRange[0]].(*nodeWithDistance).DistancePercentage > 1.
+		if exploring {
+			exploreChan := make(chan struct{})
+			go i.waitToBlacklist(optRange[0], exploreChan)
+			actionArgs[ilExploreIndex] = exploreChan
 		}
 
-		childrenLoad := value.(map[string]interface{})
-		add := false
-		for _, value = range childrenLoad {
-			childLoad := value.(float64)
-			if childLoad > loadToAddServiceThreshold {
-				add = true
-				break
-			}
-		}
-
-		if add {
-			actionArgs[ilActionTypeArgIndex] = actions.AddServiceId
-		} else {
-			// TODO should migrate service
-			isAlreadyMax = true
-		}
-	} else if explore {
-		isAlreadyMax = false
-		actionArgs[ilActionTypeArgIndex] = actions.ExploreId
+		actionArgs[ilActionTypeArgIndex] = actions.AddServiceId
 	}
 
 	return
@@ -207,7 +193,8 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain goals.Domain, inf
 	for nodeId, locationValue := range locationsInVicinity {
 		_, okC := i.serviceChildren.Load(nodeId)
 		_, okS := i.suspected.Load(nodeId)
-		if okC || okS || nodeId == myself {
+		_, okB := i.blacklist.Load(nodeId)
+		if okC || okS || okB || nodeId == myself {
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}
@@ -275,14 +262,9 @@ func (i *idealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[st
 		if percentage < maximumDistancePercentage {
 			cutoff = append(cutoff, candidate)
 		}
-		if percentage < equivalenDistancePercentage {
+		if percentage < 1. {
 			maxed = false
 		}
-	}
-
-	value, ok = candidatesCriteria[hiddenParentId]
-	if !ok {
-		return
 	}
 
 	return
@@ -293,12 +275,14 @@ func (i *idealLatency) GenerateAction(target string, args ...interface{}) action
 
 	switch args[ilActionTypeArgIndex].(string) {
 	case actions.AddServiceId:
-		return actions.NewAddServiceAction(i.serviceId, target)
+		var exploreChan chan struct{}
+		if args[ilExploreIndex] != nil {
+			exploreChan = args[ilExploreIndex].(chan struct{})
+		}
+		return actions.NewAddServiceAction(i.serviceId, target, exploreChan)
 	case actions.MigrateServiceId:
 		from := args[ilFromIndex].(string)
 		return actions.NewMigrateAction(i.serviceId, from, target)
-	case actions.ExploreId:
-		return actions.NewExploreAction(i.serviceId, target)
 	}
 
 	return nil
@@ -396,7 +380,7 @@ func (i *idealLatency) checkProcessingTime() bool {
 	return false
 }
 
-func (i *idealLatency) checkShouldExplore(avgClientLocation *utils.Location) bool {
+func (i *idealLatency) checkShouldBranch(avgClientLocation *utils.Location) bool {
 	numChildren := 0
 	i.serviceChildren.Range(func(key, value interface{}) bool {
 		numChildren++
@@ -420,10 +404,28 @@ func (i *idealLatency) checkShouldExplore(avgClientLocation *utils.Location) boo
 	branchingFactor := ((1 / (currDistance / 500)) * 100) + (20 / float64(numChildren))
 
 	// TODO these values seem to make sense for now
-	explore := (branchingFactor / float64(numChildren+1)) > 20
+	branch := (branchingFactor / float64(numChildren+1)) > 20
 
 	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
-	log.Debugf("should i explore? %t", explore)
+	log.Debugf("should i branch? %t", branch)
 
-	return explore
+	return branch
+}
+
+func (i *idealLatency) waitToBlacklist(childId string, exploredChan <-chan struct{}) {
+	interval := (4 * 30) * time.Second
+
+	timer := time.NewTimer(interval)
+	select {
+	case <-exploredChan:
+		log.Debugf("exploring %s through %s was a success", i.serviceId, childId)
+		return
+	case <-timer.C:
+		log.Debugf("blacklisting %s", childId)
+		i.blacklist.Store(childId, nil)
+		blacklistTimer := time.NewTimer(blacklistDuration * time.Minute)
+		<-blacklistTimer.C
+		log.Debugf("removing %s from blacklist", childId)
+		i.blacklist.Delete(childId)
+	}
 }

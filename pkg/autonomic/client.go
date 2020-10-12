@@ -178,3 +178,12 @@ func (c *Client) GetLoadForService(serviceId string) (load float64, status int) 
 
 	return
 }
+
+func (c *Client) SetExploredSuccessfully(serviceId, childId string) (status int) {
+	path := api.GetExploredPath(serviceId, childId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}

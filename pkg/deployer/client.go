@@ -395,3 +395,12 @@ func (c *Client) SetTerminalLocation(deploymentId, origin string, location *publ
 
 	return
 }
+
+func (c *Client) SetExploring(deploymentId, childId string) (status int) {
+	path := api.GetSetExploringPath(deploymentId, childId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
