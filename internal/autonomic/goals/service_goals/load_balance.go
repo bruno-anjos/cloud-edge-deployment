@@ -10,7 +10,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/mitchellh/mapstructure"
@@ -21,7 +21,7 @@ const (
 	maximumLoad        = 0.7
 	equivalentLoadDiff = 0.20
 
-	lbNumArgs = 2
+	lbNumArgs = 3
 
 	defaultGroupSize = 0.10
 
@@ -30,6 +30,8 @@ const (
 
 const (
 	lbActionTypeArgIndex = iota
+	lbFromIndex
+	lbAmountIndex
 )
 
 var (
@@ -77,12 +79,6 @@ func (l *LoadBalance) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRa
 	filtered := l.Filter(candidateIds, optDomain)
 	log.Debugf("%s filtered result %+v", loadBalanceGoalId, filtered)
 
-	ordered := l.Order(filtered, sortingCriteria)
-	log.Debugf("%s ordered result %+v", loadBalanceGoalId, ordered)
-
-	optRange, isAlreadyMax = l.Cutoff(ordered, sortingCriteria)
-	log.Debugf("%s cutoff result (%t)%+v", loadBalanceGoalId, isAlreadyMax, optRange)
-
 	overloaded := false
 	for childId, value := range sortingCriteria {
 		load := value.(float64)
@@ -98,13 +94,19 @@ func (l *LoadBalance) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRa
 		isAlreadyMax = !(len(optRange) > 0)
 	}
 
-	// TODO understand where migrate action fits
-	// if furthestChild != "" {
-	// 	actionArgs[ilActionTypeArgIndex] = actions.MigrateServiceId
-	// 	actionArgs[ilFromIndex] = furthestChild
-	// } else {
-	// 	isAlreadyMax = true
-	// }
+	ordered := l.Order(filtered, sortingCriteria)
+	log.Debugf("%s ordered result %+v", loadBalanceGoalId, ordered)
+
+	optRange, isAlreadyMax = l.Cutoff(ordered, sortingCriteria)
+	log.Debugf("%s cutoff result (%t)%+v", loadBalanceGoalId, isAlreadyMax, optRange)
+
+	if !isAlreadyMax {
+		actionArgs = make([]interface{}, lbNumArgs)
+		actionArgs[lbActionTypeArgIndex] = actions.RedirectClientsId
+		origin := ordered[len(ordered)-1]
+		actionArgs[lbFromIndex] = origin
+		actionArgs[lbAmountIndex] = int(sortingCriteria[origin].(float64) / 4)
+	}
 
 	return
 }
@@ -140,7 +142,7 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 
 	myself := value.(string)
 	info = map[string]interface{}{}
-	autoClient := autonomic.NewAutonomicClient("")
+	archClient := archimedes.NewArchimedesClient("")
 
 	for nodeId := range locationsInVicinity {
 		_, okS := l.suspected.Load(nodeId)
@@ -149,12 +151,12 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 			continue
 		}
 		domain = append(domain, nodeId)
-		autoClient.SetHostPort(nodeId + ":" + strconv.Itoa(autonomic.Port))
-		load, status := autoClient.GetLoadForService(l.serviceId)
+		archClient.SetHostPort(nodeId + ":" + strconv.Itoa(archimedes.Port))
+		load, status := archClient.GetLoad(l.serviceId)
 		if status != http.StatusOK || numChildren == 0 {
 			info[nodeId] = 0.
 		} else {
-			info[nodeId] = load / float64(numChildren)
+			info[nodeId] = load
 		}
 		log.Debugf("%s has load: %f(%f/%d)", nodeId, info[nodeId], load, numChildren)
 	}
@@ -227,7 +229,9 @@ func (l *LoadBalance) GenerateAction(target string, args ...interface{}) actions
 
 	switch args[lbActionTypeArgIndex].(string) {
 	case actions.AddServiceId:
-		return actions.NewAddServiceAction(l.serviceId, target, nil)
+		return actions.NewAddServiceAction(l.serviceId, target)
+	case actions.RedirectClientsId:
+		return actions.NewRedirectAction(l.serviceId, args[lbFromIndex].(string), target, args[lbAmountIndex].(int))
 	}
 
 	return nil

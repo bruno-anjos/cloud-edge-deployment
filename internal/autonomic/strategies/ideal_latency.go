@@ -2,6 +2,7 @@ package strategies
 
 import (
 	"net/http"
+	"strconv"
 	"sync"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
@@ -105,9 +106,9 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 			i.redirectingTo = nextDomain[0]
 			i.redirected = 0
 			i.redirecting = true
-			loadPerServiceChild := metrics.GetLoadPerServiceInChildMetricId(i.serviceId, i.redirectingTo)
-			value, _ := i.env.GetMetric(loadPerServiceChild)
-			i.redirectInitialLoad = value.(float64)
+			archClient := archimedes.NewArchimedesClient(i.redirectingTo + ":" + strconv.Itoa(archimedes.Port))
+			load, _ := archClient.GetLoad(i.serviceId)
+			i.redirectInitialLoad = load
 			i.lbGoal.ResetMigrationGroupSize()
 		}
 	} else if i.redirecting {

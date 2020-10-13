@@ -15,10 +15,10 @@ type RedirectAction struct {
 	*actionWithServiceOriginTarget
 }
 
-func NewRedirectAction(serviceId, from, to string, amountPercentage float64) *RedirectAction {
+func NewRedirectAction(serviceId, from, to string, amount int) *RedirectAction {
 	return &RedirectAction{
 		actionWithServiceOriginTarget: newActionWithServiceOriginTarget(RedirectClientsId, serviceId, from, to,
-			amountPercentage),
+			amount),
 	}
 }
 

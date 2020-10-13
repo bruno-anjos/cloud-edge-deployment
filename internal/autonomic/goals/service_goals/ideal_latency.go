@@ -2,6 +2,7 @@ package service_goals
 
 import (
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
@@ -260,6 +262,12 @@ func (i *idealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[st
 		percentage := candidatesCriteria[candidate].(*nodeWithDistance).DistancePercentage
 		log.Debugf("candidate %s distance percentage from furthest child %f", candidate, percentage)
 		if percentage < maximumDistancePercentage {
+			candidateClient.SetHostPort(candidate + ":" + strconv.Itoa(deployer.Port))
+			has, _ := candidateClient.HasService(i.serviceId)
+			if has {
+				log.Debugf("candidate %s already has service %s", candidate, i.serviceId)
+				continue
+			}
 			cutoff = append(cutoff, candidate)
 		}
 		if percentage < 1. {

@@ -22,6 +22,7 @@ const (
 	RedirectPath           = "/services/%s/redirect"
 	RedirectedPath         = "/services/%s/redirected"
 	SetResolvingAnswerPath = "/services/asnwer"
+	LoadPath            = "/services/%s/load"
 )
 
 func GetServicesPath() string {
@@ -54,4 +55,8 @@ func GetRedirectPath(serviceId string) string {
 
 func GetRedirectedPath(serviceId string) string {
 	return PrefixPath + fmt.Sprintf(RedirectedPath, serviceId)
+}
+
+func GetLoadPath(serviceId string) string {
+	return PrefixPath + fmt.Sprintf(LoadPath, serviceId)
 }

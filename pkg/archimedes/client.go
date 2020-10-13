@@ -189,6 +189,15 @@ func (c *Client) SetResolvingAnswer(id string, resolved *api.ResolvedDTO) (statu
 	return
 }
 
+func (c *Client) GetLoad(serviceId string) (load float64, status int) {
+	path := api.GetLoadPath(serviceId)
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+
+	status, _ = utils.DoRequest(c.Client, req, &load)
+
+	return
+}
+
 func (c *Client) handleRedirect(req *http.Request, via []*http.Request) error {
 	log.Debugf("redirecting %s to %s", via[len(via)-1].URL.Host, req.URL.Host)
 

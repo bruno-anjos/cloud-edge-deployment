@@ -5,9 +5,8 @@ import (
 )
 
 type (
-	GetAllServicesResponseBody    = map[string]*ServiceDTO
-	ClosestNodeResponseBody       = string
-	GetVicinityResponseBody       = map[string]interface{}
-	GetMyLocationResponseBody     = *utils.Location
-	GetLoadForServiceResponseBody = float64
+	GetAllServicesResponseBody = map[string]*ServiceDTO
+	ClosestNodeResponseBody    = string
+	GetVicinityResponseBody    = map[string]interface{}
+	GetMyLocationResponseBody  = *utils.Location
 )

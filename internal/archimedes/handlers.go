@@ -2,7 +2,6 @@ package archimedes
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"net"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
@@ -35,7 +35,8 @@ type (
 )
 
 const (
-	maxHops = 2
+	maxHops    = 2
+	batchTimer = 10
 )
 
 var (
@@ -47,6 +48,9 @@ var (
 	resolvedInTree   sync.Map
 	waitingChannels  sync.Map
 	hostname         string
+	numReqsLastMinute map[string]int
+	currBatch         map[string]int
+	numReqsLock       sync.RWMutex
 )
 
 func init() {
@@ -65,6 +69,12 @@ func init() {
 	}
 
 	archimedesId = uuid.New().String()
+
+	numReqsLastMinute = map[string]int{}
+	currBatch = map[string]int{}
+	numReqsLock = sync.RWMutex{}
+
+	go manageLoadBatch()
 
 	log.Infof("ARCHIMEDES ID: %s", archimedesId)
 }
@@ -330,77 +340,26 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	numReqsLock.Lock()
+	_, ok := numReqsLastMinute[reqBody.DeploymentId]
+	if !ok {
+		numReqsLastMinute[reqBody.DeploymentId] = 1
+	} else {
+		numReqsLastMinute[reqBody.DeploymentId] += 1
+	}
+
+	_, ok = currBatch[reqBody.DeploymentId]
+	if !ok {
+		currBatch[reqBody.DeploymentId] = 1
+	} else {
+		currBatch[reqBody.DeploymentId] += 1
+	}
+	numReqsLock.Unlock()
+
 	var resp api.ResolveResponseBody
 	resp = *resolved
 
 	utils.SendJSONReplyOK(w, resp)
-}
-
-func resolveInTree(id, deploymentId string, toResolve *api.ToResolveDTO) (resolved *api.ResolvedDTO) {
-	log.Debugf("resolving (%s) %s up the tree", deploymentId, toResolve.Host)
-
-	_, ok := resolvingInTree.Load(id)
-	if ok {
-		log.Debugf("already resolving (%s) %s", deploymentId, toResolve.Host)
-		// If there is already a resolution for this given id ocurring
-		value, cOk := waitingChannels.Load(id)
-		if !cOk {
-			panic(fmt.Sprintf("there should be a waiting channel for %s", id))
-		}
-
-		// Get the channel and wait for it to be complete
-		waitChan := value.(chan struct{})
-		<-waitChan
-
-		value, ok = resolvedInTree.Load(id)
-		if !ok {
-			panic(fmt.Sprintf("value for %s was supposed to be in map", id))
-		}
-
-		if value == nil {
-			resolved = nil
-			log.Debugf("resolved (%s) %s to nil", deploymentId, toResolve.Host)
-		} else {
-			resolved = value.(*api.ResolvedDTO)
-			log.Debugf("resolved (%s) %s to %s", deploymentId, toResolve.Host, resolved.Host)
-		}
-
-		return
-	}
-
-	value, ok := resolvedInTree.Load(id)
-	if ok {
-		// there was no resolution occurring and the value had been resolved before
-		resolved = value.(*api.ResolvedDTO)
-		return
-	}
-
-	// there was no resolution occurring and it had'nt been resolved before
-	waitChan := make(chan struct{})
-	waitingChannels.Store(id, waitChan)
-	resolvingInTree.Store(id, nil)
-	deplClient := deployer.NewDeployerClient(publicUtils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
-	status := deplClient.StartResolveUpTheTree(deploymentId, toResolve)
-	if status != http.StatusOK {
-		log.Debugf("got %d while attempting to start resolving (%s) %s", status, deploymentId, toResolve.Host)
-		return nil
-	}
-	<-waitChan
-
-	value, ok = resolvingInTree.Load(id)
-	if !ok {
-		panic(fmt.Sprintf("value for %s was supposed to be in map", id))
-	}
-
-	if value == nil {
-		resolved = nil
-		log.Debugf("resolved (%s) %s to nil", deploymentId, toResolve.Host)
-	} else {
-		resolved = value.(*api.ResolvedDTO)
-		log.Debugf("resolved (%s) %s to %s", deploymentId, toResolve.Host, resolved.Host)
-	}
-
-	return
 }
 
 func setResolutionAnswerHandler(w http.ResponseWriter, r *http.Request) {
@@ -583,6 +542,26 @@ func getRedirectedHandler(w http.ResponseWriter, r *http.Request) {
 	utils.SendJSONReplyOK(w, redirected.Current)
 }
 
+// TODO simulating
+func getLoadHandler(w http.ResponseWriter, r *http.Request) {
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+
+	numReqsLock.RLock()
+	numReqs, ok := numReqsLastMinute[serviceId]
+	numReqsLock.RUnlock()
+
+	var load float64
+	if !ok {
+		load = 0.
+	} else {
+		load = float64(numReqs) / 100
+	}
+
+	log.Debugf("got load %d for service %s", load, serviceId)
+
+	utils.SendJSONReplyOK(w, load)
+}
+
 func preprocessMessage(remoteAddr string, discoverMsg *api.DiscoverMsg) {
 	for _, entry := range discoverMsg.Entries {
 		if entry.Host == discoverMsg.NeighborSent {
@@ -632,4 +611,28 @@ func resolveInstance(originalPort nat.Port, instance *api.Instance) (*api.Resolv
 func broadcastMsgWithHorizon(discoverMsg *api.DiscoverMsg, hops int) {
 	// TODO this simulates the lower level layer
 	return
+}
+
+// TODO simulating
+func manageLoadBatch() {
+	ticker := time.NewTicker(batchTimer + time.Second)
+
+	for {
+		<-ticker.C
+		numReqsLock.Lock()
+		for deploymentId, depBatch := range currBatch {
+			go waitForToRemove(deploymentId, depBatch)
+			currBatch[deploymentId] = 0
+		}
+		numReqsLock.Unlock()
+	}
+}
+
+// TODO simulating
+func waitForToRemove(deploymentId string, size int) {
+	timer := time.NewTimer(60 * time.Second)
+	<-timer.C
+	numReqsLock.Lock()
+	numReqsLastMinute[deploymentId] -= size
+	numReqsLock.Unlock()
 }

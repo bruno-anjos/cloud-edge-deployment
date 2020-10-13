@@ -27,6 +27,7 @@ const (
 	getRedirectedName           = "GET_REDIRECTED"
 	resolveLocallyName          = "RESOLVE_LOCALLY"
 	setResolvingAnswerName      = "SET_RESOLVE_ANSWER"
+	getLoadName                 = "GET_LOAD"
 )
 
 // Path variables
@@ -51,10 +52,18 @@ var (
 	resolveLocallyRoute     = archimedes.ResolveLocallyPath
 	redirectRoute           = fmt.Sprintf(archimedes.RedirectPath, _serviceIdPathVarFormatted)
 	redirectedRoute         = fmt.Sprintf(archimedes.RedirectedPath, _serviceIdPathVarFormatted)
-	setResolvingAnswerRoute = fmt.Sprintf(archimedes.SetResolvingAnswerPath)
+	setResolvingAnswerRoute = archimedes.SetResolvingAnswerPath
+	getLoadRoute            = fmt.Sprintf(archimedes.LoadPath, _serviceIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        getLoadName,
+		Method:      http.MethodGet,
+		Pattern:     getLoadRoute,
+		HandlerFunc: getLoadHandler,
+	},
+
 	{
 		Name:        setResolvingAnswerName,
 		Method:      http.MethodPost,
