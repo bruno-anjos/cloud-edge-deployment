@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	defaultHttp "net/http"
 	"net/url"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
@@ -26,11 +28,13 @@ type config struct {
 	NumberOfClients int                  `json:"number_of_clients"`
 	Fallback        string               `json:"fallback"`
 	Location        publicUtils.Location `json:"location"`
+	Port            int                  `json:"port"`
 }
 
 func main() {
 	debug := flag.Bool("d", false, "enable debug logs")
 	configFilename := flag.String("config", invalid, "configuration file name")
+	flag.Parse()
 
 	if *configFilename == invalid {
 		log.Fatalf("config file name missing")
@@ -51,17 +55,28 @@ func main() {
 		panic(err)
 	}
 
+	if conf.Port == 0 {
+		log.Fatalf("port is zero")
+	}
+
 	serviceUrl := url.URL{
 		Scheme: "http",
-		Host:   conf.Service,
+		Host:   conf.Service + ":" + strconv.Itoa(conf.Port),
 	}
 
+	wg := &sync.WaitGroup{}
+	log.Debugf("Launching %d clients...", conf.NumberOfClients)
 	for i := 1; i <= conf.NumberOfClients; i++ {
-		go runClient(i, serviceUrl, &conf)
+		wg.Add(1)
+		go runClient(wg, i, serviceUrl, &conf)
 	}
+
+	wg.Wait()
 }
 
-func runClient(clientNum int, serviceUrl url.URL, config *config) {
+func runClient(wg *sync.WaitGroup, clientNum int, serviceUrl url.URL, config *config) {
+	defer wg.Done()
+
 	log.Debugf("[%d] Starting client", clientNum)
 
 	client := &http.Client{}
@@ -85,6 +100,6 @@ func doRequest(client *http.Client, r *http.Request, clientNum int) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Debugf("[%d] got status %d", clientNum, resp.StatusCode)
+		log.Errorf("[%d] got status %d", clientNum, resp.StatusCode)
 	}
 }

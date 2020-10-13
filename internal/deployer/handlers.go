@@ -409,7 +409,7 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	log.Debugf("best node in vicinity to redirect to is %s", bestNode)
+	log.Debugf("best node in vicinity to redirect client from %+v to is %s", clientLocation, bestNode)
 
 	value, ok := serviceLocations.Load(deploymentId)
 	if ok {

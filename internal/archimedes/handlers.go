@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -45,6 +46,7 @@ var (
 	resolvingInTree  sync.Map
 	resolvedInTree   sync.Map
 	waitingChannels  sync.Map
+	hostname         string
 )
 
 func init() {
@@ -55,6 +57,12 @@ func init() {
 	resolvingInTree = sync.Map{}
 	resolvedInTree = sync.Map{}
 	waitingChannels = sync.Map{}
+
+	var err error
+	hostname, err = os.Hostname()
+	if err != nil {
+		panic(err)
+	}
 
 	archimedesId = uuid.New().String()
 
@@ -289,6 +297,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	case http.StatusNoContent:
 		break
 	case http.StatusOK:
+		log.Debugf("redirecting client from %+v", reqBody.Location)
 		targetUrl = url.URL{
 			Scheme: "http",
 			Host:   redirectTo + ":" + strconv.Itoa(archimedes.Port),
@@ -609,22 +618,15 @@ func sendServicesTable() {
 }
 
 func resolveInstance(originalPort nat.Port, instance *api.Instance) (*api.ResolvedDTO, bool) {
-	if instance.Local {
-		return &api.ResolvedDTO{
-			Host: instance.Id,
-			Port: originalPort.Port(),
-		}, true
-	} else {
-		portNatResolved, ok := instance.PortTranslation[originalPort]
-		if !ok {
-			return nil, false
-		}
-
-		return &api.ResolvedDTO{
-			Host: instance.Ip,
-			Port: portNatResolved[0].HostPort,
-		}, true
+	portNatResolved, ok := instance.PortTranslation[originalPort]
+	if !ok {
+		return nil, false
 	}
+
+	return &api.ResolvedDTO{
+		Host: hostname,
+		Port: portNatResolved[0].HostPort,
+	}, true
 }
 
 func broadcastMsgWithHorizon(discoverMsg *api.DiscoverMsg, hops int) {

@@ -3,13 +3,24 @@ package scheduler
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	log "github.com/sirupsen/logrus"
 )
 
+var (
+	hostname string
+)
 
+func init() {
+	var err error
+	hostname, err = os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+}
 
 func dummyStartInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling start instance")
@@ -42,6 +53,24 @@ func dummyStartInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	for _, hostPorts := range portBindings {
+		auxHostPorts := hostPorts
+		go func() {
+			addr := hostname + ":" + auxHostPorts[0].HostPort
+			log.Debugf("listening on %s for instance %s", addr, instanceId)
+			mux := http.NewServeMux()
+			mux.HandleFunc("/", sendOk)
+			s := &http.Server{
+				Addr:    addr,
+				Handler: mux,
+			}
+			httpErr := s.ListenAndServe()
+			if httpErr != nil {
+				panic(err)
+			}
+		}()
+	}
 }
 
 func dummyStopInstanceHandler(w http.ResponseWriter, r *http.Request) {
@@ -60,4 +89,8 @@ func dummyStopInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 func dummyStopAllInstancesHandler(_ http.ResponseWriter, _ *http.Request) {
 	log.Debug("[DUMMY] stopping all instances")
+}
+
+func sendOk(w http.ResponseWriter, r *http.Request) {
+	return
 }
