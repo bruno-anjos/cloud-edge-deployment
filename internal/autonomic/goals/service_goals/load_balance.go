@@ -229,7 +229,7 @@ func (l *LoadBalance) GenerateAction(target string, args ...interface{}) actions
 
 	switch args[lbActionTypeArgIndex].(string) {
 	case actions.AddServiceId:
-		return actions.NewAddServiceAction(l.serviceId, target)
+		return actions.NewAddServiceAction(l.serviceId, target, nil)
 	case actions.RedirectClientsId:
 		return actions.NewRedirectAction(l.serviceId, args[lbFromIndex].(string), target, args[lbAmountIndex].(int))
 	}

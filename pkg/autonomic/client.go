@@ -159,26 +159,6 @@ func (c *Client) GetLocation() (location *publicUtils.Location, status int) {
 	return
 }
 
-func (c *Client) GetLoadForService(serviceId string) (load float64, status int) {
-	path := api.GetGetLoadForServicePath(serviceId)
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
-
-	var (
-		respBody api.GetLoadForServiceResponseBody
-		resp     *http.Response
-	)
-	status, resp = utils.DoRequest(c.Client, req, nil)
-	if status == http.StatusOK {
-		err := json.NewDecoder(resp.Body).Decode(&respBody)
-		if err != nil {
-			panic(err)
-		}
-		load = respBody
-	}
-
-	return
-}
-
 func (c *Client) SetExploredSuccessfully(serviceId, childId string) (status int) {
 	path := api.GetExploredPath(serviceId, childId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)

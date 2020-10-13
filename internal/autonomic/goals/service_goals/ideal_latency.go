@@ -258,6 +258,7 @@ func (i *idealLatency) Cutoff(candidates goals.Domain, candidatesCriteria map[st
 		panic(err)
 	}
 
+	candidateClient := deployer.NewDeployerClient("")
 	for _, candidate := range candidates {
 		percentage := candidatesCriteria[candidate].(*nodeWithDistance).DistancePercentage
 		log.Debugf("candidate %s distance percentage from furthest child %f", candidate, percentage)
