@@ -36,10 +36,6 @@ type DiscoverMsg struct {
 	Entries      map[string]*ServicesTableEntryDTO
 }
 
-type neighborDTO struct {
-	Addr string
-}
-
 type ToResolveDTO struct {
 	Host string
 	Port nat.Port

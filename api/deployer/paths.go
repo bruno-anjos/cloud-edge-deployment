@@ -17,7 +17,6 @@ const (
 
 	SetAlternativesPath = "/alternatives/%s"
 
-	DeploymentQualityPath     = "/deployments/%s/quality"
 	DeadChildPath             = "/deployments/%s/deadchild/%s"
 	IAmYourParentPath         = "/deployments/%s/parent"
 	HierarchyTablePath        = "/table"
@@ -38,7 +37,6 @@ const (
 	TerminalLocationPath      = "/deployments/%s/terminal"
 	SetExploringPath          = "/deployments/%s/exploring/%s"
 
-	// scheduler
 	DeploymentInstanceAlivePath = "/deployments/%s/%s/alive"
 	DeploymentInstancePath      = "/deployments/%s/%s"
 )
@@ -49,10 +47,6 @@ func GetDeploymentsPath() string {
 
 func GetServicePath(serviceId string) string {
 	return PrefixPath + fmt.Sprintf(DeploymentPath, serviceId)
-}
-
-func GetExpandTreePath(serviceId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentQualityPath, serviceId)
 }
 
 func GetImYourParentPath(serviceId string) string {
@@ -81,10 +75,6 @@ func GetHierarchyTablePath() string {
 
 func GetSetAlternativesPath(nodeId string) string {
 	return PrefixPath + fmt.Sprintf(SetAlternativesPath, nodeId)
-}
-
-func GetWhoAreYouPath() string {
-	return PrefixPath + WhoAreYouPath
 }
 
 func GetServiceInstanceAlivePath(serviceId, instanceId string) string {

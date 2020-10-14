@@ -91,6 +91,6 @@ func dummyStopAllInstancesHandler(_ http.ResponseWriter, _ *http.Request) {
 	log.Debug("[DUMMY] stopping all instances")
 }
 
-func sendOk(w http.ResponseWriter, r *http.Request) {
+func sendOk(_ http.ResponseWriter, _ *http.Request) {
 	return
 }

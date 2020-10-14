@@ -31,18 +31,6 @@ func NewDeployerClient(addr string) *Client {
 	}
 }
 
-func (c *Client) ExpandTree(serviceId string, location *publicUtils.Location) (status int) {
-	var reqBody api.ExpandTreeRequestBody
-	reqBody = location
-
-	path := api.GetExpandTreePath(serviceId)
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
-
-	status, _ = utils.DoRequest(c.Client, req, nil)
-
-	return
-}
-
 func (c *Client) GetServices() (serviceIds []string, status int) {
 	path := api.GetDeploymentsPath()
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)

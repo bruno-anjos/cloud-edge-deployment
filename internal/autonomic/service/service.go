@@ -44,24 +44,24 @@ func New(serviceId, strategyId string, suspected *sync.Map,
 		Blacklist:   &sync.Map{},
 	}
 
-	var strategy strategy
+	var strat strategy
 	switch strategyId {
 	case public.StrategyLoadBalanceId:
-		strategy = newDefaultLoadBalanceStrategy(s)
+		strat = newDefaultLoadBalanceStrategy(s)
 	case public.StrategyIdealLatencyId:
-		strategy = newDefaultIdealLatencyStrategy(s)
+		strat = newDefaultIdealLatencyStrategy(s)
 	default:
 		return nil, errors.Errorf("invalid strategy: %s", strategyId)
 	}
 
-	dependencies := strategy.GetDependencies()
+	dependencies := strat.GetDependencies()
 	if dependencies != nil {
 		for _, serviceMetric := range dependencies {
 			env.TrackMetric(serviceMetric)
 		}
 	}
 
-	s.Strategy = strategy
+	s.Strategy = strat
 
 	return s, nil
 }

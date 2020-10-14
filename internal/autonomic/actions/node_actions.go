@@ -11,7 +11,6 @@ import (
 
 const (
 	AddServiceId     = "ACTION_ADD_SERVICE"
-	ExploreId        = "ACTION_EXPLORE"
 	RemoveServiceId  = "ACTION_REMOVE_SERVICE"
 	MigrateServiceId = "ACTION_MIGRATE_SERVICE"
 )
@@ -68,33 +67,6 @@ func (m *AddServiceAction) Execute(client utils.Client) {
 		}
 	}
 
-}
-
-type ExploreAction struct {
-	*actionWithServiceTarget
-}
-
-func NewExploreAction(serviceId, target string) *ExploreAction {
-	return &ExploreAction{
-		actionWithServiceTarget: newActionWithServiceTarget(ExploreId, serviceId, target),
-	}
-}
-
-func (m *ExploreAction) Execute(client utils.Client) {
-	log.Debugf("executing %s to %s", m.ActionId, m.GetTarget())
-	deployerClient := client.(*deployer.Client)
-
-	targetClient := deployer.NewDeployerClient(m.GetTarget() + ":" + strconv.Itoa(deployer.Port))
-	has, _ := targetClient.HasService(m.GetServiceId())
-	if has {
-		log.Debugf("%s already has service %s", m.GetTarget(), m.GetServiceId())
-		return
-	}
-
-	status := deployerClient.ExtendDeploymentTo(m.GetServiceId(), m.GetTarget())
-	if status != http.StatusOK {
-		log.Errorf("got status code %d while extending deployment", status)
-	}
 }
 
 type MigrateAction struct {
