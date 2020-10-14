@@ -118,8 +118,8 @@ def get_all_services_tables():
 
 
 def get_load(deploymentId, node_arg, number):
-    autonomicURLf = "http://%s:50003/autonomic"
-    loadPath = "/load/%s"
+    autonomicURLf = "http://%s:50000/archimedes"
+    loadPath = "/services/%s/load"
 
     if dummy:
         nodeNum = number % 255
@@ -197,8 +197,10 @@ def graph_deployer():
         loads[node] = []
         node_number = int(node.split("dummy")[1])
         for deploymentId in tables[node].keys():
-            load_string = f"{deploymentId}: {get_load(deploymentId, node, node_number)}"
+            load = get_load(deploymentId, node, node_number)
+            load_string = f"{deploymentId}: {load}"
             loads[node].append(load_string)
+            print(f"{deploymentId} in {node} has load {load}")
 
     # add all connections
     deployment_colors = {}

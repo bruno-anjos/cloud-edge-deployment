@@ -6,16 +6,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals/service_goals"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/strategies"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/service"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/mitchellh/mapstructure"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
@@ -23,128 +20,12 @@ import (
 
 type (
 	servicesMapKey   = string
-	servicesMapValue = *service
+	servicesMapValue = *service.Service
 )
 
 const (
-	defaultInterval   = 1 * time.Minute
-	blacklistDuration = 5 * time.Minute
+	defaultInterval = 1 * time.Minute
 )
-
-type service struct {
-	ServiceId   string
-	Strategy    strategies.Strategy
-	Children    *sync.Map
-	ParentId    string
-	Suspected   *sync.Map
-	Environment *environment.Environment
-	Blacklist   *sync.Map
-}
-
-func newService(serviceId, strategyId string, suspected *sync.Map,
-	env *environment.Environment) (*service, error) {
-	s := &service{
-		Children:    &sync.Map{},
-		ParentId:    "",
-		Suspected:   suspected,
-		Environment: env,
-		ServiceId:   serviceId,
-		Blacklist:   &sync.Map{},
-	}
-
-	var strategy strategies.Strategy
-	switch strategyId {
-	case strategies.StrategyLoadBalanceId:
-		strategy = strategies.NewDefaultLoadBalanceStrategy(serviceId, s.Children, s.Suspected, &(s.ParentId),
-			env, s.Blacklist)
-	case strategies.StrategyIdealLatencyId:
-		strategy = strategies.NewDefaultIdealLatencyStrategy(serviceId, s.Children, s.Suspected, &(s.ParentId),
-			env, s.Blacklist)
-	default:
-		return nil, errors.Errorf("invalid strategy: %s", strategyId)
-	}
-
-	dependencies := strategy.GetDependencies()
-	if dependencies != nil {
-		for _, serviceMetric := range dependencies {
-			env.TrackMetric(serviceMetric)
-		}
-	}
-
-	s.Strategy = strategy
-
-	return s, nil
-}
-
-func (a *service) addChild(childId string, location *utils.Location) {
-	node := &service_goals.NodeWithLocation{
-		NodeId:   childId,
-		Location: location,
-	}
-	a.Children.Store(childId, node)
-}
-
-func (a *service) removeChild(childId string) {
-	a.Children.Delete(childId)
-}
-
-func (a *service) addSuspectedChild(childId string) {
-	a.Suspected.Store(childId, nil)
-}
-
-func (a *service) removeSuspectedChild(childId string) {
-	a.Suspected.Delete(childId)
-}
-
-func (a *service) setParent(parentId string) {
-	a.ParentId = parentId
-}
-
-func (a *service) generateAction() actions.Action {
-	return a.Strategy.Optimize()
-}
-
-func (a *service) toDTO() *autonomic.ServiceDTO {
-	var children []string
-	a.Children.Range(func(key, value interface{}) bool {
-		childId := key.(string)
-		children = append(children, childId)
-		return true
-	})
-
-	return &autonomic.ServiceDTO{
-		ServiceId:  a.ServiceId,
-		StrategyId: a.Strategy.GetId(),
-		Children:   children,
-		ParentId:   a.ParentId,
-	}
-}
-
-func (a *service) getLoad() float64 {
-	metric := metrics.GetLoadPerService(a.ServiceId)
-	value, ok := a.Environment.GetMetric(metric)
-	if !ok {
-		log.Debugf("no value for metric %s", metric)
-		return 0
-	}
-
-	return value.(float64)
-}
-
-func (a *service) blacklistNode(nodeId string) {
-	log.Debugf("blacklisting %s", nodeId)
-	a.Blacklist.Store(nodeId, nil)
-	go func() {
-		blacklistTimer := time.NewTimer(blacklistDuration)
-		<-blacklistTimer.C
-		log.Debugf("removing %s from blacklist", nodeId)
-		a.Blacklist.Delete(nodeId)
-	}()
-}
-
-func (a *service) removeFromBlacklist(nodeId string) {
-	a.Blacklist.Delete(nodeId)
-}
 
 type (
 	system struct {
@@ -176,7 +57,7 @@ func (a *system) addService(serviceId, strategyId string) {
 		return
 	}
 
-	s, err := newService(serviceId, strategyId, a.suspected, a.env)
+	s, err := service.New(serviceId, strategyId, a.suspected, a.env)
 	if err != nil {
 		panic(err)
 	}
@@ -218,7 +99,7 @@ func (a *system) addServiceChild(serviceId, childId string) {
 	}
 
 	a.suspected.Delete(childId)
-	s.addChild(childId, &location)
+	s.AddChild(childId, &location)
 }
 
 func (a *system) removeServiceChild(serviceId, childId string) {
@@ -228,8 +109,8 @@ func (a *system) removeServiceChild(serviceId, childId string) {
 	}
 
 	s := value.(servicesMapValue)
-	s.addSuspectedChild(childId)
-	s.removeChild(childId)
+	s.AddSuspectedChild(childId)
+	s.RemoveChild(childId)
 }
 
 func (a *system) setServiceParent(serviceId, parentId string) {
@@ -239,11 +120,11 @@ func (a *system) setServiceParent(serviceId, parentId string) {
 	}
 
 	s := value.(servicesMapValue)
-	s.setParent(parentId)
+	s.SetParent(parentId)
 }
 
-func (a *system) getServices() (services map[string]*service) {
-	services = map[string]*service{}
+func (a *system) getServices() (services map[string]*service.Service) {
+	services = map[string]*service.Service{}
 
 	a.services.Range(func(key, value interface{}) bool {
 		serviceId := key.(servicesMapKey)
@@ -334,7 +215,7 @@ func (a *system) getMyLocation() *utils.Location {
 	return &location
 }
 
-func (a *system) handleService(service *service) {
+func (a *system) handleService(service *service.Service) {
 	timer := time.NewTimer(defaultInterval)
 
 	for {
@@ -342,7 +223,7 @@ func (a *system) handleService(service *service) {
 
 		log.Debugf("evaluating service %s", service.ServiceId)
 
-		action := service.generateAction()
+		action := service.GenerateAction()
 		if action != nil {
 			log.Debugf("generated action of type %s for service %s", action.GetActionId(), service.ServiceId)
 			a.performAction(action)
@@ -376,7 +257,7 @@ func (a *system) getLoad(serviceId string) (float64, bool) {
 		return 0, false
 	}
 
-	return value.(servicesMapValue).getLoad(), true
+	return value.(servicesMapValue).GetLoad(), true
 }
 
 func (a *system) setExploreSuccess(deploymentId, childId string) bool {
@@ -410,6 +291,6 @@ func (a *system) waitToBlacklist(serviceId, childId string, exploredChan <-chan 
 		log.Debugf("exploring %s through %s was a success", serviceId, childId)
 		return
 	case <-timer.C:
-		auxService.blacklistNode(childId)
+		auxService.BlacklistNode(childId)
 	}
 }

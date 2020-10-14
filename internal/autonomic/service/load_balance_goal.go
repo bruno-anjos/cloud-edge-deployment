@@ -1,14 +1,11 @@
-package service_goals
+package service
 
 import (
 	"net/http"
 	"sort"
 	"strconv"
-	"sync"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -38,33 +35,24 @@ var (
 	migrationGroupSize = defaultGroupSize
 )
 
-type LoadBalance struct {
-	serviceId       string
-	serviceChildren *sync.Map
-	suspected       *sync.Map
-	environment     *environment.Environment
-	dependencies    []string
-	parentId        *string
+type loadBalanceGoal struct {
+	service      *Service
+	dependencies []string
 }
 
-func NewLoadBalance(serviceId string, children, suspected *sync.Map, parentId *string,
-	env *environment.Environment) *LoadBalance {
+func newLoadBalanceGoal(service *Service) *loadBalanceGoal {
 	dependencies := []string{
-		metrics.GetAggLoadPerServiceInChildrenMetricId(serviceId),
-		metrics.GetLoadPerServiceInChildrenMetricId(serviceId),
+		metrics.GetAggLoadPerServiceInChildrenMetricId(service.ServiceId),
+		metrics.GetLoadPerServiceInChildrenMetricId(service.ServiceId),
 	}
 
-	return &LoadBalance{
-		serviceId:       serviceId,
-		serviceChildren: children,
-		suspected:       suspected,
-		environment:     env,
-		dependencies:    dependencies,
-		parentId:        parentId,
+	return &loadBalanceGoal{
+		service:      service,
+		dependencies: dependencies,
 	}
 }
 
-func (l *LoadBalance) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRange goals.Range,
+func (l *loadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range,
 	actionArgs []interface{}) {
 	isAlreadyMax = true
 	optRange = optDomain
@@ -111,12 +99,12 @@ func (l *LoadBalance) Optimize(optDomain goals.Domain) (isAlreadyMax bool, optRa
 	return
 }
 
-func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info map[string]interface{}, success bool) {
+func (l *loadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, info map[string]interface{}, success bool) {
 	domain = nil
 	info = nil
 	success = false
 
-	value, ok := l.environment.GetMetric(metrics.MetricLocationInVicinity)
+	value, ok := l.service.Environment.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		log.Debugf("no value for metric %s", metrics.MetricLocationInVicinity)
 		return nil, nil, false
@@ -128,14 +116,14 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 		panic(err)
 	}
 
-	value, ok = l.environment.GetMetric(metrics.MetricNodeAddr)
+	value, ok = l.service.Environment.GetMetric(metrics.MetricNodeAddr)
 	if !ok {
 		log.Debugf("no value for metric %s", metrics.MetricNodeAddr)
 		return nil, nil, false
 	}
 
 	numChildren := 0
-	l.serviceChildren.Range(func(key, value interface{}) bool {
+	l.service.Children.Range(func(key, value interface{}) bool {
 		numChildren++
 		return true
 	})
@@ -145,14 +133,14 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 	archClient := archimedes.NewArchimedesClient("")
 
 	for nodeId := range locationsInVicinity {
-		_, okS := l.suspected.Load(nodeId)
-		if okS || nodeId == myself || nodeId == *l.parentId {
+		_, okS := l.service.Suspected.Load(nodeId)
+		if okS || nodeId == myself || nodeId == l.service.ParentId {
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}
 		domain = append(domain, nodeId)
 		archClient.SetHostPort(nodeId + ":" + strconv.Itoa(archimedes.Port))
-		load, status := archClient.GetLoad(l.serviceId)
+		load, status := archClient.GetLoad(l.service.ServiceId)
 		if status != http.StatusOK || numChildren == 0 {
 			info[nodeId] = 0.
 		} else {
@@ -163,20 +151,10 @@ func (l *LoadBalance) GenerateDomain(_ interface{}) (domain goals.Domain, info m
 
 	success = true
 
-	// TODO GET LOAD PER CHILD
-	// loadPerServiceInChildren := metrics.GetLoadPerServiceInChildrenMetricId(l.serviceId)
-	// value, ok := l.environment.GetMetric(loadPerServiceInChildren)
-	// if !ok {
-	// 	log.Debugf("no value for metric %s", loadPerServiceInChildren)
-	// 	return
-	// }
-	//
-	// info = value.(map[string]interface{})
-
 	return
 }
 
-func (l *LoadBalance) Order(candidates goals.Domain, sortingCriteria map[string]interface{}) (ordered goals.Range) {
+func (l *loadBalanceGoal) Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range) {
 	ordered = candidates
 	sort.Slice(ordered, func(i, j int) bool {
 		loadI := sortingCriteria[ordered[i]].(float64)
@@ -187,11 +165,11 @@ func (l *LoadBalance) Order(candidates goals.Domain, sortingCriteria map[string]
 	return
 }
 
-func (l *LoadBalance) Filter(candidates, domain goals.Domain) (filtered goals.Range) {
-	return goals.DefaultFilter(candidates, domain)
+func (l *loadBalanceGoal) Filter(candidates, domain Domain) (filtered Range) {
+	return DefaultFilter(candidates, domain)
 }
 
-func (l *LoadBalance) Cutoff(candidates goals.Domain, candidatesCriteria map[string]interface{}) (cutoff goals.Range,
+func (l *loadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria map[string]interface{}) (cutoff Range,
 	maxed bool) {
 
 	cutoff = nil
@@ -224,49 +202,49 @@ func (l *LoadBalance) Cutoff(candidates goals.Domain, candidatesCriteria map[str
 	return
 }
 
-func (l *LoadBalance) GenerateAction(target string, args ...interface{}) actions.Action {
+func (l *loadBalanceGoal) GenerateAction(target string, args ...interface{}) actions.Action {
 	log.Debugf("generating action %s", (args[lbActionTypeArgIndex]).(string))
 
 	switch args[lbActionTypeArgIndex].(string) {
 	case actions.AddServiceId:
-		return actions.NewAddServiceAction(l.serviceId, target, false)
+		return actions.NewAddServiceAction(l.service.ServiceId, target, false)
 	case actions.RedirectClientsId:
-		return actions.NewRedirectAction(l.serviceId, args[lbFromIndex].(string), target, args[lbAmountIndex].(int))
+		return actions.NewRedirectAction(l.service.ServiceId, args[lbFromIndex].(string), target, args[lbAmountIndex].(int))
 	}
 
 	return nil
 }
 
-func (l *LoadBalance) TestDryRun() bool {
+func (l *loadBalanceGoal) TestDryRun() bool {
 	return true
 }
 
-func (l *LoadBalance) GetDependencies() (metrics []string) {
+func (l *loadBalanceGoal) GetDependencies() (metrics []string) {
 	return l.dependencies
 }
 
-func (l *LoadBalance) IncreaseMigrationGroupSize() {
+func (l *loadBalanceGoal) increaseMigrationGroupSize() {
 	migrationGroupSize *= 2
 }
 
-func (l *LoadBalance) DecreaseMigrationGroupSize() {
+func (l *loadBalanceGoal) decreaseMigrationGroupSize() {
 	migrationGroupSize /= 2.0
 }
 
-func (l *LoadBalance) ResetMigrationGroupSize() {
+func (l *loadBalanceGoal) resetMigrationGroupSize() {
 	migrationGroupSize = defaultGroupSize
 }
 
-func (l *LoadBalance) GetId() string {
+func (l *loadBalanceGoal) GetId() string {
 	return loadBalanceGoalId
 }
 
-func (l *LoadBalance) getHighLoads() map[string]float64 {
+func (l *loadBalanceGoal) getHighLoads() map[string]float64 {
 	highLoads := map[string]float64{}
-	l.serviceChildren.Range(func(key, value interface{}) bool {
+	l.service.Children.Range(func(key, value interface{}) bool {
 		childId := key.(serviceChildrenMapKey)
-		metric := metrics.GetLoadPerServiceInChildMetricId(l.serviceId, childId)
-		value, mOk := l.environment.GetMetric(metric)
+		metric := metrics.GetLoadPerServiceInChildMetricId(l.service.ServiceId, childId)
+		value, mOk := l.service.Environment.GetMetric(metric)
 		if !mOk {
 			log.Debugf("no value for metric %s", metric)
 			return true
@@ -283,7 +261,7 @@ func (l *LoadBalance) getHighLoads() map[string]float64 {
 	return highLoads
 }
 
-func (l *LoadBalance) getAlternativeForHighLoad(highLoads map[string]float64, candidates goals.Range) (alternative string,
+func (l *loadBalanceGoal) getAlternativeForHighLoad(highLoads map[string]float64, candidates Range) (alternative string,
 	ok bool) {
 	var highLoadChildIds []string
 	for childId := range highLoads {
@@ -309,15 +287,15 @@ func (l *LoadBalance) getAlternativeForHighLoad(highLoads map[string]float64, ca
 	return
 }
 
-func (l *LoadBalance) handleOverload(candidates goals.Range) (actionArgs []interface{}, newOptRange goals.Range) {
+func (l *loadBalanceGoal) handleOverload(candidates Range) (actionArgs []interface{}, newOptRange Range) {
 	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
 	actionArgs[lbActionTypeArgIndex] = actions.AddServiceId
 	deplClient := deployer.NewDeployerClient("")
 	for _, candidate := range candidates {
-		_, okC := l.serviceChildren.Load(candidate)
+		_, okC := l.service.Children.Load(candidate)
 		if !okC {
 			deplClient.SetHostPort(candidate + ":" + strconv.Itoa(deployer.Port))
-			hasService, _ := deplClient.HasService(l.serviceId)
+			hasService, _ := deplClient.HasService(l.service.ServiceId)
 			if hasService {
 				continue
 			}

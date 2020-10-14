@@ -1,21 +1,14 @@
-package strategies
+package service
 
 import (
 	"net/http"
 	"strconv"
-	"sync"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals/service_goals"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
+	public "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	log "github.com/sirupsen/logrus"
-)
-
-const (
-	StrategyIdealLatencyId = "STRATEGY_IDEAL_LATENCY"
 )
 
 type idealLatencyStrategy struct {
@@ -24,35 +17,32 @@ type idealLatencyStrategy struct {
 	redirecting         bool
 	redirectingTo       string
 	redirectInitialLoad float64
-	lbGoal              *service_goals.LoadBalance
+	lbGoal              *loadBalanceGoal
 	archClient          *archimedes.Client
-	env                 *environment.Environment
-	serviceId           string
+	service             *Service
 }
 
-func NewDefaultIdealLatencyStrategy(serviceId string, serviceChildren, suspected *sync.Map, parentId *string,
-	env *environment.Environment, blacklist *sync.Map) *idealLatencyStrategy {
-	lbGoal := service_goals.NewLoadBalance(serviceId, serviceChildren, suspected, parentId, env)
+func newDefaultIdealLatencyStrategy(service *Service) *idealLatencyStrategy {
+	lbGoal := newLoadBalanceGoal(service)
 
-	defaultGoals := []goals.Goal{
-		service_goals.NewIdealLatency(serviceId, serviceChildren, suspected, parentId, env, blacklist),
+	defaultGoals := []Goal{
+		NewIdealLatencyGoal(service),
 		lbGoal,
 	}
 
 	return &idealLatencyStrategy{
-		basicStrategy: newBasicStrategy(StrategyIdealLatencyId, defaultGoals),
+		basicStrategy: newBasicStrategy(public.StrategyIdealLatencyId, defaultGoals),
 		redirected:    0,
 		archClient:    archimedes.NewArchimedesClient(archimedes.DefaultHostPort),
-		serviceId:     serviceId,
-		env:           env,
 		lbGoal:        lbGoal,
+		service:       service,
 	}
 }
 
 func (i *idealLatencyStrategy) Optimize() actions.Action {
 	var (
-		nextDomain             goals.Domain
-		goalToChooseActionFrom goals.Goal
+		nextDomain             Domain
+		goalToChooseActionFrom Goal
 		goalActionArgs         []interface{}
 	)
 
@@ -83,22 +73,22 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 		if i.redirecting {
 			// case where i WAS already redirecting
 
-			redirected, status := i.archClient.GetRedirected(i.serviceId)
+			redirected, status := i.archClient.GetRedirected(i.service.ServiceId)
 			if status != http.StatusOK {
 				return nil
 			}
 			i.redirected = int(redirected)
 
-			loadPerServiceChild := metrics.GetLoadPerServiceInChildMetricId(i.serviceId, i.redirectingTo)
-			value, _ := i.env.GetMetric(loadPerServiceChild)
+			loadPerServiceChild := metrics.GetLoadPerServiceInChildMetricId(i.service.ServiceId, i.redirectingTo)
+			value, _ := i.service.Environment.GetMetric(loadPerServiceChild)
 			currLoad := value.(float64)
 			loadDiff := currLoad - i.redirectInitialLoad
 
 			// TODO this is not that smart
 			if loadDiff > 0.75 {
-				i.lbGoal.DecreaseMigrationGroupSize()
+				i.lbGoal.decreaseMigrationGroupSize()
 			} else if loadDiff < 0.25 {
-				i.lbGoal.IncreaseMigrationGroupSize()
+				i.lbGoal.increaseMigrationGroupSize()
 			}
 		} else {
 			// case where i was NOT yet redirecting
@@ -107,13 +97,13 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 			i.redirected = 0
 			i.redirecting = true
 			archClient := archimedes.NewArchimedesClient(i.redirectingTo + ":" + strconv.Itoa(archimedes.Port))
-			load, _ := archClient.GetLoad(i.serviceId)
+			load, _ := archClient.GetLoad(i.service.ServiceId)
 			i.redirectInitialLoad = load
-			i.lbGoal.ResetMigrationGroupSize()
+			i.lbGoal.resetMigrationGroupSize()
 		}
 	} else if i.redirecting {
 		i.redirecting = false
-		i.archClient.RemoveRedirect(i.serviceId)
+		i.archClient.RemoveRedirect(i.service.ServiceId)
 	}
 
 	return action

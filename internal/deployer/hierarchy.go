@@ -9,7 +9,6 @@ import (
 	"time"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/strategies"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -91,7 +90,7 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO) bool {
 		return false
 	}
 
-	t.autonomicClient.RegisterService(dto.DeploymentId, strategies.StrategyIdealLatencyId)
+	t.autonomicClient.RegisterService(dto.DeploymentId, autonomic.StrategyIdealLatencyId)
 	if dto.Parent != nil {
 		log.Debugf("will set my parent as %s", dto.Parent.Addr)
 		t.autonomicClient.SetServiceParent(dto.DeploymentId, dto.Parent.Addr)

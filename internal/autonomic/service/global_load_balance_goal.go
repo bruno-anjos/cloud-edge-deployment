@@ -1,4 +1,4 @@
-package node_goals
+package service
 /*
 import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"

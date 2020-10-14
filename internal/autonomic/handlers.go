@@ -43,7 +43,7 @@ func getAllServicesHandler(w http.ResponseWriter, _ *http.Request) {
 	resp := api.GetAllServicesResponseBody{}
 	services := autonomicSystem.getServices()
 	for serviceId, s := range services {
-		resp[serviceId] = s.toDTO()
+		resp[serviceId] = s.ToDTO()
 	}
 
 	utils.SendJSONReplyOK(w, resp)
@@ -165,5 +165,5 @@ func blacklistNodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	auxService := value.(servicesMapValue)
-	auxService.blacklistNode(nodeId)
+	auxService.BlacklistNode(nodeId)
 }

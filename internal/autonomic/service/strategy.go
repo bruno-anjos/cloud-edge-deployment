@@ -1,11 +1,10 @@
-package strategies
+package service
 
 import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/goals"
 )
 
-type Strategy interface {
+type strategy interface {
 	Optimize() actions.Action
 	GetDependencies() (metricIds []string)
 	GetId() string
@@ -13,10 +12,10 @@ type Strategy interface {
 
 type basicStrategy struct {
 	id    string
-	goals []goals.Goal
+	goals []Goal
 }
 
-func newBasicStrategy(id string, goals []goals.Goal) *basicStrategy {
+func newBasicStrategy(id string, goals []Goal) *basicStrategy {
 	return &basicStrategy{
 		id:    id,
 		goals: goals,
@@ -25,8 +24,8 @@ func newBasicStrategy(id string, goals []goals.Goal) *basicStrategy {
 
 func (b *basicStrategy) Optimize() actions.Action {
 	var (
-		nextDomain             goals.Domain
-		goalToChooseActionFrom goals.Goal
+		nextDomain             Domain
+		goalToChooseActionFrom Goal
 		goalActionArgs         []interface{}
 	)
 

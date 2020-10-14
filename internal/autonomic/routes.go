@@ -39,10 +39,12 @@ var (
 	_parentIdPathVarFormatted  = fmt.Sprintf(utils.PathVarFormat, parentIdPathVar)
 	_nodeIdPathVarFormatted    = fmt.Sprintf(utils.PathVarFormat, nodeIdPathVar)
 
-	servicesRoute             = autonomic.ServicesPath
-	serviceRoute              = fmt.Sprintf(autonomic.ServicePath, _serviceIdPathVarFormatted)
-	serviceChildRoute         = fmt.Sprintf(autonomic.ServiceChildPath, _serviceIdPathVarFormatted, _childIdPathVarFormatted)
-	serviceParentRoute        = fmt.Sprintf(autonomic.ServiceParentPath, _serviceIdPathVarFormatted, _parentIdPathVarFormatted)
+	servicesRoute     = autonomic.ServicesPath
+	serviceRoute      = fmt.Sprintf(autonomic.ServicePath, _serviceIdPathVarFormatted)
+	serviceChildRoute = fmt.Sprintf(autonomic.ServiceChildPath, _serviceIdPathVarFormatted,
+		_childIdPathVarFormatted)
+	serviceParentRoute = fmt.Sprintf(autonomic.ServiceParentPath, _serviceIdPathVarFormatted,
+		_parentIdPathVarFormatted)
 	isNodeInVicinityRoute     = fmt.Sprintf(autonomic.IsNodeInVicinityPath, _nodeIdPathVarFormatted)
 	closestNodeRoute          = autonomic.ClosestNodePath
 	getVicinityRoute          = autonomic.VicinityPath
