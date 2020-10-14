@@ -490,7 +490,15 @@ func terminalLocationHandler(_ http.ResponseWriter, r *http.Request) {
 		terminalLocations = value.(typeServicesLocationsValue)
 	}
 
+	log.Debugf("got terminal location %+v for deployment %s from %s", reqBody.Location, deploymentId, reqBody.Child)
+
 	terminalLocations.Store(reqBody.Child, reqBody.Location)
+
+	parent := hTable.getParent(deploymentId)
+	if parent != nil {
+		deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
+		deplClient.SetTerminalLocation(deploymentId, myself.Id, reqBody.Location)
+	}
 }
 
 func setExploringHandler(w http.ResponseWriter, r *http.Request) {

@@ -16,7 +16,6 @@ var (
 func init() {
 	log.SetLevel(log.DebugLevel)
 	autonomicSystem = newSystem()
-	autonomicSystem.start()
 
 	log.SetLevel(log.InfoLevel)
 }
@@ -30,10 +29,7 @@ func addServiceHandler(_ http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	err = autonomicSystem.addService(serviceId, serviceConfig.StrategyId)
-	if err != nil {
-		panic(err)
-	}
+	autonomicSystem.addService(serviceId, serviceConfig.StrategyId)
 
 	return
 }
@@ -156,4 +152,18 @@ func setExploreSuccessfullyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Debugf("explored service %s through %s successfully", serviceId, childId)
+}
+
+func blacklistNodeHandler(w http.ResponseWriter, r *http.Request) {
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	nodeId := utils.ExtractPathVar(r, nodeIdPathVar)
+
+	value, ok := autonomicSystem.services.Load(serviceId)
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	auxService := value.(servicesMapValue)
+	auxService.blacklistNode(nodeId)
 }

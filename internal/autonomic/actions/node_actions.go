@@ -33,13 +33,13 @@ func (m *RemoveServiceAction) Execute(client utils.Client) {
 
 type AddServiceAction struct {
 	*actionWithServiceTarget
-	ExploreChan chan struct{}
+	Exploring bool
 }
 
-func NewAddServiceAction(serviceId, target string, exploreChan chan struct{}) *AddServiceAction {
+func NewAddServiceAction(serviceId, target string, exploring bool) *AddServiceAction {
 	return &AddServiceAction{
 		actionWithServiceTarget: newActionWithServiceTarget(AddServiceId, serviceId, target),
-		ExploreChan:             exploreChan,
+		Exploring:               exploring,
 	}
 }
 
@@ -60,7 +60,7 @@ func (m *AddServiceAction) Execute(client utils.Client) {
 		return
 	}
 
-	if m.ExploreChan != nil {
+	if m.Exploring {
 		status = deployerClient.SetExploring(m.GetServiceId(), m.GetTarget())
 		if status != http.StatusOK {
 			log.Errorf("got status %d while setting %s as exploring deployment %s", status, m.GetTarget(),

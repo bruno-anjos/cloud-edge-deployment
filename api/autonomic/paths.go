@@ -20,6 +20,7 @@ const (
 	MyLocationPath       = "/location"
 	LoadPath             = "/load/%s"
 	ExplorePath          = "/explored/%s/%s"
+	BlacklistPath        = "/blacklist/%s/%s"
 )
 
 func GetServicesPath() string {
@@ -54,10 +55,10 @@ func GetMyLocationPath() string {
 	return PrefixPath + MyLocationPath
 }
 
-func GetGetLoadForServicePath(serviceId string) string {
-	return PrefixPath + fmt.Sprintf(LoadPath, serviceId)
-}
-
 func GetExploredPath(serviceId, childId string) string {
 	return PrefixPath + fmt.Sprintf(ExplorePath, serviceId, childId)
+}
+
+func GetBlacklistPath(serviceId, nodeId string) string {
+	return PrefixPath + fmt.Sprintf(BlacklistPath, serviceId, nodeId)
 }

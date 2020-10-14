@@ -27,7 +27,8 @@ type (
 )
 
 const (
-	defaultInterval = 30 * time.Second
+	defaultInterval   = 1 * time.Minute
+	blacklistDuration = 5 * time.Minute
 )
 
 type service struct {
@@ -37,6 +38,7 @@ type service struct {
 	ParentId    string
 	Suspected   *sync.Map
 	Environment *environment.Environment
+	Blacklist   *sync.Map
 }
 
 func newService(serviceId, strategyId string, suspected *sync.Map,
@@ -47,16 +49,17 @@ func newService(serviceId, strategyId string, suspected *sync.Map,
 		Suspected:   suspected,
 		Environment: env,
 		ServiceId:   serviceId,
+		Blacklist:   &sync.Map{},
 	}
 
 	var strategy strategies.Strategy
 	switch strategyId {
 	case strategies.StrategyLoadBalanceId:
 		strategy = strategies.NewDefaultLoadBalanceStrategy(serviceId, s.Children, s.Suspected, &(s.ParentId),
-			env)
+			env, s.Blacklist)
 	case strategies.StrategyIdealLatencyId:
 		strategy = strategies.NewDefaultIdealLatencyStrategy(serviceId, s.Children, s.Suspected, &(s.ParentId),
-			env)
+			env, s.Blacklist)
 	default:
 		return nil, errors.Errorf("invalid strategy: %s", strategyId)
 	}
@@ -128,6 +131,21 @@ func (a *service) getLoad() float64 {
 	return value.(float64)
 }
 
+func (a *service) blacklistNode(nodeId string) {
+	log.Debugf("blacklisting %s", nodeId)
+	a.Blacklist.Store(nodeId, nil)
+	go func() {
+		blacklistTimer := time.NewTimer(blacklistDuration)
+		<-blacklistTimer.C
+		log.Debugf("removing %s from blacklist", nodeId)
+		a.Blacklist.Delete(nodeId)
+	}()
+}
+
+func (a *service) removeFromBlacklist(nodeId string) {
+	a.Blacklist.Delete(nodeId)
+}
+
 type (
 	system struct {
 		services  *sync.Map
@@ -153,15 +171,20 @@ func newSystem() *system {
 	}
 }
 
-func (a *system) addService(serviceId, strategyId string) error {
+func (a *system) addService(serviceId, strategyId string) {
+	if _, ok := a.services.Load(serviceId); ok {
+		return
+	}
+
 	s, err := newService(serviceId, strategyId, a.suspected, a.env)
 	if err != nil {
 		panic(err)
 	}
 
 	a.services.Store(serviceId, s)
+	go a.handleService(s)
 
-	return nil
+	return
 }
 
 func (a *system) removeService(serviceId string) {
@@ -311,31 +334,21 @@ func (a *system) getMyLocation() *utils.Location {
 	return &location
 }
 
-func (a *system) start() {
-	go func() {
-		timer := time.NewTimer(defaultInterval)
+func (a *system) handleService(service *service) {
+	timer := time.NewTimer(defaultInterval)
 
-		for {
-			<-timer.C
-			a.services.Range(func(key, value interface{}) bool {
+	for {
+		<-timer.C
 
-				serviceId := key.(string)
-				s := value.(servicesMapValue)
+		log.Debugf("evaluating service %s", service.ServiceId)
 
-				log.Debugf("evaluating service %s", serviceId)
-
-				action := s.generateAction()
-				if action == nil {
-					return true
-				}
-
-				log.Debugf("generated action of type %s for service %s", action.GetActionId(), serviceId)
-				a.performAction(action)
-				return true
-			})
-			timer.Reset(defaultInterval)
+		action := service.generateAction()
+		if action != nil {
+			log.Debugf("generated action of type %s for service %s", action.GetActionId(), service.ServiceId)
+			a.performAction(action)
 		}
-	}()
+		timer.Reset(defaultInterval)
+	}
 }
 
 func (a *system) performAction(action actions.Action) {
@@ -343,9 +356,11 @@ func (a *system) performAction(action actions.Action) {
 	case *actions.RedirectAction:
 		assertedAction.Execute(a.archimedesClient)
 	case *actions.AddServiceAction:
-		if assertedAction.ExploreChan != nil {
+		if assertedAction.Exploring {
 			id := assertedAction.GetServiceId() + "_" + assertedAction.GetTarget()
-			a.exploring.Store(id, assertedAction.ExploreChan)
+			exploreChan := make(chan interface{})
+			a.exploring.Store(id, exploreChan)
+			go a.waitToBlacklist(assertedAction.GetServiceId(), assertedAction.GetTarget(), exploreChan)
 		}
 		assertedAction.Execute(a.deployerClient)
 	case *actions.MigrateAction:
@@ -377,4 +392,24 @@ func (a *system) setExploreSuccess(deploymentId, childId string) bool {
 	close(exploreChan)
 
 	return true
+}
+
+func (a *system) waitToBlacklist(serviceId, childId string, exploredChan <-chan interface{}) {
+	value, ok := a.services.Load(serviceId)
+	if !ok {
+		return
+	}
+
+	auxService := value.(servicesMapValue)
+
+	interval := (4 * 30) * time.Second
+
+	timer := time.NewTimer(interval)
+	select {
+	case <-exploredChan:
+		log.Debugf("exploring %s through %s was a success", serviceId, childId)
+		return
+	case <-timer.C:
+		auxService.blacklistNode(childId)
+	}
 }

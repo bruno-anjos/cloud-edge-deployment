@@ -167,3 +167,12 @@ func (c *Client) SetExploredSuccessfully(serviceId, childId string) (status int)
 
 	return
 }
+
+func (c *Client) BlacklistNode(serviceId, nodeId string) (status int) {
+	path := api.GetBlacklistPath(serviceId, nodeId)
+
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}

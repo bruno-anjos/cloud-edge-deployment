@@ -31,7 +31,7 @@ def rsync_folder_from_server(target, origin):
     try:
         subprocess.run(["rsync", "-av", target, origin, "--delete"], check=True)
     except subprocess.CalledProcessError as eAux:
-        print(f"rsync returned {eAux['returncode']}")
+        print("rsync error")
         return False
     return True
 

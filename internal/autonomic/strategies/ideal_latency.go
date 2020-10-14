@@ -31,11 +31,11 @@ type idealLatencyStrategy struct {
 }
 
 func NewDefaultIdealLatencyStrategy(serviceId string, serviceChildren, suspected *sync.Map, parentId *string,
-	env *environment.Environment) *idealLatencyStrategy {
+	env *environment.Environment, blacklist *sync.Map) *idealLatencyStrategy {
 	lbGoal := service_goals.NewLoadBalance(serviceId, serviceChildren, suspected, parentId, env)
 
 	defaultGoals := []goals.Goal{
-		service_goals.NewIdealLatency(serviceId, serviceChildren, suspected, parentId, env),
+		service_goals.NewIdealLatency(serviceId, serviceChildren, suspected, parentId, env, blacklist),
 		lbGoal,
 	}
 

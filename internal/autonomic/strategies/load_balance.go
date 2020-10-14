@@ -17,10 +17,10 @@ type loadBalanceStrategy struct {
 }
 
 func NewDefaultLoadBalanceStrategy(serviceId string, serviceChildren, suspected *sync.Map, parentId *string,
-	env *environment.Environment) *loadBalanceStrategy {
+	env *environment.Environment, blacklist *sync.Map) *loadBalanceStrategy {
 	defaultGoals := []goals.Goal{
 		service_goals.NewLoadBalance(serviceId, serviceChildren, suspected, parentId, env),
-		service_goals.NewIdealLatency(serviceId, serviceChildren, suspected, parentId, env),
+		service_goals.NewIdealLatency(serviceId, serviceChildren, suspected, parentId, env, blacklist),
 	}
 	return &loadBalanceStrategy{
 		basicStrategy: newBasicStrategy(StrategyLoadBalanceId, defaultGoals),

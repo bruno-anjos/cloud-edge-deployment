@@ -22,6 +22,7 @@ const (
 	getMyLocationName        = "GET_MY_LOCATION"
 	getLoadName              = "GET_LOAD"
 	exploredSuccessfullyName = "EXPLORED_SUCCESSFULLY"
+	blacklistName            = "BLACKLIST"
 )
 
 // Path variables
@@ -48,9 +49,17 @@ var (
 	getMyLocationRoute        = autonomic.MyLocationPath
 	getLoadRoute              = fmt.Sprintf(autonomic.LoadPath, _serviceIdPathVarFormatted)
 	exploredSuccessfullyRoute = fmt.Sprintf(autonomic.ExplorePath, _serviceIdPathVarFormatted, _childIdPathVarFormatted)
+	blacklistRoute            = fmt.Sprintf(autonomic.BlacklistPath, _serviceIdPathVarFormatted, _nodeIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        blacklistName,
+		Method:      http.MethodPost,
+		Pattern:     blacklistRoute,
+		HandlerFunc: blacklistNodeHandler,
+	},
+
 	{
 		Name:        exploredSuccessfullyName,
 		Method:      http.MethodPost,
