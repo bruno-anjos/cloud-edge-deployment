@@ -24,7 +24,9 @@ type (
 )
 
 const (
-	defaultInterval = 1 * time.Minute
+	defaultInterval     = 30 * time.Second
+	initialServiceDelay = 30 * time.Second
+	blacklistInterval   = (4 * 30) * time.Second
 )
 
 type (
@@ -216,6 +218,8 @@ func (a *system) getMyLocation() *utils.Location {
 }
 
 func (a *system) handleService(service *service.Service) {
+	time.Sleep(initialServiceDelay)
+
 	timer := time.NewTimer(defaultInterval)
 
 	for {
@@ -240,6 +244,7 @@ func (a *system) performAction(action actions.Action) {
 		if assertedAction.Exploring {
 			id := assertedAction.GetServiceId() + "_" + assertedAction.GetTarget()
 			exploreChan := make(chan interface{})
+			log.Debugf("exploring child %s", id)
 			a.exploring.Store(id, exploreChan)
 			go a.waitToBlacklist(assertedAction.GetServiceId(), assertedAction.GetTarget(), exploreChan)
 		}
@@ -264,6 +269,7 @@ func (a *system) setExploreSuccess(deploymentId, childId string) bool {
 	id := deploymentId + "_" + childId
 	value, ok := a.exploring.Load(id)
 	if !ok {
+		log.Debugf("missing %s", id)
 		return false
 	}
 
@@ -283,13 +289,10 @@ func (a *system) waitToBlacklist(serviceId, childId string, exploredChan <-chan 
 
 	auxService := value.(servicesMapValue)
 
-	interval := (4 * 30) * time.Second
-
-	timer := time.NewTimer(interval)
+	timer := time.NewTimer(blacklistInterval)
 	select {
 	case <-exploredChan:
 		log.Debugf("exploring %s through %s was a success", serviceId, childId)
-		return
 	case <-timer.C:
 		auxService.BlacklistNode(childId)
 	}

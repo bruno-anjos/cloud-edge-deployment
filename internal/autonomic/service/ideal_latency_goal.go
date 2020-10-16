@@ -15,11 +15,12 @@ import (
 const (
 	processingThreshold = 0.8
 
-	maximumDistancePercentage = 1.2
-	satisfiedDistance         = 200.
-	maxDistance               = 5000.
-	maxChildren               = 4.
-	branchingCutoff           = 1
+	maximumDistancePercentage  = 1.2
+	satisfiedDistance          = 200.
+	maxDistance                = 5000.
+	maximumDistanceFromClients = 2000
+	maxChildren                = 3.
+	branchingCutoff            = 1
 
 	ilArgsNum = 3
 
@@ -116,7 +117,8 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 		return
 	}
 
-	isAlreadyMax = !i.checkShouldBranch(&avgClientLocation)
+	bestNodePer := sortingCriteria[optRange[0]].(*nodeWithDistance).DistancePercentage
+	isAlreadyMax = !i.checkShouldBranch(bestNodePer, &avgClientLocation)
 
 	if !isAlreadyMax {
 		optRange, isAlreadyMax = i.filterBlacklisted(optRange)
@@ -360,7 +362,7 @@ func (i *idealLatency) checkProcessingTime() bool {
 	return false
 }
 
-func (i *idealLatency) checkShouldBranch(avgClientLocation *utils.Location) bool {
+func (i *idealLatency) checkShouldBranch(bestNodeDistPer float64, avgClientLocation *utils.Location) bool {
 	numChildren := 0
 	i.service.Children.Range(func(key, value interface{}) bool {
 		numChildren++
@@ -384,7 +386,7 @@ func (i *idealLatency) checkShouldBranch(avgClientLocation *utils.Location) bool
 	}
 
 	// TODO this has to be tuned for real distances
-	distanceFactor := maxDistance / (currDistance - satisfiedDistance)
+	distanceFactor := maxDistance / (maxDistance - (currDistance - satisfiedDistance))
 	childrenFactor := (((maxChildren + 1.) / (float64(numChildren) + 1.)) - 1.) / maxChildren
 	branchingFactor := childrenFactor * distanceFactor
 	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)

@@ -69,34 +69,39 @@ func (l *loadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, optRang
 	filtered := l.Filter(candidateIds, optDomain)
 	log.Debugf("%s filtered result %+v", loadBalanceGoalId, filtered)
 
-	overloaded := false
-	for childId, value := range sortingCriteria {
-		load := value.(float64)
-		if load > maximumLoad {
-			log.Debugf("%s is overloaded (%f)", childId, load)
-			overloaded = true
-			break
-		}
-	}
-
-	if overloaded {
-		actionArgs, optRange = l.handleOverload(filtered)
-		isAlreadyMax = !(len(optRange) > 0)
-	}
-
 	ordered := l.Order(filtered, sortingCriteria)
 	log.Debugf("%s ordered result %+v", loadBalanceGoalId, ordered)
 
 	optRange, isAlreadyMax = l.Cutoff(ordered, sortingCriteria)
 	log.Debugf("%s cutoff result (%t)%+v", loadBalanceGoalId, isAlreadyMax, optRange)
 
-	if !isAlreadyMax {
+	overloaded := false
+	hasAlternative := false
+	for childId, value := range sortingCriteria {
+		load := value.(float64)
+		if load > maximumLoad {
+			log.Debugf("%s is overloaded (%f)", childId, load)
+			overloaded = true
+		} else {
+			log.Debugf("%s is OK (%f)", childId, load)
+			hasAlternative = true
+		}
+	}
+
+	log.Debugf("overloaded: %t, alternative: %t", overloaded, hasAlternative)
+
+	if overloaded && !hasAlternative {
+		actionArgs, optRange = l.handleOverload(optRange)
+		isAlreadyMax = !(len(optRange) > 0)
+	} else if !isAlreadyMax {
 		l.staleCycles = 0
 		actionArgs = make([]interface{}, lbNumArgs)
 		actionArgs[lbActionTypeArgIndex] = actions.RedirectClientsId
 		origin := ordered[len(ordered)-1]
 		actionArgs[lbFromIndex] = origin
 		actionArgs[lbAmountIndex] = int(sortingCriteria[origin].(float64) / 4)
+		log.Debugf("will try to achieve load equilibrium redirecting %d clients from %s to %s",
+			actionArgs[lbAmountIndex], origin, optRange[0])
 	}
 	// else {
 	// 	remove := l.checkIfShouldBeRemoved()
@@ -297,8 +302,10 @@ func (l *loadBalanceGoal) getAlternativeForHighLoad(highLoads map[string]float64
 	return
 }
 
-func (l *loadBalanceGoal) handleOverload(candidates Range) (actionArgs []interface{}, newOptRange Range) {
+func (l *loadBalanceGoal) handleOverload(candidates Range) (
+	actionArgs []interface{}, newOptRange Range) {
 	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
+
 	actionArgs[lbActionTypeArgIndex] = actions.AddServiceId
 	deplClient := deployer.NewDeployerClient("")
 	for _, candidate := range candidates {

@@ -36,6 +36,8 @@ type (
 
 	typeTerminalLocationKey   = string
 	typeTerminalLocationValue = []*publicUtils.Location
+
+	typeExploringValue = *sync.Once
 )
 
 // Timeouts
@@ -432,21 +434,24 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 		log.Debugf("will redirect client at %f to %s", clientLocation, bestNode)
 
 		id := deploymentId + "_" + bestNode
-		_, ok = exploring.Load(id)
+		value, ok = exploring.Load(id)
 		if ok {
-			childAutoClient := autonomic.NewAutonomicClient(bestNode + ":" + strconv.Itoa(autonomic.Port))
-			status = childAutoClient.SetExploredSuccessfully(deploymentId, bestNode)
-			if status != http.StatusOK {
-				log.Errorf("got status %d when setting %s exploration as success", status, bestNode)
-			}
 			exploring.Delete(id)
+			once := value.(typeExploringValue)
+			once.Do(func() {
+				childAutoClient := autonomic.NewAutonomicClient(myself.Id + ":" + strconv.Itoa(autonomic.Port))
+				status = childAutoClient.SetExploredSuccessfully(deploymentId, bestNode)
+				if status != http.StatusOK {
+					log.Errorf("got status %d when setting %s exploration as success", status, bestNode)
+				}
+			})
 		}
 
 		var respBody api.RedirectClientDownTheTreeResponseBody
 		respBody = bestNode
 		utils.SendJSONReplyOK(w, respBody)
 	} else {
-		log.Debugf("client is already connect to closest node")
+		log.Debugf("client is already connected to closest node")
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -475,8 +480,11 @@ func terminalLocationHandler(_ http.ResponseWriter, r *http.Request) {
 	}
 
 	setTerminalLocsForChild(deploymentId, reqBody.Child, reqBody.Locations...)
-	log.Debugf("got terminal locations %+v for deployment %s from %s", reqBody.Locations, deploymentId,
+	log.Debugf("got terminal locations for deployment %s from %s:", deploymentId,
 		reqBody.Child)
+	for _, loc := range reqBody.Locations {
+		log.Debugf("X: %f, Y: %f", loc.X, loc.Y)
+	}
 
 	locations := getDeploymentTerminalLocations(deploymentId)
 
@@ -498,7 +506,7 @@ func setExploringHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := deploymentId + "_" + childId
-	exploring.Store(id, nil)
+	exploring.Store(id, &sync.Once{})
 }
 
 // TODO function simulating lower API

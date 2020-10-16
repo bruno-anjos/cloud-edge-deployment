@@ -145,6 +145,8 @@ func setExploreSuccessfullyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Debugf("setting explore success %s %s", serviceId, childId)
+
 	ok = autonomicSystem.setExploreSuccess(serviceId, childId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)

@@ -549,7 +549,7 @@ func attemptToExtend(deploymentId, target string, targetLocation *publicUtils.Lo
 		}
 
 		if tries == 5 {
-			log.Errorf("failed to extend deployment %s", deploymentId)
+			log.Debugf("failed to extend deployment %s", deploymentId)
 			newChildAddr = myself.Id
 			extendDeployment(deploymentId, newChildAddr, grandchild)
 			return
