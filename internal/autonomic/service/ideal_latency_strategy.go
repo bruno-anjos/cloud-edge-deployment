@@ -26,7 +26,7 @@ func newDefaultIdealLatencyStrategy(service *Service) *idealLatencyStrategy {
 	lbGoal := newLoadBalanceGoal(service)
 
 	defaultGoals := []Goal{
-		NewIdealLatencyGoal(service),
+		newIdealLatencyGoal(service),
 		lbGoal,
 	}
 

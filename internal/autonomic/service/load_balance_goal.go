@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	maximumLoad        = 0.7
-	equivalentLoadDiff = 0.20
+	maximumLoad            = 0.7
+	equivalentLoadDiff     = 0.20
+	staleCyclesNumToRemove = 5
 
 	lbNumArgs = 3
 
@@ -38,6 +39,7 @@ var (
 type loadBalanceGoal struct {
 	service      *Service
 	dependencies []string
+	staleCycles  int
 }
 
 func newLoadBalanceGoal(service *Service) *loadBalanceGoal {
@@ -89,11 +91,20 @@ func (l *loadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, optRang
 	log.Debugf("%s cutoff result (%t)%+v", loadBalanceGoalId, isAlreadyMax, optRange)
 
 	if !isAlreadyMax {
+		l.staleCycles = 0
 		actionArgs = make([]interface{}, lbNumArgs)
 		actionArgs[lbActionTypeArgIndex] = actions.RedirectClientsId
 		origin := ordered[len(ordered)-1]
 		actionArgs[lbFromIndex] = origin
 		actionArgs[lbAmountIndex] = int(sortingCriteria[origin].(float64) / 4)
+	} else {
+		remove := l.checkIfShouldBeRemoved()
+		if remove {
+			actionArgs = make([]interface{}, lbNumArgs)
+			actionArgs[lbActionTypeArgIndex] = actions.RemoveServiceId
+			actionArgs[lbFromIndex] = "localhost"
+			actionArgs[lbAmountIndex]
+		}
 	}
 
 	return
@@ -307,4 +318,31 @@ func (l *loadBalanceGoal) handleOverload(candidates Range) (actionArgs []interfa
 	log.Debugf("%s new opt range %+v", loadBalanceGoalId, newOptRange)
 
 	return
+}
+
+func (l *loadBalanceGoal) checkIfShouldBeRemoved() bool {
+	hasChildren := false
+	l.service.Children.Range(func(key, value interface{}) bool {
+		hasChildren = true
+		return false
+	})
+
+	if hasChildren {
+		return false
+	}
+
+	archClient := archimedes.NewArchimedesClient("localhost:" + strconv.Itoa(archimedes.Port))
+	load, status := archClient.GetLoad(l.service.ServiceId)
+	if status != http.StatusOK {
+		log.Errorf("got status %d when asking for load for service %s", status, l.service.ServiceId)
+		return false
+	}
+
+	if load > 0 {
+		return false
+	}
+
+	l.staleCycles++
+
+	return l.staleCycles == staleCyclesNumToRemove
 }

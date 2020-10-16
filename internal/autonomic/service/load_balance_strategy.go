@@ -11,7 +11,7 @@ type loadBalanceStrategy struct {
 func newDefaultLoadBalanceStrategy(service *Service) *loadBalanceStrategy {
 	defaultGoals := []Goal{
 		newLoadBalanceGoal(service),
-		NewIdealLatencyGoal(service),
+		newIdealLatencyGoal(service),
 	}
 	return &loadBalanceStrategy{
 		basicStrategy: newBasicStrategy(public.StrategyLoadBalanceId, defaultGoals),

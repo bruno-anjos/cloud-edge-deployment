@@ -15,12 +15,11 @@ import (
 const (
 	processingThreshold = 0.8
 
-	maximumDistanceFromClients = 1000
-	maximumDistancePercentage  = 1.2
-	satisfiedDistance          = 200.
-	maxDistance                = 5000
-	maxChildren                = 4
-	branchingCutoff            = 1. / 3
+	maximumDistancePercentage = 1.2
+	satisfiedDistance         = 200.
+	maxDistance               = 5000.
+	maxChildren               = 4.
+	branchingCutoff           = 1
 
 	ilArgsNum = 3
 
@@ -50,7 +49,7 @@ type idealLatency struct {
 	dependencies []string
 }
 
-func NewIdealLatencyGoal(service *Service) *idealLatency {
+func newIdealLatencyGoal(service *Service) *idealLatency {
 
 	dependencies := []string{
 		metrics.GetProcessingTimePerServiceMetricId(service.ServiceId),
@@ -117,10 +116,10 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 		return
 	}
 
-	isAlreadyMax = !i.checkShouldBranch(optRange, sortingCriteria, &avgClientLocation)
+	isAlreadyMax = !i.checkShouldBranch(&avgClientLocation)
 
 	if !isAlreadyMax {
-		optRange = i.filterBlacklisted(optRange)
+		optRange, isAlreadyMax = i.filterBlacklisted(optRange)
 
 		actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
 		actionArgs[ilExploreIndex] = sortingCriteria[optRange[0]].(*nodeWithDistance).DistancePercentage > 1.
@@ -361,8 +360,7 @@ func (i *idealLatency) checkProcessingTime() bool {
 	return false
 }
 
-func (i *idealLatency) checkShouldBranch(candidates Range, sortingCriteria map[string]interface{},
-	avgClientLocation *utils.Location) bool {
+func (i *idealLatency) checkShouldBranch(avgClientLocation *utils.Location) bool {
 	numChildren := 0
 	i.service.Children.Range(func(key, value interface{}) bool {
 		numChildren++
@@ -381,52 +379,31 @@ func (i *idealLatency) checkShouldBranch(candidates Range, sortingCriteria map[s
 	}
 
 	currDistance := location.CalcDist(avgClientLocation)
-
-	// TODO this has to be tuned for real distances
-	branchingFactor := (currDistance - satisfiedDistance) / maxDistance
-	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
-
-	childrenFactor := branchingFactor * maxChildren
-	log.Debugf("children factor %f", childrenFactor)
-
-	inBoundsExplore := true
-	candidateCriteria := sortingCriteria[candidates[0]].(*nodeWithDistance)
-	exploring := candidateCriteria.DistancePercentage > 1.
-	if exploring {
-		value, ok = i.service.Environment.GetMetric(metrics.MetricLocation)
-		if !ok {
-			log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
-		}
-
-		var myLocation utils.Location
-		err = mapstructure.Decode(value, &myLocation)
-		if err != nil {
-			panic(err)
-		}
-
-		myDist := avgClientLocation.CalcDist(&myLocation)
-		candidateDist := myDist * candidateCriteria.DistancePercentage
-		inBoundsExplore = candidateDist < maximumDistanceFromClients
+	if currDistance <= satisfiedDistance {
+		return false
 	}
 
-	validBranch := branchingFactor > branchingCutoff && inBoundsExplore
+	// TODO this has to be tuned for real distances
+	distanceFactor := maxDistance / (currDistance - satisfiedDistance)
+	childrenFactor := (((maxChildren + 1.) / (float64(numChildren) + 1.)) - 1.) / maxChildren
+	branchingFactor := childrenFactor * distanceFactor
+	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
+
+	validBranch := branchingFactor > branchingCutoff
 	log.Debugf("should branch: %t", validBranch)
 
-	validChildren := int(childrenFactor) < maxChildren
-	log.Debugf("new children allowed: %t", validChildren)
-
-	return validBranch && validChildren
+	return validBranch
 }
 
-func (i *idealLatency) filterBlacklisted(o Range) Range {
+func (i *idealLatency) filterBlacklisted(o Range) (Range, bool) {
 	var newRange []string
 	for _, node := range o {
-		if _, ok := i.service.Blacklist.Load(node); ok {
+		if _, ok := i.service.Blacklist.Load(node); !ok {
 			newRange = append(newRange, node)
 		}
 	}
 
 	log.Debugf("after filtering blacklisted: %+v", newRange)
 
-	return newRange
+	return newRange, len(newRange) == 0
 }
