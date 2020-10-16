@@ -97,15 +97,14 @@ func (l *loadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, optRang
 		origin := ordered[len(ordered)-1]
 		actionArgs[lbFromIndex] = origin
 		actionArgs[lbAmountIndex] = int(sortingCriteria[origin].(float64) / 4)
-	} else {
-		remove := l.checkIfShouldBeRemoved()
-		if remove {
-			actionArgs = make([]interface{}, lbNumArgs)
-			actionArgs[lbActionTypeArgIndex] = actions.RemoveServiceId
-			actionArgs[lbFromIndex] = "localhost"
-			actionArgs[lbAmountIndex]
-		}
 	}
+	// else {
+	// 	remove := l.checkIfShouldBeRemoved()
+	// 	if remove {
+	// 		actionArgs = make([]interface{}, lbNumArgs)
+	// 		actionArgs[lbActionTypeArgIndex] = actions.RemoveServiceId
+	// 	}
+	// }
 
 	return
 }

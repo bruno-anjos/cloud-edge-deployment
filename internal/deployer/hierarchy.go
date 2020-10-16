@@ -26,7 +26,6 @@ type (
 		Static              bool
 		IsOrphan            bool
 		NewParentChan       chan<- string
-		LinkOnly            bool
 	}
 )
 
@@ -82,7 +81,6 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO) bool {
 		Static:              dto.Static,
 		IsOrphan:            false,
 		NewParentChan:       nil,
-		LinkOnly:            true,
 	}
 
 	_, loaded := t.hierarchyEntries.LoadOrStore(dto.DeploymentId, entry)
@@ -105,15 +103,8 @@ func (t *hierarchyTable) removeDeployment(deploymentId string) {
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	if entry.NumChildren > 0 {
-		log.Debugf("setting deployment %s as linkonly", deploymentId)
-		entry.LinkOnly = true
-		deploymentChildren := entry.getChildren()
-		for childId := range deploymentChildren {
-			log.Debugf("redirecting %s linkonly to %s", deploymentId, childId)
-			archimedesClient.Redirect(deploymentId, childId, -1)
-			break
-		}
+	if entry.NumChildren == 0 {
+		log.Errorf("removing deployment that is still someones father")
 	} else {
 		archimedesClient.DeleteService(deploymentId)
 		t.hierarchyEntries.Delete(deploymentId)
@@ -202,8 +193,10 @@ func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node) {
 			return
 		}
 
+		setTerminalLocsForChild(deploymentId, child.Id, nodeLoc)
 		deplClient := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
-		status = deplClient.SetTerminalLocation(deploymentId, myself.Id, nodeLoc)
+		status = deplClient.SetTerminalLocations(deploymentId, myself.Id,
+			getDeploymentTerminalLocations(deploymentId)...)
 		if status != http.StatusOK {
 			log.Errorf("got status %d setting terminal location in %s", status, parent.Id)
 			return
@@ -222,12 +215,11 @@ func (t *hierarchyTable) removeChild(deploymentId, childId string) {
 	entry := value.(typeHierarchyEntriesMapValue)
 	entry.Children.Delete(childId)
 	t.autonomicClient.RemoveServiceChild(deploymentId, childId)
+	removeTerminalLocsForChild(deploymentId, childId)
 
 	isZero := atomic.CompareAndSwapInt32(&entry.NumChildren, 1, 0)
 	if isZero {
-		if entry.LinkOnly {
-			t.removeDeployment(deploymentId)
-		}
+		t.removeDeployment(deploymentId)
 	} else {
 		atomic.AddInt32(&entry.NumChildren, -1)
 	}
@@ -350,31 +342,6 @@ func (t *hierarchyTable) getDeploymentsWithParent(parentId string) (deploymentId
 		return true
 	})
 
-	return
-}
-
-func (t *hierarchyTable) setLinkOnly(deploymentId string, linkOnly bool) {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
-	if !ok {
-		return
-	}
-
-	entry := value.(typeHierarchyEntriesMapValue)
-	entry.LinkOnly = linkOnly
-}
-
-func (t *hierarchyTable) isLinkOnly(deploymentId string) (linkOnly bool) {
-	linkOnly = false
-
-	value, ok := t.hierarchyEntries.Load(deploymentId)
-	if !ok {
-		return
-	}
-
-	ok = true
-
-	entry := value.(typeHierarchyEntriesMapValue)
-	linkOnly = entry.LinkOnly
 	return
 }
 

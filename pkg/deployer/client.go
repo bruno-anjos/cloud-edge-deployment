@@ -370,10 +370,10 @@ func (c *Client) HasService(serviceId string) (has bool, status int) {
 	return
 }
 
-func (c *Client) SetTerminalLocation(deploymentId, origin string, location *publicUtils.Location) (status int) {
+func (c *Client) SetTerminalLocations(deploymentId, origin string, locations ...*publicUtils.Location) (status int) {
 	reqBody := api.TerminalLocationRequestBody{
-		Child:    origin,
-		Location: location,
+		Child:     origin,
+		Locations: locations,
 	}
 
 	path := api.GetTerminalLocationPath(deploymentId)

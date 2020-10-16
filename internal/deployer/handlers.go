@@ -11,14 +11,13 @@ import (
 	"time"
 
 	archimedesApi "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
-
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/go-connections/nat"
 	log "github.com/sirupsen/logrus"
 
@@ -36,7 +35,7 @@ type (
 	terminalServiceLocations = *sync.Map
 
 	typeTerminalLocationKey   = string
-	typeTerminalLocationValue = *publicUtils.Location
+	typeTerminalLocationValue = []*publicUtils.Location
 )
 
 // Timeouts
@@ -210,7 +209,7 @@ func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := deployer.NewDeployerClient(targetId)
+	client := deployer.NewDeployerClient(targetId + ":" + strconv.Itoa(deployer.Port))
 	client.DeleteService(deploymentId)
 }
 
@@ -416,12 +415,13 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 		terminalLocations := value.(terminalServiceLocations)
 		terminalLocations.Range(func(key, value interface{}) bool {
 			nodeId := key.(typeTerminalLocationKey)
-			nodeLoc := value.(typeTerminalLocationValue)
-
-			diff := nodeLoc.CalcDist(clientLocation)
-			if diff < bestDiff {
-				bestNode = nodeId
-				bestDiff = diff
+			nodeLocs := value.(typeTerminalLocationValue)
+			for _, nodeLoc := range nodeLocs {
+				diff := nodeLoc.CalcDist(clientLocation)
+				if diff < bestDiff {
+					bestNode = nodeId
+					bestDiff = diff
+				}
 			}
 
 			return true
@@ -474,30 +474,16 @@ func terminalLocationHandler(_ http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	var terminalLocations terminalServiceLocations
-	value, ok := serviceLocations.Load(deploymentId)
-	if !ok {
-		addServiceLocationLock.Lock()
-		_, ok = serviceLocations.Load(deploymentId)
-		if !ok {
-			terminalLocations = &sync.Map{}
-			serviceLocations.Store(deploymentId, terminalLocations)
-		} else {
-			terminalLocations = value.(typeServicesLocationsValue)
-		}
-		addServiceLocationLock.Unlock()
-	} else {
-		terminalLocations = value.(typeServicesLocationsValue)
-	}
+	setTerminalLocsForChild(deploymentId, reqBody.Child, reqBody.Locations...)
+	log.Debugf("got terminal locations %+v for deployment %s from %s", reqBody.Locations, deploymentId,
+		reqBody.Child)
 
-	log.Debugf("got terminal location %+v for deployment %s from %s", reqBody.Location, deploymentId, reqBody.Child)
-
-	terminalLocations.Store(reqBody.Child, reqBody.Location)
+	locations := getDeploymentTerminalLocations(deploymentId)
 
 	parent := hTable.getParent(deploymentId)
 	if parent != nil {
 		deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
-		deplClient.SetTerminalLocation(deploymentId, myself.Id, reqBody.Location)
+		deplClient.SetTerminalLocations(deploymentId, myself.Id, locations...)
 	}
 }
 
@@ -547,8 +533,6 @@ func addDeploymentAsync(deployment *Deployment, deploymentId string) {
 			return
 		}
 	}
-
-	hTable.setLinkOnly(deploymentId, false)
 }
 
 func deleteDeploymentAsync(deploymentId string) {
@@ -691,4 +675,53 @@ func getParentAlternatives(parentId string) (alternatives map[string]*utils.Node
 	}
 
 	return
+}
+
+func setTerminalLocsForChild(deploymentId, childId string, childLocations ...*publicUtils.Location) {
+	var deploymentChildrenLocations terminalServiceLocations
+
+	value, ok := serviceLocations.Load(deploymentId)
+	if !ok {
+		addServiceLocationLock.Lock()
+		_, ok = serviceLocations.Load(deploymentId)
+		if !ok {
+			deploymentChildrenLocations = &sync.Map{}
+			serviceLocations.Store(deploymentId, deploymentChildrenLocations)
+		} else {
+			deploymentChildrenLocations = value.(typeServicesLocationsValue)
+		}
+		addServiceLocationLock.Unlock()
+	} else {
+		deploymentChildrenLocations = value.(typeServicesLocationsValue)
+	}
+
+	deploymentChildrenLocations.Store(childId, childLocations)
+}
+
+func getDeploymentTerminalLocations(deploymentId string) []*publicUtils.Location {
+	value, ok := serviceLocations.Load(deploymentId)
+	if !ok {
+		log.Debugf("no terminal locations for deployment %s", deploymentId)
+		return nil
+	}
+
+	deploymentLocations := value.(typeServicesLocationsValue)
+	var locations []*publicUtils.Location
+	deploymentLocations.Range(func(key, value interface{}) bool {
+		childLocations := value.(typeTerminalLocationValue)
+		locations = append(locations, childLocations...)
+		return true
+	})
+
+	return locations
+}
+
+func removeTerminalLocsForChild(deploymentId, childId string) {
+	value, ok := serviceLocations.Load(deploymentId)
+	if !ok {
+		return
+	}
+
+	deploymentLocs := value.(typeServicesLocationsValue)
+	deploymentLocs.Delete(childId)
 }

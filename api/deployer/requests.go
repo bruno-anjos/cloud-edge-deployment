@@ -37,6 +37,6 @@ type (
 	RedirectClientDownTheTreeRequestBody = *publicUtils.Location
 	TerminalLocationRequestBody          = struct {
 		Child    string
-		Location *publicUtils.Location
+		Locations []*publicUtils.Location
 	}
 )
