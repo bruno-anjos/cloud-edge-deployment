@@ -189,7 +189,7 @@ func (c *Client) SetResolvingAnswer(id string, resolved *api.ResolvedDTO) (statu
 	return
 }
 
-func (c *Client) GetLoad(serviceId string) (load float64, status int) {
+func (c *Client) GetLoad(serviceId string) (load int, status int) {
 	path := api.GetLoadPath(serviceId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 

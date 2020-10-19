@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	public "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	log "github.com/sirupsen/logrus"
@@ -16,8 +15,8 @@ type idealLatencyStrategy struct {
 	redirected          int
 	redirecting         bool
 	redirectingTo       string
-	redirectInitialLoad float64
-	lbGoal              *loadBalanceGoal
+	redirectInitialLoad int
+	lbGoal              *serviceLoadBalanceGoal
 	archClient          *archimedes.Client
 	service             *Service
 }
@@ -79,10 +78,14 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 			}
 			i.redirected = int(redirected)
 
-			loadPerServiceChild := metrics.GetLoadPerServiceInChildMetricId(i.service.ServiceId, i.redirectingTo)
-			value, _ := i.service.Environment.GetMetric(loadPerServiceChild)
-			currLoad := value.(float64)
-			loadDiff := currLoad - i.redirectInitialLoad
+			targetArchClient := archimedes.NewArchimedesClient(i.redirectingTo + ":" + strconv.Itoa(archimedes.Port))
+			currLoad, status := targetArchClient.GetLoad(i.service.ServiceId)
+			if status != http.StatusOK {
+				log.Errorf("got status %d while getting %s load for service %s", status, i.redirectingTo,
+					i.service.ServiceId)
+			}
+
+			loadDiff := (1 - (float64(currLoad))) / float64(i.redirectInitialLoad)
 
 			// TODO this is not that smart
 			if loadDiff > 0.75 {

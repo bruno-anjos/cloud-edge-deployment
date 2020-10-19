@@ -15,11 +15,9 @@ import (
 )
 
 const (
-	maximumLoad            = 0.7
-	equivalentLoadDiff     = 0.20
+	maximumLoad            = 300
+	equivalentLoadDiff     = 2.0
 	staleCyclesNumToRemove = 5
-
-	lbNumArgs = 3
 
 	defaultGroupSize = 0.10
 
@@ -30,31 +28,36 @@ const (
 	lbActionTypeArgIndex = iota
 	lbFromIndex
 	lbAmountIndex
+	lbNumArgs
 )
 
 var (
 	migrationGroupSize = defaultGroupSize
 )
 
-type loadBalanceGoal struct {
+type (
+	loadType = int
+)
+
+type serviceLoadBalanceGoal struct {
 	service      *Service
 	dependencies []string
 	staleCycles  int
 }
 
-func newLoadBalanceGoal(service *Service) *loadBalanceGoal {
+func newLoadBalanceGoal(service *Service) *serviceLoadBalanceGoal {
 	dependencies := []string{
 		metrics.GetAggLoadPerServiceInChildrenMetricId(service.ServiceId),
 		metrics.GetLoadPerServiceInChildrenMetricId(service.ServiceId),
 	}
 
-	return &loadBalanceGoal{
+	return &serviceLoadBalanceGoal{
 		service:      service,
 		dependencies: dependencies,
 	}
 }
 
-func (l *loadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range,
+func (l *serviceLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range,
 	actionArgs []interface{}) {
 	isAlreadyMax = true
 	optRange = optDomain
@@ -78,12 +81,12 @@ func (l *loadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, optRang
 	overloaded := false
 	hasAlternative := false
 	for childId, value := range sortingCriteria {
-		load := value.(float64)
+		load := value.(loadType)
 		if load > maximumLoad {
 			log.Debugf("%s is overloaded (%f)", childId, load)
 			overloaded = true
-		} else {
-			log.Debugf("%s is OK (%f)", childId, load)
+		} else if _, ok = l.service.Children.Load(childId); ok {
+			log.Debugf("%s is OK (%d)", childId, load)
 			hasAlternative = true
 		}
 	}
@@ -99,7 +102,7 @@ func (l *loadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, optRang
 		actionArgs[lbActionTypeArgIndex] = actions.RedirectClientsId
 		origin := ordered[len(ordered)-1]
 		actionArgs[lbFromIndex] = origin
-		actionArgs[lbAmountIndex] = int(sortingCriteria[origin].(float64) / 4)
+		actionArgs[lbAmountIndex] = sortingCriteria[origin].(loadType) / 4
 		log.Debugf("will try to achieve load equilibrium redirecting %d clients from %s to %s",
 			actionArgs[lbAmountIndex], origin, optRange[0])
 	}
@@ -114,7 +117,7 @@ func (l *loadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, optRang
 	return
 }
 
-func (l *loadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, info map[string]interface{}, success bool) {
+func (l *serviceLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, info map[string]interface{}, success bool) {
 	domain = nil
 	info = nil
 	success = false
@@ -157,11 +160,11 @@ func (l *loadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, info map
 		archClient.SetHostPort(nodeId + ":" + strconv.Itoa(archimedes.Port))
 		load, status := archClient.GetLoad(l.service.ServiceId)
 		if status != http.StatusOK || numChildren == 0 {
-			info[nodeId] = 0.
+			info[nodeId] = 0
 		} else {
 			info[nodeId] = load
 		}
-		log.Debugf("%s has load: %f(%f/%d)", nodeId, info[nodeId], load, numChildren)
+		log.Debugf("%s has load: %d(%d/%d)", nodeId, info[nodeId], load, numChildren)
 	}
 
 	success = true
@@ -169,47 +172,51 @@ func (l *loadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, info map
 	return
 }
 
-func (l *loadBalanceGoal) Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range) {
+func (l *serviceLoadBalanceGoal) Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range) {
 	ordered = candidates
 	sort.Slice(ordered, func(i, j int) bool {
-		loadI := sortingCriteria[ordered[i]].(float64)
-		loadJ := sortingCriteria[ordered[j]].(float64)
+		loadI := sortingCriteria[ordered[i]].(loadType)
+		loadJ := sortingCriteria[ordered[j]].(loadType)
 		return loadI < loadJ
 	})
 
 	return
 }
 
-func (l *loadBalanceGoal) Filter(candidates, domain Domain) (filtered Range) {
+func (l *serviceLoadBalanceGoal) Filter(candidates, domain Domain) (filtered Range) {
 	return DefaultFilter(candidates, domain)
 }
 
-func (l *loadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria map[string]interface{}) (cutoff Range,
+func (l *serviceLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria map[string]interface{}) (cutoff Range,
 	maxed bool) {
 
 	cutoff = nil
 	maxed = true
 
 	if len(candidates) < 2 {
+		cutoff = candidates
 		return
 	}
 
 	leastBusy := candidates[0]
 	mostBusy := candidates[len(candidates)-1]
 
-	mostBusyLoad := candidatesCriteria[mostBusy].(float64)
-	leastBusyLoad := candidatesCriteria[leastBusy].(float64)
-	loadDiff := mostBusyLoad - leastBusyLoad
-	maxed = loadDiff < equivalentLoadDiff
+	mostBusyLoad := candidatesCriteria[mostBusy].(loadType)
+	leastBusyLoad := candidatesCriteria[leastBusy].(loadType)
+	loadDiff := 0.
+	if leastBusyLoad != 0 {
+		loadDiff = float64(mostBusyLoad) / float64(leastBusyLoad)
+	}
+	maxed = loadDiff > equivalentLoadDiff
 	if maxed {
 		return
 	}
 
-	log.Debugf("difference between %s(%f) and %s(%f) is %f", mostBusy, mostBusyLoad, leastBusy, leastBusyLoad,
+	log.Debugf("difference between %s(%d) and %s(%d) is %f", mostBusy, mostBusyLoad, leastBusy, leastBusyLoad,
 		loadDiff)
 
 	for _, candidate := range candidates {
-		if candidatesCriteria[candidate].(float64) <= maximumLoad {
+		if candidatesCriteria[candidate].(loadType) <= maximumLoad {
 			cutoff = append(cutoff, candidate)
 		}
 	}
@@ -217,7 +224,7 @@ func (l *loadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria map[strin
 	return
 }
 
-func (l *loadBalanceGoal) GenerateAction(target string, args ...interface{}) actions.Action {
+func (l *serviceLoadBalanceGoal) GenerateAction(target string, args ...interface{}) actions.Action {
 	log.Debugf("generating action %s", (args[lbActionTypeArgIndex]).(string))
 
 	switch args[lbActionTypeArgIndex].(string) {
@@ -230,32 +237,32 @@ func (l *loadBalanceGoal) GenerateAction(target string, args ...interface{}) act
 	return nil
 }
 
-func (l *loadBalanceGoal) TestDryRun() bool {
+func (l *serviceLoadBalanceGoal) TestDryRun() bool {
 	return true
 }
 
-func (l *loadBalanceGoal) GetDependencies() (metrics []string) {
+func (l *serviceLoadBalanceGoal) GetDependencies() (metrics []string) {
 	return l.dependencies
 }
 
-func (l *loadBalanceGoal) increaseMigrationGroupSize() {
+func (l *serviceLoadBalanceGoal) increaseMigrationGroupSize() {
 	migrationGroupSize *= 2
 }
 
-func (l *loadBalanceGoal) decreaseMigrationGroupSize() {
+func (l *serviceLoadBalanceGoal) decreaseMigrationGroupSize() {
 	migrationGroupSize /= 2.0
 }
 
-func (l *loadBalanceGoal) resetMigrationGroupSize() {
+func (l *serviceLoadBalanceGoal) resetMigrationGroupSize() {
 	migrationGroupSize = defaultGroupSize
 }
 
-func (l *loadBalanceGoal) GetId() string {
+func (l *serviceLoadBalanceGoal) GetId() string {
 	return loadBalanceGoalId
 }
 
-func (l *loadBalanceGoal) getHighLoads() map[string]float64 {
-	highLoads := map[string]float64{}
+func (l *serviceLoadBalanceGoal) getHighLoads() map[string]loadType {
+	highLoads := map[string]loadType{}
 	l.service.Children.Range(func(key, value interface{}) bool {
 		childId := key.(serviceChildrenMapKey)
 		metric := metrics.GetLoadPerServiceInChildMetricId(l.service.ServiceId, childId)
@@ -265,7 +272,7 @@ func (l *loadBalanceGoal) getHighLoads() map[string]float64 {
 			return true
 		}
 
-		load := value.(float64)
+		load := value.(loadType)
 		if load > maximumLoad {
 			highLoads[childId] = load
 		}
@@ -276,33 +283,7 @@ func (l *loadBalanceGoal) getHighLoads() map[string]float64 {
 	return highLoads
 }
 
-func (l *loadBalanceGoal) getAlternativeForHighLoad(highLoads map[string]float64, candidates Range) (alternative string,
-	ok bool) {
-	var highLoadChildIds []string
-	for childId := range highLoads {
-		highLoadChildIds = append(highLoadChildIds, childId)
-	}
-
-	log.Debugf("children with high loads: %v", highLoadChildIds)
-
-	var filteredCandidates []string
-	for _, candidate := range candidates {
-		_, ok = highLoads[candidate]
-		if !ok {
-			filteredCandidates = append(filteredCandidates, candidate)
-		}
-	}
-
-	if len(filteredCandidates) == 0 {
-		ok = false
-		return
-	}
-
-	alternative = filteredCandidates[0]
-	return
-}
-
-func (l *loadBalanceGoal) handleOverload(candidates Range) (
+func (l *serviceLoadBalanceGoal) handleOverload(candidates Range) (
 	actionArgs []interface{}, newOptRange Range) {
 	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
 
@@ -326,7 +307,7 @@ func (l *loadBalanceGoal) handleOverload(candidates Range) (
 	return
 }
 
-func (l *loadBalanceGoal) checkIfShouldBeRemoved() bool {
+func (l *serviceLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 	hasChildren := false
 	l.service.Children.Range(func(key, value interface{}) bool {
 		hasChildren = true

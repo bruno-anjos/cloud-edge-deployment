@@ -40,7 +40,7 @@ type (
 		exploring        sync.Map
 	}
 
-	exploringMapValue = chan struct{}
+	exploringMapValue = chan interface{}
 )
 
 func newSystem() *system {
@@ -243,7 +243,7 @@ func (a *system) performAction(action actions.Action) {
 	case *actions.AddServiceAction:
 		if assertedAction.Exploring {
 			id := assertedAction.GetServiceId() + "_" + assertedAction.GetTarget()
-			exploreChan := make(chan interface{})
+			exploreChan := make(exploringMapValue)
 			log.Debugf("exploring child %s", id)
 			a.exploring.Store(id, exploreChan)
 			go a.waitToBlacklist(assertedAction.GetServiceId(), assertedAction.GetTarget(), exploreChan)

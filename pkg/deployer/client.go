@@ -31,7 +31,7 @@ func NewDeployerClient(addr string) *Client {
 	}
 }
 
-func (c *Client) GetServices() (serviceIds []string, status int) {
+func (c *Client) GetDeployments() (serviceIds []string, status int) {
 	path := api.GetDeploymentsPath()
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 

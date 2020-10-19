@@ -117,15 +117,21 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 		return
 	}
 
-	bestNodePer := sortingCriteria[optRange[0]].(*nodeWithDistance).DistancePercentage
-	isAlreadyMax = !i.checkShouldBranch(bestNodePer, &avgClientLocation)
+	var (
+		numChildren  int
+		shouldBranch bool
+	)
+
+	shouldBranch, numChildren = i.checkShouldBranch(&avgClientLocation)
+	isAlreadyMax = !shouldBranch
 
 	if !isAlreadyMax {
 		optRange, isAlreadyMax = i.filterBlacklisted(optRange)
-
-		actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
-		actionArgs[ilExploreIndex] = sortingCriteria[optRange[0]].(*nodeWithDistance).DistancePercentage > 1.
-		actionArgs[ilActionTypeArgIndex] = actions.AddServiceId
+		if !isAlreadyMax {
+			actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
+			actionArgs[ilExploreIndex] = numChildren > 0
+			actionArgs[ilActionTypeArgIndex] = actions.AddServiceId
+		}
 	}
 
 	return
@@ -362,7 +368,7 @@ func (i *idealLatency) checkProcessingTime() bool {
 	return false
 }
 
-func (i *idealLatency) checkShouldBranch(bestNodeDistPer float64, avgClientLocation *utils.Location) bool {
+func (i *idealLatency) checkShouldBranch(avgClientLocation *utils.Location) (bool, int) {
 	numChildren := 0
 	i.service.Children.Range(func(key, value interface{}) bool {
 		numChildren++
@@ -382,7 +388,7 @@ func (i *idealLatency) checkShouldBranch(bestNodeDistPer float64, avgClientLocat
 
 	currDistance := location.CalcDist(avgClientLocation)
 	if currDistance <= satisfiedDistance {
-		return false
+		return false, numChildren
 	}
 
 	// TODO this has to be tuned for real distances
@@ -394,7 +400,7 @@ func (i *idealLatency) checkShouldBranch(bestNodeDistPer float64, avgClientLocat
 	validBranch := branchingFactor > branchingCutoff
 	log.Debugf("should branch: %t", validBranch)
 
-	return validBranch
+	return validBranch, numChildren
 }
 
 func (i *idealLatency) filterBlacklisted(o Range) (Range, bool) {

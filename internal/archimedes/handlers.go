@@ -40,14 +40,14 @@ const (
 )
 
 var (
-	messagesReceived sync.Map
-	sTable           *servicesTable
-	redirectionsMap  sync.Map
-	archimedesId     string
-	resolvingInTree  sync.Map
-	resolvedInTree   sync.Map
-	waitingChannels  sync.Map
-	hostname         string
+	messagesReceived  sync.Map
+	sTable            *servicesTable
+	redirectionsMap   sync.Map
+	archimedesId      string
+	resolvingInTree   sync.Map
+	resolvedInTree    sync.Map
+	waitingChannels   sync.Map
+	hostname          string
 	numReqsLastMinute map[string]int
 	currBatch         map[string]int
 	numReqsLock       sync.RWMutex
@@ -550,11 +550,9 @@ func getLoadHandler(w http.ResponseWriter, r *http.Request) {
 	numReqs, ok := numReqsLastMinute[serviceId]
 	numReqsLock.RUnlock()
 
-	var load float64
-	if !ok {
-		load = 0.
-	} else {
-		load = float64(numReqs) / 100
+	load := 0
+	if ok {
+		load = numReqs
 	}
 
 	log.Debugf("got load %d for service %s", load, serviceId)
