@@ -1,6 +1,7 @@
 package archimedes
 
 import (
+	"encoding/json"
 	"net/http"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
@@ -194,6 +195,23 @@ func (c *Client) GetLoad(serviceId string) (load int, status int) {
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, &load)
+
+	return
+}
+
+func (c *Client) GetAvgClientLocation(serviceId string) (loc *publicUtils.Location, status int) {
+	path := api.GetAvgClientLocationPath(serviceId)
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+
+	status, resp := utils.DoRequest(c.Client, req, nil)
+
+	if status == http.StatusOK {
+		loc = &publicUtils.Location{}
+		err := json.NewDecoder(resp.Body).Decode(loc)
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	return
 }

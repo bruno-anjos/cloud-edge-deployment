@@ -1,6 +1,9 @@
 package deployer
 
-import "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
+import (
+	"github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+)
 
 type (
 	GetDeploymentsResponseBody            = []string
@@ -10,4 +13,5 @@ type (
 	ResolveUpTheTreeResponseBody          = archimedes.ResolvedDTO
 	RedirectClientDownTheTreeResponseBody = string
 	GetFallbackResponseBody               = string
+	IAmYourChildResponseBody              = utils.Node
 )

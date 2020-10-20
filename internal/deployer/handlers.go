@@ -171,11 +171,11 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	client.SetHostPort(target.Addr)
 	config := hTable.getDeploymentConfig(serviceId)
 	isStatic := hTable.isStatic(serviceId)
-	parent := hTable.getParent(serviceId)
-	client.RegisterService(serviceId, isStatic, config, myself, parent)
+	client.RegisterService(serviceId, isStatic, config, myself, nil)
 }
 
 func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
+
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	targetAddr := utils.ExtractPathVar(r, nodeIdPathVar)
 
@@ -187,7 +187,13 @@ func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go attemptToExtend(deploymentId, targetAddr, nil, nil, 0, nil)
+	var reqBody api.ExtendDeploymentRequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		panic(err)
+	}
+
+	go attemptToExtend(deploymentId, targetAddr, nil, reqBody.Children, reqBody.Parent, 0, nil)
 }
 
 func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
@@ -243,9 +249,39 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	if hTable.hasDeployment(deploymentDTO.DeploymentId) {
+	var missingChildren []string
+	deplChildren := hTable.getChildren(deploymentDTO.DeploymentId)
+	for _, child := range deploymentDTO.Children {
+		_, ok := deplChildren[child.Id]
+		if !ok {
+			missingChildren = append(missingChildren, child.Id)
+		}
+	}
+
+	if hTable.hasDeployment(deploymentDTO.DeploymentId) && len(missingChildren) == 0 {
 		w.WriteHeader(http.StatusConflict)
 		return
+	}
+
+	for _, child := range missingChildren {
+		if deploymentDTO.Parent != nil && child != deploymentDTO.Parent.Id {
+			log.Debugf("can take child %s, my parent is %s", child, deploymentDTO.Parent.Id)
+		} else {
+			log.Debugf("rejecting child %s", child)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	}
+
+	if deploymentDTO.Parent != nil {
+		parent := hTable.getParent(deploymentDTO.DeploymentId)
+		if parent == nil || parent.Id == deploymentDTO.Parent.Id {
+			log.Debugf("can take %s as parent", deploymentDTO.Parent.Id)
+		} else {
+			log.Debugf("rejecting parent %s", deploymentDTO.Parent.Id)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 	}
 
 	hTable.addDeployment(&deploymentDTO)
@@ -258,6 +294,29 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	deployment := deploymentYAMLToDeployment(&deploymentYAML, deploymentDTO.Static)
 
 	go addDeploymentAsync(deployment, deploymentDTO.DeploymentId)
+
+	deplClient := deployer.NewDeployerClient("")
+	if deploymentDTO.Parent != nil {
+		deplClient.SetHostPort(deploymentDTO.Parent.Id + ":" + strconv.Itoa(deployer.Port))
+		grandparent, status := deplClient.WarnThatIAmChild(deploymentDTO.DeploymentId, myself)
+		if status != http.StatusOK {
+			log.Errorf("got status %d while telling %s that im his child for deployment %s", status,
+				deploymentDTO.Parent.Id, deploymentDTO.DeploymentId)
+			return
+		}
+		hTable.setDeploymentGrandparent(deploymentDTO.DeploymentId, grandparent)
+	}
+
+	for _, child := range deploymentDTO.Children {
+		deplClient.SetHostPort(child.Id + ":" + strconv.Itoa(deployer.Port))
+		status := deplClient.WarnThatIAmParent(deploymentDTO.DeploymentId, myself, deploymentDTO.Parent)
+		if status != http.StatusOK {
+			log.Errorf("got status code %d while telling %s that im his parent for %s", status, child.Id,
+				deploymentDTO.DeploymentId)
+		}
+		hTable.addChild(deploymentDTO.DeploymentId, child)
+	}
+
 }
 
 func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
@@ -511,7 +570,7 @@ func setExploringHandler(w http.ResponseWriter, r *http.Request) {
 
 // TODO function simulating lower API
 func getNodeCloserTo(location *publicUtils.Location, maxHopsToLookFor int,
-	excludeNodes map[string]struct{}) (closest string, found bool) {
+	excludeNodes map[string]interface{}) (closest string, found bool) {
 	closest = hTable.autonomicClient.GetClosestNode(location, excludeNodes)
 	found = closest != ""
 	return
@@ -663,13 +722,6 @@ func onNodeDown(id string) {
 		<-timer.C
 	}
 	timer.Reset(sendAlternativesTimeout * time.Second)
-}
-
-func addPortToAddr(addr string) string {
-	if !strings.Contains(addr, ":") {
-		return addr + ":" + strconv.Itoa(deployer.Port)
-	}
-	return addr
 }
 
 func getParentAlternatives(parentId string) (alternatives map[string]*utils.Node) {

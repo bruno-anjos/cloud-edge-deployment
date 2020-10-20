@@ -32,6 +32,16 @@ type (
 	}
 
 	redirectionsMapValue = *redirectedConfig
+
+	batchValue struct {
+		Locations map[string]*locationsEntry
+		NumReqs   int
+	}
+
+	locationsEntry struct {
+		Location *publicUtils.Location
+		Number   int
+	}
 )
 
 const (
@@ -48,8 +58,8 @@ var (
 	resolvedInTree    sync.Map
 	waitingChannels   sync.Map
 	hostname          string
-	numReqsLastMinute map[string]int
-	currBatch         map[string]int
+	numReqsLastMinute map[string]*batchValue
+	currBatch         map[string]*batchValue
 	numReqsLock       sync.RWMutex
 )
 
@@ -70,8 +80,8 @@ func init() {
 
 	archimedesId = uuid.New().String()
 
-	numReqsLastMinute = map[string]int{}
-	currBatch = map[string]int{}
+	numReqsLastMinute = map[string]*batchValue{}
+	currBatch = map[string]*batchValue{}
 	numReqsLock = sync.RWMutex{}
 
 	go manageLoadBatch()
@@ -341,18 +351,60 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	numReqsLock.Lock()
-	_, ok := numReqsLastMinute[reqBody.DeploymentId]
+	entry, ok := numReqsLastMinute[reqBody.DeploymentId]
 	if !ok {
-		numReqsLastMinute[reqBody.DeploymentId] = 1
+		numReqsLastMinute[reqBody.DeploymentId] = &batchValue{
+			Locations: map[string]*locationsEntry{
+				reqBody.Location.GetId(): {
+					Location: reqBody.Location,
+					Number:   1,
+				},
+			},
+			NumReqs: 1,
+		}
 	} else {
-		numReqsLastMinute[reqBody.DeploymentId] += 1
+		entry.NumReqs++
+
+		var (
+			loc *locationsEntry
+		)
+		loc, ok = entry.Locations[reqBody.Location.GetId()]
+		if !ok {
+			entry.Locations[reqBody.Location.GetId()] = &locationsEntry{
+				Location: reqBody.Location,
+				Number:   1,
+			}
+		} else {
+			loc.Number++
+		}
 	}
 
-	_, ok = currBatch[reqBody.DeploymentId]
+	entry, ok = currBatch[reqBody.DeploymentId]
 	if !ok {
-		currBatch[reqBody.DeploymentId] = 1
+		currBatch[reqBody.DeploymentId] = &batchValue{
+			Locations: map[string]*locationsEntry{
+				reqBody.Location.GetId(): {
+					Location: reqBody.Location,
+					Number:   1,
+				},
+			},
+			NumReqs: 1,
+		}
 	} else {
-		currBatch[reqBody.DeploymentId] += 1
+		entry.NumReqs++
+
+		var (
+			loc *locationsEntry
+		)
+		loc, ok = entry.Locations[reqBody.Location.GetId()]
+		if !ok {
+			entry.Locations[reqBody.Location.GetId()] = &locationsEntry{
+				Location: reqBody.Location,
+				Number:   1,
+			}
+		} else {
+			loc.Number++
+		}
 	}
 	numReqsLock.Unlock()
 
@@ -547,17 +599,51 @@ func getLoadHandler(w http.ResponseWriter, r *http.Request) {
 	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 
 	numReqsLock.RLock()
-	numReqs, ok := numReqsLastMinute[serviceId]
+	entry, ok := numReqsLastMinute[serviceId]
 	numReqsLock.RUnlock()
 
 	load := 0
 	if ok {
-		load = numReqs
+		load = entry.NumReqs
 	}
 
 	log.Debugf("got load %d for service %s", load, serviceId)
 
 	utils.SendJSONReplyOK(w, load)
+}
+
+func getAvgClientLocationHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, serviceIdPathVar)
+
+	totalX := 0.
+	totalY := 0.
+	count := 0
+
+	numReqsLock.RLock()
+	deploymentEntry, ok := numReqsLastMinute[deploymentId]
+	if !ok {
+		numReqsLock.RUnlock()
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	hasLocations := len(deploymentEntry.Locations) > 0
+	for _, locEntry := range deploymentEntry.Locations {
+		totalX += locEntry.Location.X * float64(locEntry.Number)
+		totalY += locEntry.Location.Y * float64(locEntry.Number)
+		count += locEntry.Number
+	}
+	numReqsLock.RUnlock()
+
+	if hasLocations {
+		avgLoc := &publicUtils.Location{
+			X: totalX / float64(count),
+			Y: totalY / float64(count),
+		}
+		utils.SendJSONReplyOK(w, avgLoc)
+	} else {
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 func preprocessMessage(remoteAddr string, discoverMsg *api.DiscoverMsg) {
@@ -619,18 +705,26 @@ func manageLoadBatch() {
 		<-ticker.C
 		numReqsLock.Lock()
 		for deploymentId, depBatch := range currBatch {
-			go waitForToRemove(deploymentId, depBatch)
-			currBatch[deploymentId] = 0
+			go waitToRemove(deploymentId, depBatch)
+			currBatch[deploymentId] = &batchValue{
+				Locations: map[string]*locationsEntry{},
+				NumReqs:   0,
+			}
 		}
 		numReqsLock.Unlock()
 	}
 }
 
 // TODO simulating
-func waitForToRemove(deploymentId string, size int) {
-	timer := time.NewTimer(60 * time.Second)
-	<-timer.C
+func waitToRemove(deploymentId string, entry *batchValue) {
+	time.Sleep(60 * time.Second)
 	numReqsLock.Lock()
-	numReqsLastMinute[deploymentId] -= size
+	numReqsLastMinute[deploymentId].NumReqs -= entry.NumReqs
+	for locId, locEntry := range entry.Locations {
+		numReqsLastMinute[deploymentId].Locations[locId].Number -= locEntry.Number
+		if numReqsLastMinute[deploymentId].Locations[locId].Number == 0 {
+			delete(numReqsLastMinute[deploymentId].Locations, locId)
+		}
+	}
 	numReqsLock.Unlock()
 }

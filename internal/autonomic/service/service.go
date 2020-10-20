@@ -1,6 +1,7 @@
 package service
 
 import (
+	"os"
 	"sync"
 	"time"
 
@@ -8,8 +9,9 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	public "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
@@ -18,9 +20,9 @@ const (
 	blacklistDuration = 5 * time.Minute
 )
 
-type NodeWithLocation struct {
+type nodeWithLocation struct {
 	NodeId   string
-	Location *utils.Location
+	Location *publicUtils.Location
 }
 
 type Service struct {
@@ -31,6 +33,22 @@ type Service struct {
 	Suspected   *sync.Map
 	Environment *environment.Environment
 	Blacklist   *sync.Map
+}
+
+var (
+	myself *utils.Node
+)
+
+func init() {
+	hostname, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+
+	myself = &utils.Node{
+		Id:   hostname,
+		Addr: hostname,
+	}
 }
 
 func New(serviceId, strategyId string, suspected *sync.Map,
@@ -66,8 +84,8 @@ func New(serviceId, strategyId string, suspected *sync.Map,
 	return s, nil
 }
 
-func (a *Service) AddChild(childId string, location *utils.Location) {
-	node := &NodeWithLocation{
+func (a *Service) AddChild(childId string, location *publicUtils.Location) {
+	node := &nodeWithLocation{
 		NodeId:   childId,
 		Location: location,
 	}

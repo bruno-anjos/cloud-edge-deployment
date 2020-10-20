@@ -19,15 +19,14 @@ const (
 
 	DeadChildPath             = "/deployments/%s/deadchild/%s"
 	IAmYourParentPath         = "/deployments/%s/parent"
+	IAmYourChildPath          = "/deployments/%s/child"
 	HierarchyTablePath        = "/table"
 	ParentAlivePath           = "/parent/%s/up"
 	DeploymentChildPath       = "/deployments/%s/child/%s"
 	MigrateDeploymentPath     = "/deployments/%s/migrate"
 	ExtendServiceToPath       = "/deployments/%s/extend/%s"
 	ShortenServiceFromPath    = "/deployments/%s/shorten/%s"
-	CanTakeChildPath          = "/deployments/%s/can_child/%s"
 	SetGrandparentPath        = "/deployments/%s/grandparent"
-	CanTakeParentPath         = "/deployments/%s/can_parent/%s"
 	FallbackPath              = "/deployments/%s/fallback"
 	ResolveUpTheTreePath      = "/deployments/%s/resolve_up"
 	StartResolveUpTheTreePath = "/deployments/%s/start_resolve_up"
@@ -97,14 +96,6 @@ func GetShortenServicePath(serviceId, targetId string) string {
 	return PrefixPath + fmt.Sprintf(ShortenServiceFromPath, serviceId, targetId)
 }
 
-func GetCanTakeChildPath(deploymentId, childId string) string {
-	return PrefixPath + fmt.Sprintf(CanTakeChildPath, deploymentId, childId)
-}
-
-func GetCanTakeParentPath(deploymentId, parentId string) string {
-	return PrefixPath + fmt.Sprintf(CanTakeParentPath, deploymentId, parentId)
-}
-
 func GetSetGrandparentPath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(SetGrandparentPath, deploymentId)
 }
@@ -139,4 +130,8 @@ func GetTerminalLocationPath(deploymentId string) string {
 
 func GetSetExploringPath(deploymentId, childId string) string {
 	return PrefixPath + fmt.Sprintf(SetExploringPath, deploymentId, childId)
+}
+
+func GetIAmYourChildPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(IAmYourChildPath, deploymentId)
 }

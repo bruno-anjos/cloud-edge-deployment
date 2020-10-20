@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"math"
 )
 
@@ -20,4 +21,8 @@ func (l *Location) CalcDist(l2 *Location) float64 {
 	dX := l2.X - l.X
 	dY := l2.Y - l.Y
 	return math.Sqrt(math.Pow(dX, 2) + math.Pow(dY, 2))
+}
+
+func (l *Location) GetId() string {
+	return fmt.Sprintf("%f_%f", l.X, l.Y)
 }

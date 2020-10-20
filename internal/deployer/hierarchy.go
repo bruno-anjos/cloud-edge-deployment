@@ -76,7 +76,6 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO) bool {
 	entry := &hierarchyEntry{
 		DeploymentYAMLBytes: dto.DeploymentYAMLBytes,
 		Parent:              dto.Parent,
-		Grandparent:         dto.Grandparent,
 		Children:            sync.Map{},
 		Static:              dto.Static,
 		IsOrphan:            false,
@@ -93,6 +92,7 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO) bool {
 		log.Debugf("will set my parent as %s", dto.Parent.Addr)
 		t.autonomicClient.SetServiceParent(dto.DeploymentId, dto.Parent.Addr)
 	}
+
 	return true
 }
 
@@ -258,7 +258,6 @@ func (t *hierarchyTable) deploymentToDTO(deploymentId string) (*api.DeploymentDT
 
 	return &api.DeploymentDTO{
 		Parent:              entry.Parent,
-		Grandparent:         entry.Grandparent,
 		DeploymentId:        deploymentId,
 		Static:              entry.Static,
 		DeploymentYAMLBytes: entry.DeploymentYAMLBytes,
@@ -501,17 +500,17 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 	}
 }
 
-func attemptToExtend(deploymentId, target string, targetLocation *publicUtils.Location, grandchild *utils.Node,
-	maxHops int, alternatives map[string]*utils.Node) {
+func attemptToExtend(deploymentId, target string, targetLocation *publicUtils.Location, children []*utils.Node,
+	parent *utils.Node, maxHops int, alternatives map[string]*utils.Node) {
 	var extendTimer *time.Timer
 
-	toExclude := map[string]struct{}{myself.Id: {}}
-	if grandchild != nil {
-		toExclude[grandchild.Id] = struct{}{}
+	toExclude := map[string]interface{}{myself.Id: nil}
+	for _, child := range children {
+		toExclude[child.Id] = nil
 	}
 	suspectedChild.Range(func(key, value interface{}) bool {
 		suspectedId := key.(typeSuspectedChildMapKey)
-		toExclude[suspectedId] = struct{}{}
+		toExclude[suspectedId] = nil
 		return true
 	})
 
@@ -540,18 +539,22 @@ func attemptToExtend(deploymentId, target string, targetLocation *publicUtils.Lo
 		}
 
 		if newChildAddr != "" {
+			nodeToExtendTo := utils.NewNode(newChildAddr, newChildAddr)
+			// TODO this will probably lead to problems later on
 			inVicinity := hTable.autonomicClient.IsNodeInVicinity(newChildAddr)
 			if inVicinity {
-				success = extendDeployment(deploymentId, newChildAddr, grandchild)
+				success = extendDeployment(deploymentId, nodeToExtendTo, children, parent)
 			} else {
-				toExclude[newChildAddr] = struct{}{}
+				toExclude[newChildAddr] = nil
 			}
 		}
 
 		if tries == 5 {
 			log.Debugf("failed to extend deployment %s", deploymentId)
 			newChildAddr = myself.Id
-			extendDeployment(deploymentId, newChildAddr, grandchild)
+			for _, child := range children {
+				extendDeployment(deploymentId, child, nil, parent)
+			}
 			return
 		}
 
@@ -561,79 +564,29 @@ func attemptToExtend(deploymentId, target string, targetLocation *publicUtils.Lo
 	}
 }
 
-func extendDeployment(deploymentId, childAddr string, grandChild *utils.Node) bool {
+func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children []*utils.Node,
+	parent *utils.Node) bool {
 	dto, ok := hTable.deploymentToDTO(deploymentId)
 	if !ok {
 		log.Errorf("hierarchy table does not contain deployment %s", deploymentId)
 		return false
 	}
 
-	childGrandparent := hTable.getParent(deploymentId)
-	if childGrandparent != nil && childGrandparent.Id == myself.Id {
-		dto.Grandparent = nil
-	} else {
-		dto.Grandparent = childGrandparent
-	}
-	dto.Parent = myself
+	dto.Parent = parent
+	dto.Children = children
+	depClient := deployer.NewDeployerClient(nodeToExtendTo.Id + ":" + strconv.Itoa(deployer.Port))
 
-	deployerHostPort := addPortToAddr(childAddr)
-
-	childId := childAddr
-
-	if grandChild != nil && grandChild.Id == childId {
-		return false
-	}
-
-	child := utils.NewNode(childId, childAddr)
-
-	depClient := deployer.NewDeployerClient(deployerHostPort)
-	if grandChild != nil {
-		status := depClient.AskCanTakeChild(deploymentId, grandChild.Id)
-		if status == http.StatusConflict {
-			return false
-		} else if status != http.StatusOK {
-			log.Debugf("got status code %d asking if %s could take child %s", status, childId, grandChild.Id)
-			return false
-		}
-	}
-
-	if childId != myself.Id {
-		status := depClient.AskCanTakeParent(deploymentId, myself.Id)
-		if status == http.StatusConflict {
-			log.Debugf("child %s, can not take me (%s) as new parent", childId, myself.Id)
-			return false
-		} else if status != http.StatusOK {
-			log.Debugf("got status code %d asking if %s could take me as parent", status, childId)
-			return false
-		}
-
-	}
-
-	log.Debugf("extending deployment %s to %s", deploymentId, childId)
-	status := depClient.RegisterService(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Parent, dto.Grandparent)
+	log.Debugf("extending deployment %s to %s", deploymentId, nodeToExtendTo.Id)
+	status := depClient.RegisterService(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Parent, dto.Children)
 	if status == http.StatusConflict {
-		log.Debugf("deployment %s is already present in %s", deploymentId, childId)
+		log.Debugf("deployment %s is already present in %s", deploymentId, nodeToExtendTo.Id)
 	} else if status != http.StatusOK {
-		log.Errorf("got %d while extending deployment %s to %s", status, deploymentId, childAddr)
+		log.Errorf("got %d while extending deployment %s to %s", status, deploymentId, nodeToExtendTo.Id)
 		return false
 	}
 
-	if grandChild != nil {
-		log.Debugf("telling %s to take grandchild %s for deployment %s", childId, grandChild.Id, deploymentId)
-		status = depClient.WarnToTakeChild(deploymentId, grandChild)
-		if status != http.StatusOK {
-			log.Errorf("got status %d while attempting to tell %s to take %s as child", status, childId,
-				grandChild.Id)
-			return false
-		}
-	}
-
-	log.Debugf("extended %s to %s sucessfully", deploymentId, childId)
+	log.Debugf("extended %s to %s sucessfully", deploymentId, nodeToExtendTo.Id)
 	suspectedDeployments.Delete(deploymentId)
-	if child.Id != myself.Id {
-		hTable.addChild(deploymentId, child)
-		children.Store(childId, child)
-	}
 
 	return true
 }

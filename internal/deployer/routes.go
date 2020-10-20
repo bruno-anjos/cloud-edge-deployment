@@ -18,17 +18,14 @@ const (
 	addNodeName                 = "ADD_NODE"
 	setAlternativesName         = "SET_ALTERNATIVES"
 	deadChildName               = "DEAD_CHILD"
-	takeChildName               = "TAKE_CHILD"
 	deleteDeploymentChildName   = "DELETE_DEPLOYMENT_CHILD"
 	iAmYourParentName           = "I_AM_YOUR_PARENT"
 	getHierarchyTableName       = "GET_TABLE"
 	parentAliveName             = "PARENT_ALIVE"
-	canTakeChildName            = "CAN_TAKE_CHILD"
 	migrateDeploymentName       = "MIGRATE_DEPLOYMENT"
 	extendDeploymentToName      = "EXTEND_DEPLOYMENT_TO"
 	shortenDeploymentFromName   = "SHORTEN_DEPLOYMENT_FROM"
 	setGrandparentName          = "SET_GRANDPARENT"
-	canTakeParentName           = "CAN_TAKE_PARENT"
 	fallbackName                = "FALLBACK"
 	resolveUpTheTreeName        = "RESOLVE_UP_THE_TREE"
 	startResolveUpTheTreeName   = "START_RESOLVE_UP_THE_TREE"
@@ -37,6 +34,7 @@ const (
 	hasDeploymentName           = "HAS_DEPLOYMENT"
 	terminalLocationName        = "TERMINAL_LOCATION"
 	exploringName               = "EXPLORING"
+	iAmYourChildName            = "I_AM_YOUR_CHILD"
 
 	// scheduler
 	heartbeatServiceInstanceName         = "HEARTBEAT_SERVICE_INSTANCE"
@@ -68,10 +66,7 @@ var (
 	extendDeploymentToRoute    = fmt.Sprintf(deployer.ExtendServiceToPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
 	shortenDeploymentFromRoute = fmt.Sprintf(deployer.ShortenServiceFromPath, _deploymentIdPathVarFormatted,
 		_deployerIdPathVarFormatted)
-	canTakeChildRoute = fmt.Sprintf(deployer.CanTakeChildPath, _deploymentIdPathVarFormatted,
-		_deployerIdPathVarFormatted)
 	setGrandparentRoute        = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
-	canTakeParentRoute         = fmt.Sprintf(deployer.CanTakeParentPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
 	fallbackRoute              = fmt.Sprintf(deployer.FallbackPath, _deploymentIdPathVarFormatted)
 	resolveUpTheTreeRoute      = fmt.Sprintf(deployer.ResolveUpTheTreePath, _deploymentIdPathVarFormatted)
 	startResolveUpTheTreeRoute = fmt.Sprintf(deployer.StartResolveUpTheTreePath, _deploymentIdPathVarFormatted)
@@ -80,6 +75,7 @@ var (
 	hasDeploymentRoute         = fmt.Sprintf(deployer.HasDeploymentPath, _deploymentIdPathVarFormatted)
 	terminalLocationRoute      = fmt.Sprintf(deployer.TerminalLocationPath, _deploymentIdPathVarFormatted)
 	setExploringRoute          = fmt.Sprintf(deployer.SetExploringPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	iAmYourChildRoute          = fmt.Sprintf(deployer.IAmYourChildPath, _deploymentIdPathVarFormatted)
 
 	// scheduler
 	deploymentInstanceAliveRoute = fmt.Sprintf(deployer.DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
@@ -90,6 +86,13 @@ var (
 )
 
 var Routes = []utils.Route{
+
+	{
+		Name:        iAmYourChildName,
+		Method:      http.MethodPost,
+		Pattern:     iAmYourChildRoute,
+		HandlerFunc: iAmYourChildHandler,
+	},
 
 	{
 		Name:        exploringName,
@@ -148,24 +151,10 @@ var Routes = []utils.Route{
 	},
 
 	{
-		Name:        canTakeParentName,
-		Method:      http.MethodGet,
-		Pattern:     canTakeParentRoute,
-		HandlerFunc: canTakeParentHandler,
-	},
-
-	{
 		Name:        setGrandparentName,
 		Method:      http.MethodPost,
 		Pattern:     setGrandparentRoute,
 		HandlerFunc: setGrandparentHandler,
-	},
-
-	{
-		Name:        canTakeChildName,
-		Method:      http.MethodGet,
-		Pattern:     canTakeChildRoute,
-		HandlerFunc: canTakeChildHandler,
 	},
 
 	{
@@ -201,13 +190,6 @@ var Routes = []utils.Route{
 		Method:      http.MethodPost,
 		Pattern:     migrateDeploymentRoute,
 		HandlerFunc: migrateDeploymentHandler,
-	},
-
-	{
-		Name:        takeChildName,
-		Method:      http.MethodPost,
-		Pattern:     deploymentChildRoute,
-		HandlerFunc: takeChildHandler,
 	},
 
 	{

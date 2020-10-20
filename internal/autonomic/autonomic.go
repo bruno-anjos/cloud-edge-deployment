@@ -152,7 +152,7 @@ func (a *system) isNodeInVicinity(nodeId string) bool {
 	return ok
 }
 
-func (a *system) closestNodeTo(location *utils.Location, toExclude map[string]struct{}) (nodeId string) {
+func (a *system) closestNodeTo(location *utils.Location, toExclude map[string]interface{}) (nodeId string) {
 	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		return ""
@@ -240,8 +240,8 @@ func (a *system) performAction(action actions.Action) {
 	switch assertedAction := action.(type) {
 	case *actions.RedirectAction:
 		assertedAction.Execute(a.archimedesClient)
-	case *actions.AddServiceAction:
-		if assertedAction.Exploring {
+	case *actions.ExtendServiceAction:
+		if assertedAction.IsExploring() {
 			id := assertedAction.GetServiceId() + "_" + assertedAction.GetTarget()
 			exploreChan := make(exploringMapValue)
 			log.Debugf("exploring child %s", id)

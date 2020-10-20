@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	AddServiceId     = "ACTION_ADD_SERVICE"
+	ExtendServiceId  = "ACTION_EXTEND_SERVICE"
 	RemoveServiceId  = "ACTION_REMOVE_SERVICE"
 	MigrateServiceId = "ACTION_MIGRATE_SERVICE"
 )
@@ -30,19 +30,31 @@ func (m *RemoveServiceAction) Execute(client utils.Client) {
 	deployerClient.ShortenDeploymentFrom(m.GetServiceId(), m.GetTarget())
 }
 
-type AddServiceAction struct {
+type ExtendServiceAction struct {
 	*actionWithServiceTarget
-	Exploring bool
 }
 
-func NewAddServiceAction(serviceId, target string, exploring bool) *AddServiceAction {
-	return &AddServiceAction{
-		actionWithServiceTarget: newActionWithServiceTarget(AddServiceId, serviceId, target),
-		Exploring:               exploring,
+func NewExtendServiceAction(serviceId, target string, exploring bool, parent *utils.Node,
+	children []*utils.Node) *ExtendServiceAction {
+	return &ExtendServiceAction{
+		actionWithServiceTarget: newActionWithServiceTarget(ExtendServiceId, serviceId, target, exploring, parent,
+			children),
 	}
 }
 
-func (m *AddServiceAction) Execute(client utils.Client) {
+func (m *ExtendServiceAction) IsExploring() bool {
+	return m.Args[2].(bool)
+}
+
+func (m *ExtendServiceAction) GetParent() *utils.Node {
+	return m.Args[3].(*utils.Node)
+}
+
+func (m *ExtendServiceAction) GetChildren() []*utils.Node {
+	return m.Args[4].([]*utils.Node)
+}
+
+func (m *ExtendServiceAction) Execute(client utils.Client) {
 	log.Debugf("executing %s to %s", m.ActionId, m.GetTarget())
 	deployerClient := client.(*deployer.Client)
 
@@ -53,13 +65,13 @@ func (m *AddServiceAction) Execute(client utils.Client) {
 		return
 	}
 
-	status := deployerClient.ExtendDeploymentTo(m.GetServiceId(), m.GetTarget())
+	status := deployerClient.ExtendDeploymentTo(m.GetServiceId(), m.GetTarget(), m.GetParent(), m.GetChildren())
 	if status != http.StatusOK {
 		log.Errorf("got status code %d while extending deployment", status)
 		return
 	}
 
-	if m.Exploring {
+	if m.IsExploring() {
 		status = deployerClient.SetExploring(m.GetServiceId(), m.GetTarget())
 		if status != http.StatusOK {
 			log.Errorf("got status %d while setting %s as exploring deployment %s", status, m.GetTarget(),

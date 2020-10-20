@@ -14,8 +14,8 @@ type HierarchyEntryDTO struct {
 
 type (
 	DeploymentDTO struct {
+		Children            []*utils.Node
 		Parent              *utils.Node
-		Grandparent         *utils.Node
 		DeploymentId        string
 		Static              bool
 		DeploymentYAMLBytes []byte

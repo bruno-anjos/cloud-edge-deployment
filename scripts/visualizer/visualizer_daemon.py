@@ -265,13 +265,14 @@ def graph_deployer():
                 add_if_missing(g, tables[parentId], parentId)
                 g.add_edge(node, parentId, relation=attr_parent,
                            deploymentId=deploymentId)
-            if entry[grandparent_field_id] is not None:
+            if entry[grandparent_field_id] is not None :
                 grandparent = entry[grandparent_field_id]
                 grandparentId = grandparent[node_id_field_id]
-                print(f"({deploymentId}) {node} has grandparent {grandparentId}")
-                add_if_missing(g, tables[grandparentId], grandparentId)
-                g.add_edge(node, grandparentId, relation=attr_grandparent,
-                           deploymentId=deploymentId)
+                if grandparentId != "":
+                    print(f"({deploymentId}) {node} has grandparent {grandparentId}")
+                    add_if_missing(g, tables[grandparentId], grandparentId)
+                    g.add_edge(node, grandparentId, relation=attr_grandparent,
+                               deploymentId=deploymentId)
             for childId in entry[children_field_id].keys():
                 print(f"({deploymentId}) {node} has child {childId}")
                 add_if_missing(g, tables[childId], childId)

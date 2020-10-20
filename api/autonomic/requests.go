@@ -8,6 +8,6 @@ type (
 	AddServiceRequestBody  = serviceConfig
 	ClosestNodeRequestBody = struct {
 		Location  *publicUtils.Location
-		ToExclude map[string]struct{}
+		ToExclude map[string]interface{}
 	}
 )

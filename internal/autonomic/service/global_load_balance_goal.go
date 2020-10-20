@@ -19,6 +19,8 @@ const (
 
 const (
 	nlbActionTypeArgIndex = iota
+	nlbParentIdx
+	nlbChildrenIdx
 	nlbNumArgs
 )
 

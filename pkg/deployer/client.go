@@ -43,10 +43,10 @@ func (c *Client) GetDeployments() (serviceIds []string, status int) {
 }
 
 func (c *Client) RegisterService(serviceId string, static bool,
-	deploymentYamlBytes []byte, parent, grandparent *utils.Node) (status int) {
+	deploymentYamlBytes []byte, parent *utils.Node, children []*utils.Node) (status int) {
 	reqBody := api.RegisterServiceRequestBody{
+		Children:            children,
 		Parent:              parent,
-		Grandparent:         grandparent,
 		DeploymentId:        serviceId,
 		Static:              static,
 		DeploymentYAMLBytes: deploymentYamlBytes,
@@ -59,9 +59,14 @@ func (c *Client) RegisterService(serviceId string, static bool,
 	return
 }
 
-func (c *Client) ExtendDeploymentTo(serviceId, targetId string) (status int) {
+func (c *Client) ExtendDeploymentTo(serviceId, targetId string, parent *utils.Node, children []*utils.Node) (status int) {
+	reqBody := api.ExtendDeploymentRequestBody{
+		Parent:   parent,
+		Children: children,
+	}
+
 	path := api.GetExtendServicePath(serviceId, targetId)
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
@@ -146,18 +151,6 @@ func (c *Client) SetGrandparent(serviceId string, grandparent *utils.Node) (stat
 	return
 }
 
-func (c *Client) WarnToTakeChild(serviceId string, child *utils.Node) (status int) {
-	var reqBody api.TakeChildRequestBody
-	reqBody = *child
-
-	path := api.GetDeploymentChildPath(serviceId, child.Id)
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
-
-	status, _ = utils.DoRequest(c.Client, req, nil)
-
-	return
-}
-
 func (c *Client) WarnThatIAmParent(serviceId string, parent, grandparent *utils.Node) (status int) {
 	reqBody := api.IAmYourParentRequestBody{}
 	reqBody = append(reqBody, parent)
@@ -171,20 +164,26 @@ func (c *Client) WarnThatIAmParent(serviceId string, parent, grandparent *utils.
 	return
 }
 
-func (c *Client) AskCanTakeChild(serviceId string, childId string) (status int) {
-	path := api.GetCanTakeChildPath(serviceId, childId)
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+func (c *Client) WarnThatIAmChild(serviceId string, child *utils.Node) (grandparent *utils.Node, status int) {
+	reqBody := api.IAmYourChildRequestBody{
+		Child: child,
+	}
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	path := api.GetIAmYourChildPath(serviceId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	return
-}
-
-func (c *Client) AskCanTakeParent(serviceId string, parentId string) (status int) {
-	path := api.GetCanTakeParentPath(serviceId, parentId)
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
-
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	var (
+		resp *http.Response
+	)
+	status, resp = utils.DoRequest(c.Client, req, nil)
+	if status == http.StatusOK {
+		var respBody api.IAmYourChildResponseBody
+		err := json.NewDecoder(resp.Body).Decode(&respBody)
+		if err != nil {
+			panic(err)
+		}
+		grandparent = &respBody
+	}
 
 	return
 }

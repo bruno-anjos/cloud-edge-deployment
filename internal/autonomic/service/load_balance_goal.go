@@ -63,6 +63,12 @@ func (l *serviceLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, 
 	optRange = optDomain
 	actionArgs = nil
 
+	value, ok := l.service.Environment.GetMetric(metrics.MetricNodeAddr)
+	if !ok {
+		log.Debugf("no value for metric %s", metrics.MetricNodeAddr)
+		return
+	}
+
 	candidateIds, sortingCriteria, ok := l.GenerateDomain(nil)
 	if !ok {
 		return
@@ -79,23 +85,37 @@ func (l *serviceLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, 
 	log.Debugf("%s cutoff result (%t)%+v", loadBalanceGoalId, isAlreadyMax, optRange)
 
 	overloaded := false
-	hasAlternative := false
-	for childId, value := range sortingCriteria {
-		load := value.(loadType)
-		if load > maximumLoad {
-			log.Debugf("%s is overloaded (%f)", childId, load)
-			overloaded = true
-		} else if _, ok = l.service.Children.Load(childId); ok {
-			log.Debugf("%s is OK (%d)", childId, load)
-			hasAlternative = true
-		}
+	myLoad := sortingCriteria[myself.Id].(loadType)
+
+	if myLoad > maximumLoad {
+		log.Debugf("im overloaded (%d)", myLoad)
+		overloaded = true
 	}
 
-	log.Debugf("overloaded: %t, alternative: %t", overloaded, hasAlternative)
+	if overloaded {
+		var (
+			nodeId       string
+			alternatives []string
+			deplClient   = deployer.NewDeployerClient("")
+		)
+		for nodeId, value = range sortingCriteria {
+			load := value.(loadType)
+			if float64(load)+float64(myLoad)/2. < maximumLoad {
+				deplClient.SetHostPort(nodeId + ":" + strconv.Itoa(deployer.Port))
+				hasService, _ := deplClient.HasService(l.service.ServiceId)
+				if hasService {
+					alternatives = append(alternatives, nodeId)
+				}
+			}
+		}
 
-	if overloaded && !hasAlternative {
-		actionArgs, optRange = l.handleOverload(optRange)
-		isAlreadyMax = !(len(optRange) > 0)
+		hasAlternatives := len(alternatives) > 0
+		log.Debugf("overloaded: %t, alternative: %t", overloaded, hasAlternatives)
+
+		if !hasAlternatives {
+			actionArgs, optRange = l.handleOverload(optRange)
+			isAlreadyMax = !(len(optRange) > 0)
+		}
 	} else if !isAlreadyMax {
 		l.staleCycles = 0
 		actionArgs = make([]interface{}, lbNumArgs)
@@ -117,7 +137,8 @@ func (l *serviceLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, 
 	return
 }
 
-func (l *serviceLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, info map[string]interface{}, success bool) {
+func (l *serviceLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, info map[string]interface{},
+	success bool) {
 	domain = nil
 	info = nil
 	success = false
@@ -134,37 +155,30 @@ func (l *serviceLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, i
 		panic(err)
 	}
 
-	value, ok = l.service.Environment.GetMetric(metrics.MetricNodeAddr)
-	if !ok {
-		log.Debugf("no value for metric %s", metrics.MetricNodeAddr)
-		return nil, nil, false
+	info = map[string]interface{}{}
+	archClient := archimedes.NewArchimedesClient(myself.Id + ":" + strconv.Itoa(archimedes.Port))
+	load, status := archClient.GetLoad(l.service.ServiceId)
+	if status != http.StatusOK {
+		load = 0
 	}
 
-	numChildren := 0
-	l.service.Children.Range(func(key, value interface{}) bool {
-		numChildren++
-		return true
-	})
-
-	myself := value.(string)
-	info = map[string]interface{}{}
-	archClient := archimedes.NewArchimedesClient("")
+	info[myself.Id] = load
 
 	for nodeId := range locationsInVicinity {
 		_, okS := l.service.Suspected.Load(nodeId)
-		if okS || nodeId == myself || nodeId == l.service.ParentId {
+		if okS || nodeId == l.service.ParentId {
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}
 		domain = append(domain, nodeId)
 		archClient.SetHostPort(nodeId + ":" + strconv.Itoa(archimedes.Port))
-		load, status := archClient.GetLoad(l.service.ServiceId)
-		if status != http.StatusOK || numChildren == 0 {
+		load, status = archClient.GetLoad(l.service.ServiceId)
+		if status != http.StatusOK {
 			info[nodeId] = 0
 		} else {
 			info[nodeId] = load
 		}
-		log.Debugf("%s has load: %d(%d/%d)", nodeId, info[nodeId], load, numChildren)
+		log.Debugf("%s has load: %d(%d)", nodeId, info[nodeId], load)
 	}
 
 	success = true
@@ -207,7 +221,7 @@ func (l *serviceLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria ma
 	if leastBusyLoad != 0 {
 		loadDiff = float64(mostBusyLoad) / float64(leastBusyLoad)
 	}
-	maxed = loadDiff > equivalentLoadDiff
+	maxed = loadDiff < equivalentLoadDiff
 	if maxed {
 		return
 	}
@@ -228,8 +242,9 @@ func (l *serviceLoadBalanceGoal) GenerateAction(target string, args ...interface
 	log.Debugf("generating action %s", (args[lbActionTypeArgIndex]).(string))
 
 	switch args[lbActionTypeArgIndex].(string) {
-	case actions.AddServiceId:
-		return actions.NewAddServiceAction(l.service.ServiceId, target, false)
+	case actions.ExtendServiceId:
+		return actions.NewExtendServiceAction(l.service.ServiceId, target, false, myself,
+			nil)
 	case actions.RedirectClientsId:
 		return actions.NewRedirectAction(l.service.ServiceId, args[lbFromIndex].(string), target, args[lbAmountIndex].(int))
 	}
@@ -287,7 +302,7 @@ func (l *serviceLoadBalanceGoal) handleOverload(candidates Range) (
 	actionArgs []interface{}, newOptRange Range) {
 	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
 
-	actionArgs[lbActionTypeArgIndex] = actions.AddServiceId
+	actionArgs[lbActionTypeArgIndex] = actions.ExtendServiceId
 	deplClient := deployer.NewDeployerClient("")
 	for _, candidate := range candidates {
 		_, okC := l.service.Children.Load(candidate)

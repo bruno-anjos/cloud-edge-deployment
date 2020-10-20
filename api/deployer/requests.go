@@ -12,7 +12,6 @@ const (
 )
 
 type (
-	ExpandTreeRequestBody      = *publicUtils.Location
 	RegisterServiceRequestBody = DeploymentDTO
 	AddNodeRequestBody         = string
 	DeadChildRequestBody       = struct {
@@ -20,8 +19,10 @@ type (
 		Alternatives map[string]*utils.Node
 		Location     *publicUtils.Location
 	}
-	TakeChildRequestBody               = utils.Node
-	IAmYourParentRequestBody           = []*utils.Node
+	IAmYourParentRequestBody = []*utils.Node
+	IAmYourChildRequestBody  = struct {
+		Child *utils.Node
+	}
 	RegisterServiceInstanceRequestBody = archimedes.InstanceDTO
 	AlternativesRequestBody            = []*utils.Node
 	SetGrandparentRequestBody          = utils.Node
@@ -36,7 +37,11 @@ type (
 	}
 	RedirectClientDownTheTreeRequestBody = *publicUtils.Location
 	TerminalLocationRequestBody          = struct {
-		Child    string
+		Child     string
 		Locations []*publicUtils.Location
+	}
+	ExtendDeploymentRequestBody = struct {
+		Parent   *utils.Node
+		Children []*utils.Node
 	}
 )
