@@ -1,4 +1,4 @@
-FROM busybox
+FROM busybox:glibc
 
 COPY ./dummy_client /dummy_client
 COPY ./config.json /config.json

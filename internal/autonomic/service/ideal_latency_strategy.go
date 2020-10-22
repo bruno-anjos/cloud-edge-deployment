@@ -12,13 +12,12 @@ import (
 
 type idealLatencyStrategy struct {
 	*basicStrategy
-	redirected          int
-	redirecting         bool
-	redirectingTo       string
-	redirectInitialLoad int
-	lbGoal              *serviceLoadBalanceGoal
-	archClient          *archimedes.Client
-	service             *Service
+	redirectingTo string
+	redirectGoal  int
+	redirecting   bool
+	lbGoal        *serviceLoadBalanceGoal
+	archClient    *archimedes.Client
+	service       *Service
 }
 
 func newDefaultIdealLatencyStrategy(service *Service) *idealLatencyStrategy {
@@ -31,7 +30,6 @@ func newDefaultIdealLatencyStrategy(service *Service) *idealLatencyStrategy {
 
 	return &idealLatencyStrategy{
 		basicStrategy: newBasicStrategy(public.StrategyIdealLatencyId, defaultGoals),
-		redirected:    0,
 		archClient:    archimedes.NewArchimedesClient(archimedes.DefaultHostPort),
 		lbGoal:        lbGoal,
 		service:       service,
@@ -76,33 +74,22 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 			if status != http.StatusOK {
 				return nil
 			}
-			i.redirected = int(redirected)
 
-			targetArchClient := archimedes.NewArchimedesClient(i.redirectingTo + ":" + strconv.Itoa(archimedes.Port))
-			currLoad, status := targetArchClient.GetLoad(i.service.ServiceId)
-			if status != http.StatusOK {
-				log.Errorf("got status %d while getting %s load for service %s", status, i.redirectingTo,
-					i.service.ServiceId)
+			if int(redirected) >= i.redirectGoal {
+				targetArchClient := archimedes.NewArchimedesClient(i.redirectingTo + ":" + strconv.Itoa(archimedes.Port))
+				status = targetArchClient.RemoveRedirect(i.service.ServiceId)
+				if status != http.StatusOK {
+					log.Errorf("got status %d while removing redirections for service %s at %s", status,
+						i.service.ServiceId, i.redirectingTo)
+				}
 			}
 
-			loadDiff := (1 - (float64(currLoad))) / float64(i.redirectInitialLoad)
-
-			// TODO this is not that smart
-			if loadDiff > 0.75 {
-				i.lbGoal.decreaseMigrationGroupSize()
-			} else if loadDiff < 0.25 {
-				i.lbGoal.increaseMigrationGroupSize()
-			}
 		} else {
 			// case where i was NOT yet redirecting
-
-			i.redirectingTo = nextDomain[0]
-			i.redirected = 0
+			assertedAction := action.(*actions.RedirectAction)
 			i.redirecting = true
-			archClient := archimedes.NewArchimedesClient(i.redirectingTo + ":" + strconv.Itoa(archimedes.Port))
-			load, _ := archClient.GetLoad(i.service.ServiceId)
-			i.redirectInitialLoad = load
-			i.lbGoal.resetMigrationGroupSize()
+			i.redirectGoal = assertedAction.GetAmount()
+			i.redirectingTo = assertedAction.GetTarget()
 		}
 	} else if i.redirecting {
 		i.redirecting = false

@@ -271,8 +271,8 @@ func (i *idealLatency) GenerateAction(target string, args ...interface{}) action
 	switch args[ilActionTypeArgIndex].(string) {
 	case actions.ExtendServiceId:
 		_, exploring := args[ilExploreNodesIndex].(map[string]interface{})[target]
-		return actions.NewExtendServiceAction(i.service.ServiceId, target,
-			exploring, myself, nil, args[ilExploreLocationIndex].(*publicUtils.Location))
+		return actions.NewExtendServiceAction(i.service.ServiceId, target, exploring, myself, nil,
+			args[ilExploreLocationIndex].(*publicUtils.Location))
 	case actions.MigrateServiceId:
 		from := args[ilFromIndex].(string)
 		return actions.NewMigrateAction(i.service.ServiceId, from, target)

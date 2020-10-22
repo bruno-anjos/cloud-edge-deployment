@@ -7,7 +7,11 @@ BUILD_DIR="$REL_PATH/../build"
 CMD_DIR="$REL_PATH/../cmd"
 
 function build() {
-	env CGO_ENABLED=0 GOOS=linux go build -o "${BUILD_DIR}/${SERVICE_NAME}/${SERVICE_NAME}" "${CMD_DIR}/${SERVICE_NAME}/main.go"
+	echo "running env CGO_ENABLED=1 go-1.14 build -race -o \"${BUILD_DIR}/${SERVICE_NAME}/${SERVICE_NAME}\"\
+	\"${CMD_DIR}/${SERVICE_NAME}/main.go\""
+
+	env CGO_ENABLED=1 go-1.14 build -race -o "${BUILD_DIR}/${SERVICE_NAME}/${SERVICE_NAME}" \
+	"${CMD_DIR}/${SERVICE_NAME}/main.go"
 }
 
 SERVICE_NAME="archimedes"
@@ -21,5 +25,7 @@ build
 
 SERVICE_NAME="autonomic"
 build
+
+echo "Done building binaries"
 
 wait

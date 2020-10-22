@@ -489,23 +489,15 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	myLocation, status := hTable.autonomicClient.GetLocation()
-	if status != http.StatusOK {
-		log.Error("could not get my location")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
 	var (
-		bestDiff    = myLocation.CalcDist(clientLocation)
+		bestDiff    = location.CalcDist(clientLocation)
 		bestNode    = myself.Id
-		auxLocation *publicUtils.Location
 	)
 
 	autoClient := autonomic.NewAutonomicClient("")
 	for id := range auxChildren {
 		autoClient.SetHostPort(id + ":" + strconv.Itoa(autonomic.Port))
-		auxLocation, status = autoClient.GetLocation()
+		auxLocation, status := autoClient.GetLocation()
 		if status != http.StatusOK {
 			log.Errorf("got %d while trying to get %s location", status, id)
 			continue
@@ -546,7 +538,7 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 			once := value.(typeExploringValue)
 			once.Do(func() {
 				childAutoClient := autonomic.NewAutonomicClient(myself.Id + ":" + strconv.Itoa(autonomic.Port))
-				status = childAutoClient.SetExploredSuccessfully(deploymentId, bestNode)
+				status := childAutoClient.SetExploredSuccessfully(deploymentId, bestNode)
 				if status != http.StatusOK {
 					log.Errorf("got status %d when setting %s exploration as success", status, bestNode)
 				}

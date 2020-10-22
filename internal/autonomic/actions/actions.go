@@ -62,8 +62,14 @@ type actionWithServiceOriginTarget struct {
 
 func newActionWithServiceOriginTarget(actionId, serviceId, origin, target string,
 	args ...interface{}) *actionWithServiceOriginTarget {
+	newArgs := make([]interface{}, len(args)+1)
+	newArgs[0] = origin
+	for i, arg := range args {
+		newArgs[i+1] = arg
+	}
+
 	return &actionWithServiceOriginTarget{
-		actionWithServiceTarget: newActionWithServiceTarget(actionId, serviceId, target, origin, args),
+		actionWithServiceTarget: newActionWithServiceTarget(actionId, serviceId, target, newArgs...),
 	}
 }
 

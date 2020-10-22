@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
@@ -48,7 +49,7 @@ type (
 
 const (
 	maxHops    = 2
-	batchTimer = 10
+	batchTimer = 10 * time.Second
 )
 
 var (
@@ -307,6 +308,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 	redirect, targetUrl := checkForRedirections(reqBody.ToResolve.Host)
 	if redirect {
+		log.Debugf("redirecting %s to %s to achieve load balancing", reqBody.ToResolve.Host, targetUrl.Host)
 		exploringClientLocations.Delete(reqBody.DeploymentId)
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
 		return
@@ -394,6 +396,8 @@ func checkForRedirections(hostToResolve string) (redirect bool, targetUrl url.UR
 				Path:   api.GetResolvePath(),
 			}
 			if reachedGoal {
+				log.Debugf("completed goal of redirecting %d clients to %s for service %s", redirectConfig.Target,
+					redirectConfig.Goal, hostToResolve)
 				redirectConfig.Done = true
 			}
 			return
@@ -489,6 +493,8 @@ func redirectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Debugf("redirecting %d clients to %s", req.Amount, req.Target)
+
 	redirectConfig := &redirectedConfig{
 		Target:  req.Target,
 		Goal:    req.Amount,
@@ -539,12 +545,11 @@ func getLoadHandler(w http.ResponseWriter, r *http.Request) {
 
 	numReqsLock.RLock()
 	entry, ok := numReqsLastMinute[serviceId]
-	numReqsLock.RUnlock()
-
 	load := 0
 	if ok {
 		load = entry.NumReqs
 	}
+	numReqsLock.RUnlock()
 
 	log.Debugf("got load %d for service %s", load, serviceId)
 
@@ -645,7 +650,7 @@ func broadcastMsgWithHorizon(discoverMsg *api.DiscoverMsg, hops int) {
 
 // TODO simulating
 func manageLoadBatch() {
-	ticker := time.NewTicker(batchTimer + time.Second)
+	ticker := time.NewTicker(batchTimer)
 
 	for {
 		<-ticker.C
@@ -663,7 +668,7 @@ func manageLoadBatch() {
 
 // TODO simulating
 func waitToRemove(deploymentId string, entry *batchValue) {
-	time.Sleep(60 * time.Second)
+	time.Sleep(archimedesHTTPClient.CacheExpiringTime)
 	numReqsLock.Lock()
 	numReqsLastMinute[deploymentId].NumReqs -= entry.NumReqs
 	for locId, locEntry := range entry.Locations {

@@ -1,4 +1,4 @@
-FROM busybox
+FROM busybox:glibc
 
 COPY ./archimedes /archimedes
 COPY ./deployer /deployer

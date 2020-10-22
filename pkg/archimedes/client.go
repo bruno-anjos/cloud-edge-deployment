@@ -173,7 +173,7 @@ func (c *Client) GetRedirected(serviceId string) (redirected int32, status int) 
 	path := api.GetRedirectedPath(serviceId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, redirected)
+	status, _ = utils.DoRequest(c.Client, req, &redirected)
 	return
 }
 

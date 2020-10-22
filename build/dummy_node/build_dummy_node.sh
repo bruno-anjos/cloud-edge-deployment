@@ -4,7 +4,7 @@ BUILD_DIR=$CLOUD_EDGE_DEPLOYMENT/build/dummy_node
 
 bash "$CLOUD_EDGE_DEPLOYMENT"/scripts/build_binaries.sh
 
-env CGO_ENABLED=0 GOOS=linux go build -o "$CLOUD_EDGE_DEPLOYMENT/build/dummy_node/deployer-cli" \
+env CGO_ENABLED=1 go-1.14 build -race -o "$CLOUD_EDGE_DEPLOYMENT/build/dummy_node/deployer-cli" \
 	"${CLOUD_EDGE_DEPLOYMENT}/cmd/deployer-cli/main.go"
 
 rm -rf "$CLOUD_EDGE_DEPLOYMENT"/build/dummy_node/alternatives
