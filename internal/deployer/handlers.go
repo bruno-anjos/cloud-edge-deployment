@@ -35,7 +35,7 @@ type (
 	terminalServiceLocations = *sync.Map
 
 	typeTerminalLocationKey   = string
-	typeTerminalLocationValue = []*publicUtils.Location
+	typeTerminalLocationValue = *publicUtils.Location
 
 	typeExploringValue = *sync.Once
 )
@@ -53,6 +53,8 @@ const (
 	alternativesDir  = "/alternatives/"
 	fallbackFilename = "fallback.txt"
 	maxHopsToLookFor = 5
+
+	maxHopslocationHorizon = 3
 )
 
 var (
@@ -130,6 +132,54 @@ func init() {
 	go checkParentHeartbeatsPeriodically()
 }
 
+func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+
+	var reqBody api.PropagateLocationToHorizonRequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		panic(err)
+	}
+
+	var nodeLocations typeServicesLocationsValue
+	value, ok := serviceLocations.Load(deploymentId)
+	if !ok {
+		addServiceLocationLock.Lock()
+		value, ok = serviceLocations.Load(deploymentId)
+		if !ok {
+			nodeLocations = &sync.Map{}
+			serviceLocations.Store(deploymentId, nodeLocations)
+		} else {
+			nodeLocations = value.(typeServicesLocationsValue)
+		}
+		addServiceLocationLock.Unlock()
+	} else {
+		nodeLocations = value.(typeServicesLocationsValue)
+	}
+	nodeLocations.Store(reqBody.ChildId, reqBody.Location)
+
+	if reqBody.TTL+1 > maxHopslocationHorizon {
+		return
+	}
+
+	parents := map[string][]string{}
+
+	deployments := hTable.getDeployments()
+	for _, deploymentId := range deployments {
+		parent := hTable.getParent(deploymentId)
+		if parent != nil {
+			parents[parent.Id] = append(parents[parent.Id], deploymentId)
+		}
+	}
+
+	deplClient := deployer.NewDeployerClient("")
+	for parent, services := range parents {
+		deplClient.SetHostPort(parent + ":" + strconv.Itoa(deployer.Port))
+		log.Debugf("propagating %s location for services %+v to %s", reqBody.ChildId, services, parent)
+		deplClient.PropagateLocationToHorizon(deploymentId, reqBody.ChildId, reqBody.Location, reqBody.TTL+1)
+	}
+}
+
 func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	log.Debugf("handling migrate request")
 
@@ -175,7 +225,6 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 }
 
 func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
-
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	targetAddr := utils.ExtractPathVar(r, nodeIdPathVar)
 
@@ -193,7 +242,7 @@ func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	go attemptToExtend(deploymentId, targetAddr, nil, reqBody.Children, reqBody.Parent, 0, nil)
+	go attemptToExtend(deploymentId, targetAddr, nil, reqBody.Children, reqBody.Parent, 0, nil, reqBody.Exploring)
 }
 
 func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
@@ -476,13 +525,11 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 		terminalLocations := value.(terminalServiceLocations)
 		terminalLocations.Range(func(key, value interface{}) bool {
 			nodeId := key.(typeTerminalLocationKey)
-			nodeLocs := value.(typeTerminalLocationValue)
-			for _, nodeLoc := range nodeLocs {
-				diff := nodeLoc.CalcDist(clientLocation)
-				if diff < bestDiff {
-					bestNode = nodeId
-					bestDiff = diff
-				}
+			nodeLoc := value.(typeTerminalLocationValue)
+			diff := nodeLoc.CalcDist(clientLocation)
+			if diff < bestDiff {
+				bestNode = nodeId
+				bestDiff = diff
 			}
 
 			return true
@@ -527,45 +574,6 @@ func hasDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	if !hTable.hasDeployment(deploymentId) {
 		w.WriteHeader(http.StatusNotFound)
 	}
-}
-
-func terminalLocationHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-
-	var reqBody api.TerminalLocationRequestBody
-	err := json.NewDecoder(r.Body).Decode(&reqBody)
-	if err != nil {
-		panic(err)
-	}
-
-	setTerminalLocsForChild(deploymentId, reqBody.Child, reqBody.Locations...)
-	log.Debugf("got terminal locations for deployment %s from %s:", deploymentId,
-		reqBody.Child)
-	for _, loc := range reqBody.Locations {
-		log.Debugf("X: %f, Y: %f", loc.X, loc.Y)
-	}
-
-	locations := getDeploymentTerminalLocations(deploymentId)
-
-	parent := hTable.getParent(deploymentId)
-	if parent != nil {
-		deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
-		deplClient.SetTerminalLocations(deploymentId, myself.Id, locations...)
-	}
-}
-
-func setExploringHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-	childId := utils.ExtractPathVar(r, nodeIdPathVar)
-
-	ok := hTable.hasDeployment(deploymentId)
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	id := deploymentId + "_" + childId
-	exploring.Store(id, &sync.Once{})
 }
 
 // TODO function simulating lower API
@@ -737,27 +745,6 @@ func getParentAlternatives(parentId string) (alternatives map[string]*utils.Node
 	return
 }
 
-func setTerminalLocsForChild(deploymentId, childId string, childLocations ...*publicUtils.Location) {
-	var deploymentChildrenLocations terminalServiceLocations
-
-	value, ok := serviceLocations.Load(deploymentId)
-	if !ok {
-		addServiceLocationLock.Lock()
-		_, ok = serviceLocations.Load(deploymentId)
-		if !ok {
-			deploymentChildrenLocations = &sync.Map{}
-			serviceLocations.Store(deploymentId, deploymentChildrenLocations)
-		} else {
-			deploymentChildrenLocations = value.(typeServicesLocationsValue)
-		}
-		addServiceLocationLock.Unlock()
-	} else {
-		deploymentChildrenLocations = value.(typeServicesLocationsValue)
-	}
-
-	deploymentChildrenLocations.Store(childId, childLocations)
-}
-
 func getDeploymentTerminalLocations(deploymentId string) []*publicUtils.Location {
 	value, ok := serviceLocations.Load(deploymentId)
 	if !ok {
@@ -768,8 +755,8 @@ func getDeploymentTerminalLocations(deploymentId string) []*publicUtils.Location
 	deploymentLocations := value.(typeServicesLocationsValue)
 	var locations []*publicUtils.Location
 	deploymentLocations.Range(func(key, value interface{}) bool {
-		childLocations := value.(typeTerminalLocationValue)
-		locations = append(locations, childLocations...)
+		childLocation := value.(typeTerminalLocationValue)
+		locations = append(locations, childLocation)
 		return true
 	})
 

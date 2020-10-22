@@ -10,20 +10,21 @@ const (
 
 	PrefixPath = "/archimedes"
 
-	ServicesPath           = "/services"
-	ServicePath            = "/services/%s"
-	ServiceInstancePath    = "/services/%s/%s"
-	InstancePath           = "/instances/%s"
-	DiscoverPath           = "/discover"
-	WhoAreYouPath          = "/who"
-	TablePath              = "/table"
-	ResolvePath            = "/resolve"
-	ResolveLocallyPath     = "/resolve/local"
-	RedirectPath           = "/services/%s/redirect"
-	RedirectedPath         = "/services/%s/redirected"
-	SetResolvingAnswerPath = "/services/asnwer"
-	LoadPath               = "/services/%s/load"
-	AvgClientLocationPath  = "/services/%s/avg_cli_loc"
+	ServicesPath                = "/services"
+	ServicePath                 = "/services/%s"
+	ServiceInstancePath         = "/services/%s/%s"
+	InstancePath                = "/instances/%s"
+	DiscoverPath                = "/discover"
+	WhoAreYouPath               = "/who"
+	TablePath                   = "/table"
+	ResolvePath                 = "/resolve"
+	ResolveLocallyPath          = "/resolve/local"
+	RedirectPath                = "/services/%s/redirect"
+	RedirectedPath              = "/services/%s/redirected"
+	SetResolvingAnswerPath      = "/services/asnwer"
+	LoadPath                    = "/services/%s/load"
+	AvgClientLocationPath       = "/services/%s/avg_cli_loc"
+	ExploringClientLocationPath = "/services/%s/exploring_loc"
 )
 
 func GetServicesPath() string {
@@ -64,4 +65,8 @@ func GetLoadPath(serviceId string) string {
 
 func GetAvgClientLocationPath(serviceId string) string {
 	return PrefixPath + fmt.Sprintf(AvgClientLocationPath, serviceId)
+}
+
+func GetSetExploringClientLocationPath(serviceId string) string {
+	return PrefixPath + fmt.Sprintf(ExploringClientLocationPath, serviceId)
 }

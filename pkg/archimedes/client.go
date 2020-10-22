@@ -203,7 +203,8 @@ func (c *Client) GetAvgClientLocation(serviceId string) (loc *publicUtils.Locati
 	path := api.GetAvgClientLocationPath(serviceId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
-	status, resp := utils.DoRequest(c.Client, req, nil)
+	var resp *http.Response
+	status, resp = utils.DoRequest(c.Client, req, nil)
 
 	if status == http.StatusOK {
 		loc = &publicUtils.Location{}
@@ -212,6 +213,19 @@ func (c *Client) GetAvgClientLocation(serviceId string) (loc *publicUtils.Locati
 			panic(err)
 		}
 	}
+
+	return
+}
+
+func (c *Client) SetExploringClientLocation(serviceId string, location *publicUtils.Location) (status int) {
+	reqBody := api.SetExploringClientLocationRequestBody{
+		Location: location,
+	}
+
+	path := api.GetSetExploringClientLocationPath(serviceId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return
 }

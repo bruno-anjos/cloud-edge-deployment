@@ -42,6 +42,8 @@ type (
 		Location *publicUtils.Location
 		Number   int
 	}
+
+	exploringClientLocationsValue = *publicUtils.Location
 )
 
 const (
@@ -50,17 +52,15 @@ const (
 )
 
 var (
-	messagesReceived  sync.Map
-	sTable            *servicesTable
-	redirectionsMap   sync.Map
-	archimedesId      string
-	resolvingInTree   sync.Map
-	resolvedInTree    sync.Map
-	waitingChannels   sync.Map
-	hostname          string
-	numReqsLastMinute map[string]*batchValue
-	currBatch         map[string]*batchValue
-	numReqsLock       sync.RWMutex
+	messagesReceived         sync.Map
+	sTable                   *servicesTable
+	redirectionsMap          sync.Map
+	archimedesId             string
+	hostname                 string
+	numReqsLastMinute        map[string]*batchValue
+	currBatch                map[string]*batchValue
+	numReqsLock              sync.RWMutex
+	exploringClientLocations sync.Map
 )
 
 func init() {
@@ -68,9 +68,6 @@ func init() {
 
 	sTable = newServicesTable()
 	redirectionsMap = sync.Map{}
-	resolvingInTree = sync.Map{}
-	resolvedInTree = sync.Map{}
-	waitingChannels = sync.Map{}
 
 	var err error
 	hostname, err = os.Hostname()
@@ -83,6 +80,8 @@ func init() {
 	numReqsLastMinute = map[string]*batchValue{}
 	currBatch = map[string]*batchValue{}
 	numReqsLock = sync.RWMutex{}
+
+	exploringClientLocations = sync.Map{}
 
 	go manageLoadBatch()
 
@@ -308,7 +307,9 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 	redirect, targetUrl := checkForRedirections(reqBody.ToResolve.Host)
 	if redirect {
+		exploringClientLocations.Delete(reqBody.DeploymentId)
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
+		return
 	}
 
 	deplClient := deployer.NewDeployerClient(publicUtils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
@@ -323,6 +324,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 			Host:   redirectTo + ":" + strconv.Itoa(archimedes.Port),
 			Path:   api.GetResolvePath(),
 		}
+		exploringClientLocations.Delete(reqBody.DeploymentId)
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
 		return
 	default:
@@ -346,95 +348,18 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 			Host:   fallback + ":" + strconv.Itoa(archimedes.Port),
 			Path:   api.GetResolvePath(),
 		}
+		exploringClientLocations.Delete(reqBody.DeploymentId)
 		http.Redirect(w, r, fallbackURL.String(), http.StatusPermanentRedirect)
 		return
 	}
 
-	numReqsLock.Lock()
-	entry, ok := numReqsLastMinute[reqBody.DeploymentId]
-	if !ok {
-		numReqsLastMinute[reqBody.DeploymentId] = &batchValue{
-			Locations: map[string]*locationsEntry{
-				reqBody.Location.GetId(): {
-					Location: reqBody.Location,
-					Number:   1,
-				},
-			},
-			NumReqs: 1,
-		}
-	} else {
-		entry.NumReqs++
-
-		var (
-			loc *locationsEntry
-		)
-		loc, ok = entry.Locations[reqBody.Location.GetId()]
-		if !ok {
-			entry.Locations[reqBody.Location.GetId()] = &locationsEntry{
-				Location: reqBody.Location,
-				Number:   1,
-			}
-		} else {
-			loc.Number++
-		}
-	}
-
-	entry, ok = currBatch[reqBody.DeploymentId]
-	if !ok {
-		currBatch[reqBody.DeploymentId] = &batchValue{
-			Locations: map[string]*locationsEntry{
-				reqBody.Location.GetId(): {
-					Location: reqBody.Location,
-					Number:   1,
-				},
-			},
-			NumReqs: 1,
-		}
-	} else {
-		entry.NumReqs++
-
-		var (
-			loc *locationsEntry
-		)
-		loc, ok = entry.Locations[reqBody.Location.GetId()]
-		if !ok {
-			entry.Locations[reqBody.Location.GetId()] = &locationsEntry{
-				Location: reqBody.Location,
-				Number:   1,
-			}
-		} else {
-			loc.Number++
-		}
-	}
-	numReqsLock.Unlock()
+	updateNumRequests(reqBody.DeploymentId, reqBody.Location)
 
 	var resp api.ResolveResponseBody
 	resp = *resolved
 
+	exploringClientLocations.Delete(reqBody.DeploymentId)
 	utils.SendJSONReplyOK(w, resp)
-}
-
-func setResolutionAnswerHandler(w http.ResponseWriter, r *http.Request) {
-	var reqBody api.SetResolutionAnswerRequestBody
-	err := json.NewDecoder(r.Body).Decode(&reqBody)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	log.Debugf("got answer %s for %s", reqBody.Resolved.Host, reqBody.Id)
-
-	value, ok := waitingChannels.Load(reqBody.Id)
-	if !ok {
-		log.Debugf("got answer for resolution of %s, but i wasnt waiting", reqBody.Id)
-		return
-	}
-
-	waitChan := value.(chan struct{})
-	resolvedInTree.Store(reqBody.Id, &reqBody.Resolved)
-	resolvingInTree.Delete(reqBody.Id)
-	waitingChannels.Delete(reqBody.Id)
-	close(waitChan)
 }
 
 func resolveLocallyHandler(w http.ResponseWriter, r *http.Request) {
@@ -594,6 +519,20 @@ func getRedirectedHandler(w http.ResponseWriter, r *http.Request) {
 	utils.SendJSONReplyOK(w, redirected.Current)
 }
 
+func setExploringClientLocationHandler(_ http.ResponseWriter, r *http.Request) {
+	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+
+	var reqBody api.SetExploringClientLocationRequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		panic(err)
+	}
+
+	log.Debugf("set exploring location %v for service %s", reqBody.Location, serviceId)
+
+	exploringClientLocations.Store(serviceId, reqBody.Location)
+}
+
 // TODO simulating
 func getLoadHandler(w http.ResponseWriter, r *http.Request) {
 	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
@@ -623,6 +562,13 @@ func getAvgClientLocationHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentEntry, ok := numReqsLastMinute[deploymentId]
 	if !ok {
 		numReqsLock.RUnlock()
+		var value interface{}
+		value, ok = exploringClientLocations.Load(deploymentId)
+		if ok {
+			loc := value.(exploringClientLocationsValue)
+			utils.SendJSONReplyOK(w, loc)
+		}
+
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -727,4 +673,64 @@ func waitToRemove(deploymentId string, entry *batchValue) {
 		}
 	}
 	numReqsLock.Unlock()
+}
+
+func updateNumRequests(deploymentId string, location *publicUtils.Location) {
+	numReqsLock.Lock()
+	defer numReqsLock.Unlock()
+	entry, ok := numReqsLastMinute[deploymentId]
+	if !ok {
+		numReqsLastMinute[deploymentId] = &batchValue{
+			Locations: map[string]*locationsEntry{
+				location.GetId(): {
+					Location: location,
+					Number:   1,
+				},
+			},
+			NumReqs: 1,
+		}
+	} else {
+		entry.NumReqs++
+
+		var (
+			loc *locationsEntry
+		)
+		loc, ok = entry.Locations[location.GetId()]
+		if !ok {
+			entry.Locations[location.GetId()] = &locationsEntry{
+				Location: location,
+				Number:   1,
+			}
+		} else {
+			loc.Number++
+		}
+	}
+
+	entry, ok = currBatch[deploymentId]
+	if !ok {
+		currBatch[deploymentId] = &batchValue{
+			Locations: map[string]*locationsEntry{
+				location.GetId(): {
+					Location: location,
+					Number:   1,
+				},
+			},
+			NumReqs: 1,
+		}
+	} else {
+		entry.NumReqs++
+
+		var (
+			loc *locationsEntry
+		)
+		loc, ok = entry.Locations[location.GetId()]
+		if !ok {
+			entry.Locations[location.GetId()] = &locationsEntry{
+				Location: location,
+				Number:   1,
+			}
+		} else {
+			loc.Number++
+		}
+	}
 }

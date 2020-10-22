@@ -59,10 +59,12 @@ func (c *Client) RegisterService(serviceId string, static bool,
 	return
 }
 
-func (c *Client) ExtendDeploymentTo(serviceId, targetId string, parent *utils.Node, children []*utils.Node) (status int) {
+func (c *Client) ExtendDeploymentTo(serviceId, targetId string, parent *utils.Node, children []*utils.Node,
+	exploring bool) (status int) {
 	reqBody := api.ExtendDeploymentRequestBody{
-		Parent:   parent,
-		Children: children,
+		Parent:    parent,
+		Children:  children,
+		Exploring: exploring,
 	}
 
 	path := api.GetExtendServicePath(serviceId, targetId)
@@ -369,23 +371,16 @@ func (c *Client) HasService(serviceId string) (has bool, status int) {
 	return
 }
 
-func (c *Client) SetTerminalLocations(deploymentId, origin string, locations ...*publicUtils.Location) (status int) {
-	reqBody := api.TerminalLocationRequestBody{
-		Child:     origin,
-		Locations: locations,
+func (c *Client) PropagateLocationToHorizon(deploymentId, origin string, location *publicUtils.Location,
+	TTL int8) (status int) {
+	reqBody := api.PropagateLocationToHorizonRequestBody{
+		TTL:      TTL,
+		ChildId:  origin,
+		Location: location,
 	}
 
-	path := api.GetTerminalLocationPath(deploymentId)
+	path := api.GetPropagateLocationToHorizonPath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
-
-	status, _ = utils.DoRequest(c.Client, req, nil)
-
-	return
-}
-
-func (c *Client) SetExploring(deploymentId, childId string) (status int) {
-	path := api.GetSetExploringPath(deploymentId, childId)
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 

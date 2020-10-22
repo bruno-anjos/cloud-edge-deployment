@@ -17,24 +17,24 @@ const (
 
 	SetAlternativesPath = "/alternatives/%s"
 
-	DeadChildPath             = "/deployments/%s/deadchild/%s"
-	IAmYourParentPath         = "/deployments/%s/parent"
-	IAmYourChildPath          = "/deployments/%s/child"
-	HierarchyTablePath        = "/table"
-	ParentAlivePath           = "/parent/%s/up"
-	DeploymentChildPath       = "/deployments/%s/child/%s"
-	MigrateDeploymentPath     = "/deployments/%s/migrate"
-	ExtendServiceToPath       = "/deployments/%s/extend/%s"
-	ShortenServiceFromPath    = "/deployments/%s/shorten/%s"
-	SetGrandparentPath        = "/deployments/%s/grandparent"
-	FallbackPath              = "/deployments/%s/fallback"
-	ResolveUpTheTreePath      = "/deployments/%s/resolve_up"
-	StartResolveUpTheTreePath = "/deployments/%s/start_resolve_up"
-	RedirectDownTheTreePath   = "/deployments/%s/redirect_down"
-	GetFallbackIdPath         = "/deployments/fallback"
-	HasDeploymentPath         = "/deployments/%s/has"
-	TerminalLocationPath      = "/deployments/%s/terminal"
-	SetExploringPath          = "/deployments/%s/exploring/%s"
+	DeadChildPath              = "/deployments/%s/deadchild/%s"
+	IAmYourParentPath          = "/deployments/%s/parent"
+	IAmYourChildPath           = "/deployments/%s/child"
+	HierarchyTablePath         = "/table"
+	ParentAlivePath            = "/parent/%s/up"
+	DeploymentChildPath        = "/deployments/%s/child/%s"
+	MigrateDeploymentPath      = "/deployments/%s/migrate"
+	ExtendServiceToPath        = "/deployments/%s/extend/%s"
+	ShortenServiceFromPath     = "/deployments/%s/shorten/%s"
+	SetGrandparentPath         = "/deployments/%s/grandparent"
+	FallbackPath               = "/deployments/%s/fallback"
+	ResolveUpTheTreePath       = "/deployments/%s/resolve_up"
+	StartResolveUpTheTreePath  = "/deployments/%s/start_resolve_up"
+	RedirectDownTheTreePath    = "/deployments/%s/redirect_down"
+	GetFallbackIdPath          = "/deployments/fallback"
+	HasDeploymentPath          = "/deployments/%s/has"
+	PropagateLocationToHorizon = "/deployments/%s/propagate_location"
+	SetExploringPath           = "/deployments/%s/exploring/%s"
 
 	DeploymentInstanceAlivePath = "/deployments/%s/%s/alive"
 	DeploymentInstancePath      = "/deployments/%s/%s"
@@ -124,8 +124,8 @@ func GetHasDeploymentPath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(HasDeploymentPath, deploymentId)
 }
 
-func GetTerminalLocationPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(TerminalLocationPath, deploymentId)
+func GetPropagateLocationToHorizonPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(PropagateLocationToHorizon, deploymentId)
 }
 
 func GetSetExploringPath(deploymentId, childId string) string {

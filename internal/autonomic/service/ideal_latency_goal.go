@@ -31,19 +31,22 @@ const (
 const (
 	ilActionTypeArgIndex = iota
 	ilFromIndex
-	ilExploreIndex
+	ilExploreNodesIndex
+	ilExploreLocationIndex
 	ilArgsNum
 )
 
 type (
 	serviceChildrenMapKey   = string
 	serviceChildrenMapValue = *nodeWithLocation
-)
 
-type nodeWithDistance struct {
-	NodeId             string
-	DistancePercentage float64
-}
+	nodeWithDistance struct {
+		NodeId             string
+		DistancePercentage float64
+	}
+
+	sortingCriteriaType = *nodeWithDistance
+)
 
 type idealLatency struct {
 	service      *Service
@@ -114,11 +117,10 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 	}
 
 	var (
-		numChildren  int
 		shouldBranch bool
 	)
 
-	shouldBranch, numChildren = i.checkShouldBranch(avgClientLocation)
+	shouldBranch = i.checkShouldBranch(avgClientLocation)
 	isAlreadyMax = !shouldBranch
 
 	if !isAlreadyMax {
@@ -126,7 +128,14 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 		if !isAlreadyMax {
 			actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
 			actionArgs[ilActionTypeArgIndex] = actions.ExtendServiceId
-			actionArgs[ilExploreIndex] = numChildren > 0
+			exploreNodes := map[string]interface{}{}
+			for _, nodeId := range optRange {
+				if sortingCriteria[nodeId].(sortingCriteriaType).DistancePercentage > 1. {
+					exploreNodes[nodeId] = nil
+				}
+			}
+			actionArgs[ilExploreNodesIndex] = exploreNodes
+			actionArgs[ilExploreLocationIndex] = avgClientLocation
 		}
 	}
 
@@ -205,8 +214,8 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 func (i *idealLatency) Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range) {
 	ordered = candidates
 	sort.Slice(ordered, func(i, j int) bool {
-		cI := sortingCriteria[ordered[i]].(*nodeWithDistance)
-		cJ := sortingCriteria[ordered[j]].(*nodeWithDistance)
+		cI := sortingCriteria[ordered[i]].(sortingCriteriaType)
+		cJ := sortingCriteria[ordered[j]].(sortingCriteriaType)
 		return cI.DistancePercentage < cJ.DistancePercentage
 	})
 
@@ -237,7 +246,7 @@ func (i *idealLatency) Cutoff(candidates Domain, candidatesCriteria map[string]i
 
 	candidateClient := deployer.NewDeployerClient("")
 	for _, candidate := range candidates {
-		percentage := candidatesCriteria[candidate].(*nodeWithDistance).DistancePercentage
+		percentage := candidatesCriteria[candidate].(sortingCriteriaType).DistancePercentage
 		log.Debugf("candidate %s distance percentage (me) %f", candidate, percentage)
 		if percentage < maximumDistancePercentage {
 			candidateClient.SetHostPort(candidate + ":" + strconv.Itoa(deployer.Port))
@@ -261,8 +270,9 @@ func (i *idealLatency) GenerateAction(target string, args ...interface{}) action
 
 	switch args[ilActionTypeArgIndex].(string) {
 	case actions.ExtendServiceId:
-		return actions.NewExtendServiceAction(i.service.ServiceId, target, args[ilExploreIndex].(bool),
-			myself, nil)
+		_, exploring := args[ilExploreNodesIndex].(map[string]interface{})[target]
+		return actions.NewExtendServiceAction(i.service.ServiceId, target,
+			exploring, myself, nil, args[ilExploreLocationIndex].(*publicUtils.Location))
 	case actions.MigrateServiceId:
 		from := args[ilFromIndex].(string)
 		return actions.NewMigrateAction(i.service.ServiceId, from, target)
@@ -363,7 +373,7 @@ func (i *idealLatency) checkProcessingTime() bool {
 	return false
 }
 
-func (i *idealLatency) checkShouldBranch(avgClientLocation *publicUtils.Location) (bool, int) {
+func (i *idealLatency) checkShouldBranch(avgClientLocation *publicUtils.Location) bool {
 	numChildren := 0
 	i.service.Children.Range(func(key, value interface{}) bool {
 		numChildren++
@@ -383,7 +393,7 @@ func (i *idealLatency) checkShouldBranch(avgClientLocation *publicUtils.Location
 
 	currDistance := location.CalcDist(avgClientLocation)
 	if currDistance <= satisfiedDistance {
-		return false, numChildren
+		return false
 	}
 
 	// TODO this has to be tuned for real distances
@@ -395,7 +405,7 @@ func (i *idealLatency) checkShouldBranch(avgClientLocation *publicUtils.Location
 	validBranch := branchingFactor > branchingCutoff
 	log.Debugf("should branch: %t", validBranch)
 
-	return validBranch, numChildren
+	return validBranch
 }
 
 func (i *idealLatency) filterBlacklisted(o Range) (Range, bool) {

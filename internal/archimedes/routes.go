@@ -26,9 +26,9 @@ const (
 	removeRedirectName          = "REMOVE_REDIRECT"
 	getRedirectedName           = "GET_REDIRECTED"
 	resolveLocallyName          = "RESOLVE_LOCALLY"
-	setResolvingAnswerName      = "SET_RESOLVE_ANSWER"
 	getLoadName                 = "GET_LOAD"
 	getAvgClientLocationName    = "GET_AVG_CLIENT_LOCATION"
+	setExploringLocationName    = "SET_EXPLORING_CLIENT_LOCATION"
 )
 
 // Path variables
@@ -45,20 +45,27 @@ var (
 	serviceRoute         = fmt.Sprintf(archimedes.ServicePath, _serviceIdPathVarFormatted)
 	serviceInstanceRoute = fmt.Sprintf(archimedes.ServiceInstancePath, _serviceIdPathVarFormatted,
 		_instanceIdPathVarFormatted)
-	instanceRoute             = fmt.Sprintf(archimedes.InstancePath, _instanceIdPathVarFormatted)
-	discoverRoute             = archimedes.DiscoverPath
-	whoAreYouRoute            = archimedes.WhoAreYouPath
-	tableRoute                = archimedes.TablePath
-	resolveRoute              = archimedes.ResolvePath
-	resolveLocallyRoute       = archimedes.ResolveLocallyPath
-	redirectRoute             = fmt.Sprintf(archimedes.RedirectPath, _serviceIdPathVarFormatted)
-	redirectedRoute           = fmt.Sprintf(archimedes.RedirectedPath, _serviceIdPathVarFormatted)
-	setResolvingAnswerRoute   = archimedes.SetResolvingAnswerPath
-	getLoadRoute              = fmt.Sprintf(archimedes.LoadPath, _serviceIdPathVarFormatted)
-	getAvgClientLocationRoute = fmt.Sprintf(archimedes.AvgClientLocationPath, _serviceIdPathVarFormatted)
+	instanceRoute                   = fmt.Sprintf(archimedes.InstancePath, _instanceIdPathVarFormatted)
+	discoverRoute                   = archimedes.DiscoverPath
+	whoAreYouRoute                  = archimedes.WhoAreYouPath
+	tableRoute                      = archimedes.TablePath
+	resolveRoute                    = archimedes.ResolvePath
+	resolveLocallyRoute             = archimedes.ResolveLocallyPath
+	redirectRoute                   = fmt.Sprintf(archimedes.RedirectPath, _serviceIdPathVarFormatted)
+	redirectedRoute                 = fmt.Sprintf(archimedes.RedirectedPath, _serviceIdPathVarFormatted)
+	getLoadRoute                    = fmt.Sprintf(archimedes.LoadPath, _serviceIdPathVarFormatted)
+	getAvgClientLocationRoute       = fmt.Sprintf(archimedes.AvgClientLocationPath, _serviceIdPathVarFormatted)
+	setExploringClientLocationRoute = fmt.Sprintf(archimedes.ExploringClientLocationPath, _serviceIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        setExploringLocationName,
+		Method:      http.MethodPost,
+		Pattern:     setExploringClientLocationRoute,
+		HandlerFunc: setExploringClientLocationHandler,
+	},
+
 	{
 		Name:        getAvgClientLocationName,
 		Method:      http.MethodGet,
@@ -71,13 +78,6 @@ var Routes = []utils.Route{
 		Method:      http.MethodGet,
 		Pattern:     getLoadRoute,
 		HandlerFunc: getLoadHandler,
-	},
-
-	{
-		Name:        setResolvingAnswerName,
-		Method:      http.MethodPost,
-		Pattern:     setResolvingAnswerRoute,
-		HandlerFunc: setResolutionAnswerHandler,
 	},
 
 	{

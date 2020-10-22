@@ -36,12 +36,14 @@ type (
 		ToResolve *archimedes.ToResolveDTO
 	}
 	RedirectClientDownTheTreeRequestBody = *publicUtils.Location
-	TerminalLocationRequestBody          = struct {
-		Child     string
-		Locations []*publicUtils.Location
+	ExtendDeploymentRequestBody          = struct {
+		Parent    *utils.Node
+		Children  []*utils.Node
+		Exploring bool
 	}
-	ExtendDeploymentRequestBody = struct {
-		Parent   *utils.Node
-		Children []*utils.Node
+	PropagateLocationToHorizonRequestBody = struct {
+		TTL      int8
+		ChildId  string
+		Location *publicUtils.Location
 	}
 )

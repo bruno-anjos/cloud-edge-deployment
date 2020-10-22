@@ -10,31 +10,31 @@ import (
 
 // Route names
 const (
-	getDeploymentsName          = "GET_DEPLOYMENTS"
-	registerDeploymentName      = "REGISTER_DEPLOYMENT"
-	registerServiceInstanceName = "REGISTER_SERVICE_INSTANCE"
-	deleteDeploymentName        = "DELETE_DEPLOYMENT"
-	whoAreYouName               = "WHO_ARE_YOU"
-	addNodeName                 = "ADD_NODE"
-	setAlternativesName         = "SET_ALTERNATIVES"
-	deadChildName               = "DEAD_CHILD"
-	deleteDeploymentChildName   = "DELETE_DEPLOYMENT_CHILD"
-	iAmYourParentName           = "I_AM_YOUR_PARENT"
-	getHierarchyTableName       = "GET_TABLE"
-	parentAliveName             = "PARENT_ALIVE"
-	migrateDeploymentName       = "MIGRATE_DEPLOYMENT"
-	extendDeploymentToName      = "EXTEND_DEPLOYMENT_TO"
-	shortenDeploymentFromName   = "SHORTEN_DEPLOYMENT_FROM"
-	setGrandparentName          = "SET_GRANDPARENT"
-	fallbackName                = "FALLBACK"
-	resolveUpTheTreeName        = "RESOLVE_UP_THE_TREE"
-	startResolveUpTheTreeName   = "START_RESOLVE_UP_THE_TREE"
-	redirectDownTheTreeName     = "REDIRECT_DOWN_THE_TREE"
-	getFallbackIdName           = "GET_FALLBACK"
-	hasDeploymentName           = "HAS_DEPLOYMENT"
-	terminalLocationName        = "TERMINAL_LOCATION"
-	exploringName               = "EXPLORING"
-	iAmYourChildName            = "I_AM_YOUR_CHILD"
+	getDeploymentsName             = "GET_DEPLOYMENTS"
+	registerDeploymentName         = "REGISTER_DEPLOYMENT"
+	registerServiceInstanceName    = "REGISTER_SERVICE_INSTANCE"
+	deleteDeploymentName           = "DELETE_DEPLOYMENT"
+	whoAreYouName                  = "WHO_ARE_YOU"
+	addNodeName                    = "ADD_NODE"
+	setAlternativesName            = "SET_ALTERNATIVES"
+	deadChildName                  = "DEAD_CHILD"
+	deleteDeploymentChildName      = "DELETE_DEPLOYMENT_CHILD"
+	iAmYourParentName              = "I_AM_YOUR_PARENT"
+	getHierarchyTableName          = "GET_TABLE"
+	parentAliveName                = "PARENT_ALIVE"
+	migrateDeploymentName          = "MIGRATE_DEPLOYMENT"
+	extendDeploymentToName         = "EXTEND_DEPLOYMENT_TO"
+	shortenDeploymentFromName      = "SHORTEN_DEPLOYMENT_FROM"
+	setGrandparentName             = "SET_GRANDPARENT"
+	fallbackName                   = "FALLBACK"
+	resolveUpTheTreeName           = "RESOLVE_UP_THE_TREE"
+	startResolveUpTheTreeName      = "START_RESOLVE_UP_THE_TREE"
+	redirectDownTheTreeName        = "REDIRECT_DOWN_THE_TREE"
+	getFallbackIdName              = "GET_FALLBACK"
+	hasDeploymentName              = "HAS_DEPLOYMENT"
+	propagateLocationToHorizonName = "PROPAGATE_LOCATION_TO_HORIZON"
+	exploringName                  = "EXPLORING"
+	iAmYourChildName               = "I_AM_YOUR_CHILD"
 
 	// scheduler
 	heartbeatServiceInstanceName         = "HEARTBEAT_SERVICE_INSTANCE"
@@ -66,16 +66,15 @@ var (
 	extendDeploymentToRoute    = fmt.Sprintf(deployer.ExtendServiceToPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
 	shortenDeploymentFromRoute = fmt.Sprintf(deployer.ShortenServiceFromPath, _deploymentIdPathVarFormatted,
 		_deployerIdPathVarFormatted)
-	setGrandparentRoute        = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
-	fallbackRoute              = fmt.Sprintf(deployer.FallbackPath, _deploymentIdPathVarFormatted)
-	resolveUpTheTreeRoute      = fmt.Sprintf(deployer.ResolveUpTheTreePath, _deploymentIdPathVarFormatted)
-	startResolveUpTheTreeRoute = fmt.Sprintf(deployer.StartResolveUpTheTreePath, _deploymentIdPathVarFormatted)
-	redirectDownTheTreeRoute   = fmt.Sprintf(deployer.RedirectDownTheTreePath, _deploymentIdPathVarFormatted)
-	getFallbackRoute           = deployer.GetFallbackIdPath
-	hasDeploymentRoute         = fmt.Sprintf(deployer.HasDeploymentPath, _deploymentIdPathVarFormatted)
-	terminalLocationRoute      = fmt.Sprintf(deployer.TerminalLocationPath, _deploymentIdPathVarFormatted)
-	setExploringRoute          = fmt.Sprintf(deployer.SetExploringPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
-	iAmYourChildRoute          = fmt.Sprintf(deployer.IAmYourChildPath, _deploymentIdPathVarFormatted)
+	setGrandparentRoute             = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
+	fallbackRoute                   = fmt.Sprintf(deployer.FallbackPath, _deploymentIdPathVarFormatted)
+	resolveUpTheTreeRoute           = fmt.Sprintf(deployer.ResolveUpTheTreePath, _deploymentIdPathVarFormatted)
+	startResolveUpTheTreeRoute      = fmt.Sprintf(deployer.StartResolveUpTheTreePath, _deploymentIdPathVarFormatted)
+	redirectDownTheTreeRoute        = fmt.Sprintf(deployer.RedirectDownTheTreePath, _deploymentIdPathVarFormatted)
+	getFallbackRoute                = deployer.GetFallbackIdPath
+	hasDeploymentRoute              = fmt.Sprintf(deployer.HasDeploymentPath, _deploymentIdPathVarFormatted)
+	propagateLocationToHorzionRoute = fmt.Sprintf(deployer.PropagateLocationToHorizon, _deploymentIdPathVarFormatted)
+	iAmYourChildRoute               = fmt.Sprintf(deployer.IAmYourChildPath, _deploymentIdPathVarFormatted)
 
 	// scheduler
 	deploymentInstanceAliveRoute = fmt.Sprintf(deployer.DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
@@ -95,17 +94,10 @@ var Routes = []utils.Route{
 	},
 
 	{
-		Name:        exploringName,
+		Name:        propagateLocationToHorizonName,
 		Method:      http.MethodPost,
-		Pattern:     setExploringRoute,
-		HandlerFunc: setExploringHandler,
-	},
-
-	{
-		Name:        terminalLocationName,
-		Method:      http.MethodPost,
-		Pattern:     terminalLocationRoute,
-		HandlerFunc: terminalLocationHandler,
+		Pattern:     propagateLocationToHorzionRoute,
+		HandlerFunc: propagateLocationToHorizonHandler,
 	},
 
 	{

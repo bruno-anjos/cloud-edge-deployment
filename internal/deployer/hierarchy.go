@@ -91,6 +91,12 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO) bool {
 	if dto.Parent != nil {
 		log.Debugf("will set my parent as %s", dto.Parent.Addr)
 		t.autonomicClient.SetServiceParent(dto.DeploymentId, dto.Parent.Addr)
+		deplClient := deployer.NewDeployerClient(dto.Parent.Id + ":" + strconv.Itoa(deployer.Port))
+		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself.Id, location, 1)
+		if status != http.StatusOK {
+			log.Errorf("got status %d while trying to propagate location to %s for service %s", status,
+				dto.Parent.Id, dto.DeploymentId)
+		}
 	}
 
 	return true
@@ -184,25 +190,6 @@ func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node) {
 
 	t.autonomicClient.AddServiceChild(deploymentId, child.Id)
 
-	parent := t.getParent(deploymentId)
-	if parent != nil {
-		autoClient := autonomic.NewAutonomicClient(child.Addr + ":" + strconv.Itoa(autonomic.Port))
-		nodeLoc, status := autoClient.GetLocation()
-		if status != http.StatusOK {
-			log.Errorf("got status %d asking for %s location", status, child.Id)
-			return
-		}
-
-		setTerminalLocsForChild(deploymentId, child.Id, nodeLoc)
-		deplClient := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
-		status = deplClient.SetTerminalLocations(deploymentId, myself.Id,
-			getDeploymentTerminalLocations(deploymentId)...)
-		if status != http.StatusOK {
-			log.Errorf("got status %d setting terminal location in %s", status, parent.Id)
-			return
-		}
-	}
-
 	return
 }
 
@@ -217,12 +204,7 @@ func (t *hierarchyTable) removeChild(deploymentId, childId string) {
 	t.autonomicClient.RemoveServiceChild(deploymentId, childId)
 	removeTerminalLocsForChild(deploymentId, childId)
 
-	isZero := atomic.CompareAndSwapInt32(&entry.NumChildren, 1, 0)
-	if isZero {
-		t.removeDeployment(deploymentId)
-	} else {
-		atomic.AddInt32(&entry.NumChildren, -1)
-	}
+	atomic.AddInt32(&entry.NumChildren, -1)
 
 	return
 }
@@ -501,13 +483,14 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 }
 
 func attemptToExtend(deploymentId, target string, targetLocation *publicUtils.Location, children []*utils.Node,
-	parent *utils.Node, maxHops int, alternatives map[string]*utils.Node) {
+	parent *utils.Node, maxHops int, alternatives map[string]*utils.Node, isExploring bool) {
 	var extendTimer *time.Timer
 
 	toExclude := map[string]interface{}{myself.Id: nil}
 	for _, child := range children {
 		toExclude[child.Id] = nil
 	}
+
 	suspectedChild.Range(func(key, value interface{}) bool {
 		suspectedId := key.(typeSuspectedChildMapKey)
 		toExclude[suspectedId] = nil
@@ -517,41 +500,28 @@ func attemptToExtend(deploymentId, target string, targetLocation *publicUtils.Lo
 	log.Debugf("attempting to extend %s to %s excluding %+v", deploymentId, target, toExclude)
 
 	var (
-		success      bool
-		newChildAddr = target
-		tries        = 0
+		success        bool
+		tries          = 0
+		nodeToExtendTo = utils.NewNode(target, target)
 	)
 	for !success {
-		if newChildAddr == "" {
-			if len(alternatives) > 0 {
-				for alternative := range alternatives {
-					newChildAddr = alternative
-					break
-				}
-				delete(alternatives, newChildAddr)
-			} else {
-				var found bool
-				newChildAddr, found = getNodeCloserTo(targetLocation, maxHops, toExclude)
-				if found {
-					log.Debugf("trying %s", newChildAddr)
-				}
-			}
+		hasTarget := target != ""
+		if !hasTarget {
+			target = getAlternative(alternatives, targetLocation, maxHops, toExclude)
+			hasTarget = target != ""
 		}
 
-		if newChildAddr != "" {
-			nodeToExtendTo := utils.NewNode(newChildAddr, newChildAddr)
-			// TODO this will probably lead to problems later on
-			inVicinity := hTable.autonomicClient.IsNodeInVicinity(newChildAddr)
-			if inVicinity {
-				success = extendDeployment(deploymentId, nodeToExtendTo, children, parent)
-			} else {
-				toExclude[newChildAddr] = nil
+		if hasTarget {
+			nodeToExtendTo = utils.NewNode(target, target)
+			success = extendDeployment(deploymentId, nodeToExtendTo, children, parent)
+			if success {
+				break
 			}
 		}
 
 		if tries == 5 {
 			log.Debugf("failed to extend deployment %s", deploymentId)
-			newChildAddr = myself.Id
+			target = myself.Id
 			for _, child := range children {
 				extendDeployment(deploymentId, child, nil, parent)
 			}
@@ -561,6 +531,12 @@ func attemptToExtend(deploymentId, target string, targetLocation *publicUtils.Lo
 		tries++
 		extendTimer = time.NewTimer(extendAttemptTimeout * time.Second)
 		<-extendTimer.C
+	}
+
+	if isExploring {
+		id := deploymentId + "_" + nodeToExtendTo.Id
+		log.Debugf("setting extension ")
+		exploring.Store(id, &sync.Once{})
 	}
 }
 
@@ -598,4 +574,24 @@ func loadFallbackHostname(filename string) string {
 	}
 
 	return string(fileBytes)
+}
+
+func getAlternative(alternatives map[string]*utils.Node, targetLocation *publicUtils.Location, maxHops int,
+	toExclude map[string]interface{}) (result string) {
+	if len(alternatives) > 0 {
+		for alternative := range alternatives {
+			result = alternative
+			break
+		}
+		delete(alternatives, result)
+		return
+	}
+
+	var found bool
+	result, found = getNodeCloserTo(targetLocation, maxHops, toExclude)
+	if found {
+		log.Debugf("trying %s", result)
+	}
+
+	return
 }

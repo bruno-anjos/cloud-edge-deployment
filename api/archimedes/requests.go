@@ -19,4 +19,7 @@ type (
 		Resolved *ResolvedDTO
 		Id       string
 	}
+	SetExploringClientLocationRequestBody = struct {
+		Location *publicUtils.Location
+	}
 )

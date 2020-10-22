@@ -5,7 +5,9 @@ import (
 	"strconv"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -35,10 +37,10 @@ type ExtendServiceAction struct {
 }
 
 func NewExtendServiceAction(serviceId, target string, exploring bool, parent *utils.Node,
-	children []*utils.Node) *ExtendServiceAction {
+	children []*utils.Node, location *publicUtils.Location) *ExtendServiceAction {
 	return &ExtendServiceAction{
 		actionWithServiceTarget: newActionWithServiceTarget(ExtendServiceId, serviceId, target, exploring, parent,
-			children),
+			children, location),
 	}
 }
 
@@ -54,6 +56,10 @@ func (m *ExtendServiceAction) GetChildren() []*utils.Node {
 	return m.Args[4].([]*utils.Node)
 }
 
+func (m *ExtendServiceAction) GetLocation() *publicUtils.Location {
+	return m.Args[5].(*publicUtils.Location)
+}
+
 func (m *ExtendServiceAction) Execute(client utils.Client) {
 	log.Debugf("executing %s to %s", m.ActionId, m.GetTarget())
 	deployerClient := client.(*deployer.Client)
@@ -65,20 +71,17 @@ func (m *ExtendServiceAction) Execute(client utils.Client) {
 		return
 	}
 
-	status := deployerClient.ExtendDeploymentTo(m.GetServiceId(), m.GetTarget(), m.GetParent(), m.GetChildren())
+	if m.IsExploring() {
+		archClient := archimedes.NewArchimedesClient(m.GetTarget() + ":" + strconv.Itoa(archimedes.Port))
+		archClient.SetExploringClientLocation(m.GetServiceId(), m.GetLocation())
+	}
+
+	status := deployerClient.ExtendDeploymentTo(m.GetServiceId(), m.GetTarget(), m.GetParent(), m.GetChildren(),
+		m.IsExploring())
 	if status != http.StatusOK {
 		log.Errorf("got status code %d while extending deployment", status)
 		return
 	}
-
-	if m.IsExploring() {
-		status = deployerClient.SetExploring(m.GetServiceId(), m.GetTarget())
-		if status != http.StatusOK {
-			log.Errorf("got status %d while setting %s as exploring deployment %s", status, m.GetTarget(),
-				m.GetServiceId())
-		}
-	}
-
 }
 
 type MigrateAction struct {

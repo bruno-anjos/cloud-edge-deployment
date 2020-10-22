@@ -244,7 +244,7 @@ func (l *serviceLoadBalanceGoal) GenerateAction(target string, args ...interface
 	switch args[lbActionTypeArgIndex].(string) {
 	case actions.ExtendServiceId:
 		return actions.NewExtendServiceAction(l.service.ServiceId, target, false, myself,
-			nil)
+			nil, nil)
 	case actions.RedirectClientsId:
 		return actions.NewRedirectAction(l.service.ServiceId, args[lbFromIndex].(string), target, args[lbAmountIndex].(int))
 	}
