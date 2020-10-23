@@ -38,6 +38,8 @@ type (
 	typeTerminalLocationValue = *publicUtils.Location
 
 	typeExploringValue = *sync.Once
+
+	typeNodeLocationCache = *publicUtils.Location
 )
 
 // Timeouts
@@ -83,6 +85,8 @@ var (
 	children             sync.Map
 	childrenClient       = deployer.NewDeployerClient("")
 
+	nodeLocationCache sync.Map
+
 	exploring sync.Map
 
 	timer *time.Timer
@@ -110,6 +114,8 @@ func init() {
 	serviceLocations = sync.Map{}
 	addServiceLocationLock = sync.Mutex{}
 
+	nodeLocationCache = sync.Map{}
+
 	exploring = sync.Map{}
 
 	timer = time.NewTimer(sendAlternativesTimeout * time.Second)
@@ -123,6 +129,7 @@ func init() {
 	var status int
 	for status != http.StatusOK {
 		location, status = hTable.autonomicClient.GetLocation()
+		time.Sleep(10 * time.Second)
 	}
 
 	log.Debugf("got location %f", location)
@@ -140,6 +147,8 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
+
+	log.Debugf("got location from %s for deployment %s", reqBody.ChildId, deploymentId)
 
 	var nodeLocations typeServicesLocationsValue
 	value, ok := serviceLocations.Load(deploymentId)
@@ -162,22 +171,10 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parents := map[string][]string{}
-
-	deployments := hTable.getDeployments()
-	for _, deploymentId := range deployments {
-		parent := hTable.getParent(deploymentId)
-		if parent != nil {
-			parents[parent.Id] = append(parents[parent.Id], deploymentId)
-		}
-	}
-
-	deplClient := deployer.NewDeployerClient("")
-	for parent, services := range parents {
-		deplClient.SetHostPort(parent + ":" + strconv.Itoa(deployer.Port))
-		log.Debugf("propagating %s location for services %+v to %s", reqBody.ChildId, services, parent)
-		deplClient.PropagateLocationToHorizon(deploymentId, reqBody.ChildId, reqBody.Location, reqBody.TTL+1)
-	}
+	parent := hTable.getParent(deploymentId)
+	deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
+	log.Debugf("propagating %s location for services %+v to %s", reqBody.ChildId, deploymentId, parent.Id)
+	deplClient.PropagateLocationToHorizon(deploymentId, reqBody.ChildId, reqBody.Location, reqBody.TTL+1)
 }
 
 func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
@@ -492,15 +489,27 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 	var (
 		bestDiff    = location.CalcDist(clientLocation)
 		bestNode    = myself.Id
+		autoClient  *autonomic.Client
+		auxLocation *publicUtils.Location
+		status      int
 	)
 
-	autoClient := autonomic.NewAutonomicClient("")
 	for id := range auxChildren {
-		autoClient.SetHostPort(id + ":" + strconv.Itoa(autonomic.Port))
-		auxLocation, status := autoClient.GetLocation()
-		if status != http.StatusOK {
-			log.Errorf("got %d while trying to get %s location", status, id)
-			continue
+		value, ok := nodeLocationCache.Load(id)
+		if !ok {
+			if autoClient == nil {
+				autoClient = autonomic.NewAutonomicClient(id + ":" + strconv.Itoa(autonomic.Port))
+			} else {
+				autoClient.SetHostPort(id + ":" + strconv.Itoa(autonomic.Port))
+			}
+			auxLocation, status = autoClient.GetLocation()
+			if status != http.StatusOK {
+				log.Errorf("got %d while trying to get %s location", status, id)
+				continue
+			}
+			nodeLocationCache.Store(id, auxLocation)
+		} else {
+			auxLocation = value.(typeNodeLocationCache)
 		}
 
 		currDiff := auxLocation.CalcDist(clientLocation)
