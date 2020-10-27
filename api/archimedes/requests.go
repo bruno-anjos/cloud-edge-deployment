@@ -2,6 +2,7 @@ package archimedes
 
 import (
 	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	"github.com/golang/geo/s2"
 )
 
 type (
@@ -12,6 +13,7 @@ type (
 		ToResolve    *ToResolveDTO
 		DeploymentId string
 		Location     *publicUtils.Location
+		Id           string
 	}
 	ResolveLocallyRequestBody      = ToResolveDTO
 	RedirectRequestBody            = redirectDTO
@@ -19,7 +21,5 @@ type (
 		Resolved *ResolvedDTO
 		Id       string
 	}
-	SetExploringClientLocationRequestBody = struct {
-		Location *publicUtils.Location
-	}
+	SetExploringClientLocationRequestBody = []s2.CellID
 )

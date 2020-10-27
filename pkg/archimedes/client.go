@@ -109,8 +109,9 @@ func (c *Client) GetInstance(instanceId string) (instance *api.Instance, status 
 	return
 }
 
-func (c *Client) Resolve(host string, port nat.Port, deploymentId string, cLocation *publicUtils.Location) (rHost, rPort string,
-	status int) {
+func (c *Client) Resolve(host string, port nat.Port, deploymentId string, cLocation *publicUtils.Location,
+	reqId string) (rHost, rPort string, status int) {
+
 	reqBody := api.ResolveRequestBody{
 		ToResolve: &api.ToResolveDTO{
 			Host: host,
@@ -118,6 +119,7 @@ func (c *Client) Resolve(host string, port nat.Port, deploymentId string, cLocat
 		},
 		DeploymentId: deploymentId,
 		Location:     cLocation,
+		Id:           reqId,
 	}
 
 	path := api.GetResolvePath()

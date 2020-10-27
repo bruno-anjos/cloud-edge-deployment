@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
@@ -43,8 +42,6 @@ type (
 		Location *publicUtils.Location
 		Number   int
 	}
-
-	exploringClientLocationsValue = *publicUtils.Location
 )
 
 const (
@@ -53,15 +50,12 @@ const (
 )
 
 var (
-	messagesReceived         sync.Map
-	sTable                   *servicesTable
-	redirectionsMap          sync.Map
-	archimedesId             string
-	hostname                 string
-	numReqsLastMinute        map[string]*batchValue
-	currBatch                map[string]*batchValue
-	numReqsLock              sync.RWMutex
-	exploringClientLocations sync.Map
+	messagesReceived sync.Map
+	sTable           *servicesTable
+	redirectionsMap  sync.Map
+	archimedesId     string
+	hostname         string
+	reqsLocsManager  *reqsLocationManager
 )
 
 func init() {
@@ -69,6 +63,7 @@ func init() {
 
 	sTable = newServicesTable()
 	redirectionsMap = sync.Map{}
+	reqsLocsManager = newReqsLocationManager()
 
 	var err error
 	hostname, err = os.Hostname()
@@ -77,14 +72,6 @@ func init() {
 	}
 
 	archimedesId = uuid.New().String()
-
-	numReqsLastMinute = map[string]*batchValue{}
-	currBatch = map[string]*batchValue{}
-	numReqsLock = sync.RWMutex{}
-
-	exploringClientLocations = sync.Map{}
-
-	go manageLoadBatch()
 
 	log.Infof("ARCHIMEDES ID: %s", archimedesId)
 }
@@ -297,19 +284,24 @@ func getServicesTableHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 func resolveHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debugf("handling resolve request")
+	start := time.Now()
 
 	var reqBody api.ResolveRequestBody
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
+		log.Errorf("bad request")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
+	defer func() {
+		log.Debugf("took %f to answer request %s", time.Since(start).Seconds(), reqBody.Id)
+	}()
+
 	redirect, targetUrl := checkForRedirections(reqBody.ToResolve.Host)
 	if redirect {
 		log.Debugf("redirecting %s to %s to achieve load balancing", reqBody.ToResolve.Host, targetUrl.Host)
-		exploringClientLocations.Delete(reqBody.DeploymentId)
+		reqsLocsManager.removeFromExploring(reqBody.DeploymentId)
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
 		return
 	}
@@ -326,7 +318,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 			Host:   redirectTo + ":" + strconv.Itoa(archimedes.Port),
 			Path:   api.GetResolvePath(),
 		}
-		exploringClientLocations.Delete(reqBody.DeploymentId)
+		reqsLocsManager.removeFromExploring(reqBody.DeploymentId)
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
 		return
 	default:
@@ -336,7 +328,6 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 	resolved, found := resolveLocally(reqBody.ToResolve)
 	if !found {
-		// TODO Redirect to fallback
 		var fallback string
 		fallback, status = deplClient.GetFallback()
 		if status != http.StatusOK {
@@ -350,17 +341,17 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 			Host:   fallback + ":" + strconv.Itoa(archimedes.Port),
 			Path:   api.GetResolvePath(),
 		}
-		exploringClientLocations.Delete(reqBody.DeploymentId)
+		reqsLocsManager.removeFromExploring(reqBody.DeploymentId)
 		http.Redirect(w, r, fallbackURL.String(), http.StatusPermanentRedirect)
 		return
 	}
 
-	updateNumRequests(reqBody.DeploymentId, reqBody.Location)
+	reqsLocsManager.updateNumRequests(reqBody.DeploymentId, reqBody.Location)
 
 	var resp api.ResolveResponseBody
 	resp = *resolved
 
-	exploringClientLocations.Delete(reqBody.DeploymentId)
+	reqsLocsManager.removeFromExploring(reqBody.DeploymentId)
 	utils.SendJSONReplyOK(w, resp)
 }
 
@@ -534,66 +525,28 @@ func setExploringClientLocationHandler(_ http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	log.Debugf("set exploring location %v for service %s", reqBody.Location, serviceId)
+	log.Debugf("set exploring location %v for service %s", reqBody, serviceId)
 
-	exploringClientLocations.Store(serviceId, reqBody.Location)
+	reqsLocsManager.addToExploring(serviceId, reqBody)
 }
 
 // TODO simulating
 func getLoadHandler(w http.ResponseWriter, r *http.Request) {
 	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 
-	numReqsLock.RLock()
-	entry, ok := numReqsLastMinute[serviceId]
-	load := 0
-	if ok {
-		load = entry.NumReqs
-	}
-	numReqsLock.RUnlock()
-
+	load := reqsLocsManager.getLoad(serviceId)
 	log.Debugf("got load %d for service %s", load, serviceId)
 
 	utils.SendJSONReplyOK(w, load)
 }
 
-func getAvgClientLocationHandler(w http.ResponseWriter, r *http.Request) {
+func getClientCentroidsHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, serviceIdPathVar)
-
-	totalX := 0.
-	totalY := 0.
-	count := 0
-
-	numReqsLock.RLock()
-	deploymentEntry, ok := numReqsLastMinute[deploymentId]
+	centroids, ok := reqsLocsManager.getDeploymentCentroids(deploymentId)
 	if !ok {
-		numReqsLock.RUnlock()
-		var value interface{}
-		value, ok = exploringClientLocations.Load(deploymentId)
-		if ok {
-			loc := value.(exploringClientLocationsValue)
-			utils.SendJSONReplyOK(w, loc)
-		}
-
 		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	hasLocations := len(deploymentEntry.Locations) > 0
-	for _, locEntry := range deploymentEntry.Locations {
-		totalX += locEntry.Location.X * float64(locEntry.Number)
-		totalY += locEntry.Location.Y * float64(locEntry.Number)
-		count += locEntry.Number
-	}
-	numReqsLock.RUnlock()
-
-	if hasLocations {
-		avgLoc := &publicUtils.Location{
-			X: totalX / float64(count),
-			Y: totalY / float64(count),
-		}
-		utils.SendJSONReplyOK(w, avgLoc)
 	} else {
-		w.WriteHeader(http.StatusNoContent)
+		utils.SendJSONReplyOK(w, centroids)
 	}
 }
 
@@ -646,96 +599,4 @@ func resolveInstance(originalPort nat.Port, instance *api.Instance) (*api.Resolv
 func broadcastMsgWithHorizon(discoverMsg *api.DiscoverMsg, hops int) {
 	// TODO this simulates the lower level layer
 	return
-}
-
-// TODO simulating
-func manageLoadBatch() {
-	ticker := time.NewTicker(batchTimer)
-
-	for {
-		<-ticker.C
-		numReqsLock.Lock()
-		for deploymentId, depBatch := range currBatch {
-			go waitToRemove(deploymentId, depBatch)
-			currBatch[deploymentId] = &batchValue{
-				Locations: map[string]*locationsEntry{},
-				NumReqs:   0,
-			}
-		}
-		numReqsLock.Unlock()
-	}
-}
-
-// TODO simulating
-func waitToRemove(deploymentId string, entry *batchValue) {
-	time.Sleep(archimedesHTTPClient.CacheExpiringTime)
-	numReqsLock.Lock()
-	numReqsLastMinute[deploymentId].NumReqs -= entry.NumReqs
-	for locId, locEntry := range entry.Locations {
-		numReqsLastMinute[deploymentId].Locations[locId].Number -= locEntry.Number
-		if numReqsLastMinute[deploymentId].Locations[locId].Number == 0 {
-			delete(numReqsLastMinute[deploymentId].Locations, locId)
-		}
-	}
-	numReqsLock.Unlock()
-}
-
-func updateNumRequests(deploymentId string, location *publicUtils.Location) {
-	numReqsLock.Lock()
-	defer numReqsLock.Unlock()
-	entry, ok := numReqsLastMinute[deploymentId]
-	if !ok {
-		numReqsLastMinute[deploymentId] = &batchValue{
-			Locations: map[string]*locationsEntry{
-				location.GetId(): {
-					Location: location,
-					Number:   1,
-				},
-			},
-			NumReqs: 1,
-		}
-	} else {
-		entry.NumReqs++
-
-		var (
-			loc *locationsEntry
-		)
-		loc, ok = entry.Locations[location.GetId()]
-		if !ok {
-			entry.Locations[location.GetId()] = &locationsEntry{
-				Location: location,
-				Number:   1,
-			}
-		} else {
-			loc.Number++
-		}
-	}
-
-	entry, ok = currBatch[deploymentId]
-	if !ok {
-		currBatch[deploymentId] = &batchValue{
-			Locations: map[string]*locationsEntry{
-				location.GetId(): {
-					Location: location,
-					Number:   1,
-				},
-			},
-			NumReqs: 1,
-		}
-	} else {
-		entry.NumReqs++
-
-		var (
-			loc *locationsEntry
-		)
-		loc, ok = entry.Locations[location.GetId()]
-		if !ok {
-			entry.Locations[location.GetId()] = &locationsEntry{
-				Location: location,
-				Number:   1,
-			}
-		} else {
-			loc.Number++
-		}
-	}
 }

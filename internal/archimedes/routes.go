@@ -70,7 +70,7 @@ var Routes = []utils.Route{
 		Name:        getAvgClientLocationName,
 		Method:      http.MethodGet,
 		Pattern:     getAvgClientLocationRoute,
-		HandlerFunc: getAvgClientLocationHandler,
+		HandlerFunc: getClientCentroidsHandler,
 	},
 
 	{

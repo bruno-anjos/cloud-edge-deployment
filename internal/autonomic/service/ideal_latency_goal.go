@@ -20,7 +20,7 @@ const (
 	maximumDistancePercentage = 1.2
 	satisfiedDistance         = 200.
 	maxDistance               = 5000.
-	maxChildren               = 3.
+	maxChildren               = 4.
 	branchingCutoff           = 1
 
 	idealLatencyGoalId = "GOAL_IDEAL_LATENCY"
@@ -396,7 +396,6 @@ func (i *idealLatency) checkShouldBranch(avgClientLocation *publicUtils.Location
 		return false
 	}
 
-	// TODO this has to be tuned for real distances
 	distanceFactor := maxDistance / (maxDistance - (currDistance - satisfiedDistance))
 	childrenFactor := (((maxChildren + 1.) / (float64(numChildren) + 1.)) - 1.) / maxChildren
 	branchingFactor := childrenFactor * distanceFactor

@@ -4,10 +4,10 @@ go 1.15
 
 require (
 	github.com/Microsoft/go-winio v0.4.14 // indirect
-	github.com/Workiva/go-datastructures v1.0.52
 	github.com/bruno-anjos/archimedesHTTPClient v0.0.2
 	github.com/docker/docker v1.13.1
 	github.com/docker/go-connections v0.4.0
+	github.com/golang/geo v0.0.0-20200730024412-e86565bf3f35
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.8.0
 	github.com/mitchellh/mapstructure v1.3.3
