@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
-	"github.com/golang/geo/s2"
 )
 
 type (
@@ -16,7 +15,7 @@ type (
 	Cell struct {
 		numClients      int
 		clientLocations map[string]*ClientLocation
-		children        *CellsCollection
+		Children        *CellsCollection
 		setChildren     *sync.Once
 		sync.RWMutex
 	}
@@ -26,12 +25,18 @@ func NewCell(numClients int, clientLocations map[string]*ClientLocation) *Cell {
 	return &Cell{
 		numClients:      numClients,
 		clientLocations: clientLocations,
-		children:        nil,
+		Children:        nil,
 		setChildren:     &sync.Once{},
 	}
 }
 
 func (c *Cell) AddClient(loc *publicUtils.Location) {
+	c.Lock()
+	defer c.Unlock()
+	c.AddClientNoLock(loc)
+}
+
+func (c *Cell) AddClientNoLock(loc *publicUtils.Location) {
 	c.numClients++
 	id := loc.GetId()
 	value, ok := c.clientLocations[id]
@@ -46,6 +51,8 @@ func (c *Cell) AddClient(loc *publicUtils.Location) {
 }
 
 func (c *Cell) RemoveClient(loc *publicUtils.Location) {
+	c.Lock()
+	defer c.Unlock()
 	c.numClients--
 	id := loc.GetId()
 	value := c.clientLocations[id]
@@ -55,23 +62,17 @@ func (c *Cell) RemoveClient(loc *publicUtils.Location) {
 	}
 }
 
-func (c *Cell) AddChild(cellId s2.CellID, cell *Cell) {
-	c.children.AddCell(cellId, cell)
-}
-
-func (c *Cell) HasChildren() bool {
-	return c.children != nil
-}
-
-func (c *Cell) GetChildren() *CellsCollection {
-	return c.children
-}
-
 func (c *Cell) GetNumClients() int {
+	c.RLock()
+	defer c.RUnlock()
+	return c.GetNumClientsNoLock()
+}
+
+func (c *Cell) GetNumClientsNoLock() int {
 	return c.numClients
 }
 
-func (c *Cell) IterateLocations(f func(locId string, loc *ClientLocation) bool) {
+func (c *Cell) IterateLocationsNoLock(f func(locId string, loc *ClientLocation) bool) {
 	for locId, loc := range c.clientLocations {
 		if !f(locId, loc) {
 			break
@@ -79,19 +80,9 @@ func (c *Cell) IterateLocations(f func(locId string, loc *ClientLocation) bool) 
 	}
 }
 
-func (c *Cell) Clear() {
+func (c *Cell) ClearNoLock() {
 	c.numClients = 0
 	c.clientLocations = nil
-	c.children = nil
+	c.Children = nil
 	c.setChildren = &sync.Once{}
-}
-
-func (c *Cell) LockAndLockChildren() {
-	c.Lock()
-	c.children.Lock()
-}
-
-func (c *Cell) UnlockChildrenAndUnlock() {
-	c.children.Unlock()
-	c.Unlock()
 }

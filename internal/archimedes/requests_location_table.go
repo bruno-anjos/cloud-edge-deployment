@@ -166,12 +166,14 @@ func (r *reqsLocationManager) getDeploymentCentroids(deploymentId string) (centr
 	hasLocations := false
 	deploymentCells := value.(cellsByDeploymentValue)
 
-	deploymentCells.Iterate(func(id s2.CellID, cell *cell_manager.Cell) bool {
+	deploymentCells.RLock()
+	deploymentCells.IterateCellsNoLock(func(id s2.CellID, cell *cell_manager.Cell) bool {
 		hasLocations = true
 		cellCenter := s2.LatLngFromPoint(s2.CellFromCellID(id).Center())
 		centroids = append(centroids, publicUtils.FromLatLngToLocation(&cellCenter))
 		return true
 	})
+	deploymentCells.RUnlock()
 	ok = hasLocations
 
 	return
@@ -192,17 +194,9 @@ func (r *reqsLocationManager) updateCellsWithClientLocation(deploymentId string,
 
 	missingTopCell := true
 	deploymentCells.RLock()
-	deploymentCells.Iterate(func(id s2.CellID, cell *cell_manager.Cell) bool {
+	deploymentCells.IterateCellsNoLock(func(id s2.CellID, cell *cell_manager.Cell) bool {
 		if id.Contains(leafId) {
-			id, cell = r.percolateToDownmostCell(id, cell, leafId)
-			cell.Lock()
-			cell.AddClient(location)
-			cell.Unlock()
-			cell.RLock()
-			if id.Level() < maxCellLevel && cell.GetNumClients() == maxClientsInCell {
-				go r.splitMaxedCell(deploymentId, id, cell)
-			}
-			cell.RUnlock()
+			r.addToDownmostCell(id, cell, leafId, deploymentId, location)
 			missingTopCell = false
 			return false
 		}
@@ -211,32 +205,16 @@ func (r *reqsLocationManager) updateCellsWithClientLocation(deploymentId string,
 	deploymentCells.RUnlock()
 
 	if missingTopCell {
-		deploymentCells.Lock()
-		deploymentCells.Iterate(func(id s2.CellID, cell *cell_manager.Cell) bool {
-			if id.Contains(leafId) {
-				id, cell = r.percolateToDownmostCell(id, cell, leafId)
-				cell.Lock()
-				cell.AddClient(location)
-				cell.Unlock()
-				cell.RLock()
-				if id.Level() < maxCellLevel && cell.GetNumClients() == maxClientsInCell {
-					go r.splitMaxedCell(deploymentId, id, cell)
-				}
-				cell.RUnlock()
-				missingTopCell = false
-				return false
-			}
-			return true
-		})
+		cell := cell_manager.NewCell(0, map[string]*cell_manager.ClientLocation{})
+		cellId := s2.CellIDFromLatLng(location.ToLatLng()).Parent(minCellLevel)
 
-		if missingTopCell {
-			cell := cell_manager.NewCell(0, map[string]*cell_manager.ClientLocation{})
-			cellId := s2.CellIDFromLatLng(location.ToLatLng()).Parent(minCellLevel)
-			deploymentCells.AddCell(cellId, cell)
+		var loaded bool
+		cell, loaded = deploymentCells.LoadOrStoreCell(cellId, cell)
+		if !loaded {
 			r.activeCells.Store(cellId, cell)
-			cell.AddClient(location)
 		}
-		deploymentCells.Unlock()
+
+		cell.AddClient(location)
 	}
 }
 
@@ -244,31 +222,27 @@ func (r *reqsLocationManager) removeClientFromCell() {
 
 }
 
-func (r *reqsLocationManager) percolateToDownmostCell(cellId s2.CellID, c *cell_manager.Cell,
-	leafId s2.CellID) (s2.CellID, *cell_manager.Cell) {
-	if !c.HasChildren() {
-		return cellId, c
-	}
-
+func (r *reqsLocationManager) addToDownmostCell(cellId s2.CellID, c *cell_manager.Cell, leafId s2.CellID,
+	deploymentId string, location *publicUtils.Location) {
 	level := cellId.Level()
 	discoverCell := c
 	resultCellId := cellId
 	var locks []*sync.RWMutex
+
+searchChild:
 	for {
+		hasChildren := false
+		childContains := false
+
 		discoverCell.RLock()
 
-		if !c.HasChildren() || level > maxCellLevel {
-			break
-		}
-
-		childContains := false
-		children := discoverCell.GetChildren()
-
-		children.RLock()
-		children.Iterate(func(id s2.CellID, cell *cell_manager.Cell) bool {
+		var nextCell *cell_manager.Cell
+		c.Children.RLock()
+		c.Children.IterateCellsNoLock(func(id s2.CellID, cell *cell_manager.Cell) bool {
+			hasChildren = true
 			if id.Contains(leafId) {
 				childContains = true
-				discoverCell = cell
+				nextCell = cell
 				resultCellId = id
 				level++
 				return false
@@ -276,42 +250,60 @@ func (r *reqsLocationManager) percolateToDownmostCell(cellId s2.CellID, c *cell_
 			return true
 		})
 
-		if !childContains {
-			children.RUnlock()
-			children.Lock()
-			children.Iterate(func(id s2.CellID, cell *cell_manager.Cell) bool {
-				if id.Contains(leafId) {
-					childContains = true
-					discoverCell = cell
-					resultCellId = id
-					level++
-					return false
-				}
-				return true
-			})
-
-			if !childContains {
-				resultCellId = leafId.Parent(level + 1)
-
-				newChildCell := cell_manager.NewCell(0, map[string]*cell_manager.ClientLocation{})
-				discoverCell.AddChild(resultCellId, newChildCell)
-				r.activeCells.Store(resultCellId, newChildCell)
-				discoverCell = newChildCell
-
-				children.Unlock()
-				discoverCell.RUnlock()
-				break
-			}
+		if !hasChildren || level > maxCellLevel {
+			c.Children.RUnlock()
+			break
 		}
 
-		locks = append(locks, &discoverCell.RWMutex, &children.RWMutex)
+		if !childContains {
+			c.Children.RUnlock()
+
+			resultCellId = leafId.Parent(level + 1)
+			discoverCell = cell_manager.NewCell(0, map[string]*cell_manager.ClientLocation{})
+
+			var loaded bool
+			discoverCell, loaded = c.Children.LoadOrStoreCell(resultCellId, discoverCell)
+			if !loaded {
+				r.activeCells.Store(resultCellId, discoverCell)
+			}
+
+			break
+		}
+
+		discoverCell.RUnlock()
+		discoverCell = nextCell
+
+		locks = append(locks, &c.Children.RWMutex)
 	}
 
-	for _, lock := range locks {
-		lock.RUnlock()
+	hasChildren := false
+
+	discoverCell.Lock()
+
+	discoverCell.Children.RLock()
+	discoverCell.Children.IterateCellsNoLock(func(id s2.CellID, cell *cell_manager.Cell) bool {
+		hasChildren = true
+		return false
+	})
+	discoverCell.Children.RUnlock()
+
+	if hasChildren {
+		discoverCell.Unlock()
+		goto searchChild
 	}
 
-	return resultCellId, discoverCell
+	discoverCell.AddClientNoLock(location)
+
+	if resultCellId.Level() < maxCellLevel && discoverCell.GetNumClientsNoLock() == maxClientsInCell {
+		go r.splitMaxedCell(deploymentId, resultCellId, discoverCell)
+	}
+
+	discoverCell.Unlock()
+
+	for i := range locks {
+		locks[len(locks)-1-i].RUnlock()
+	}
+
 }
 
 func (r *reqsLocationManager) getDeploymentCells(deploymentId string) *cell_manager.CellsCollection {
@@ -341,8 +333,10 @@ func (r *reqsLocationManager) splitMaxedCell(deploymentId string, cellId s2.Cell
 		toSplitCells = toSplitCells[1:]
 
 		newCells := map[s2.CellID]*cell_manager.Cell{}
+
 		splittingCell.Lock()
-		splittingCell.IterateLocations(func(locId string, loc *cell_manager.ClientLocation) bool {
+
+		splittingCell.IterateLocationsNoLock(func(locId string, loc *cell_manager.ClientLocation) bool {
 			newCellId := s2.CellIDFromLatLng(loc.Location.ToLatLng()).Parent(splittingCellId.Level() + 1)
 			tempCell, ok := newCells[newCellId]
 			if !ok {
@@ -361,11 +355,14 @@ func (r *reqsLocationManager) splitMaxedCell(deploymentId string, cellId s2.Cell
 			}
 
 			// Add new cells
-			splittingCell.AddChild(tempCellId, tempCell)
-			r.addActiveCellToDeployment(deploymentId, tempCellId)
+			var loaded bool
+			tempCell, loaded = splittingCell.Children.LoadOrStoreCell(tempCellId, tempCell)
+			if !loaded {
+				r.addActiveCellToDeployment(deploymentId, tempCellId)
+			}
 
 			// Remove old one
-			splittingCell.Clear()
+			splittingCell.ClearNoLock()
 			r.removeActiveCellFromDeployment(deploymentId, splittingCellId)
 		}
 		splittingCell.Unlock()
