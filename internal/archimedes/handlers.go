@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/clients"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
@@ -32,21 +33,10 @@ type (
 	}
 
 	redirectionsMapValue = *redirectedConfig
-
-	batchValue struct {
-		Locations map[string]*locationsEntry
-		NumReqs   int
-	}
-
-	locationsEntry struct {
-		Location *publicUtils.Location
-		Number   int
-	}
 )
 
 const (
-	maxHops    = 2
-	batchTimer = 10 * time.Second
+	maxHops = 2
 )
 
 var (
@@ -55,7 +45,7 @@ var (
 	redirectionsMap  sync.Map
 	archimedesId     string
 	hostname         string
-	reqsLocsManager  *reqsLocationManager
+	clientsManager   *clients.Manager
 )
 
 func init() {
@@ -63,7 +53,7 @@ func init() {
 
 	sTable = newServicesTable()
 	redirectionsMap = sync.Map{}
-	reqsLocsManager = newReqsLocationManager()
+	clientsManager = clients.NewManager()
 
 	var err error
 	hostname, err = os.Hostname()
@@ -301,7 +291,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	redirect, targetUrl := checkForRedirections(reqBody.ToResolve.Host)
 	if redirect {
 		log.Debugf("redirecting %s to %s to achieve load balancing", reqBody.ToResolve.Host, targetUrl.Host)
-		reqsLocsManager.removeFromExploring(reqBody.DeploymentId)
+		clientsManager.RemoveFromExploring(reqBody.DeploymentId)
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
 		return
 	}
@@ -318,7 +308,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 			Host:   redirectTo + ":" + strconv.Itoa(archimedes.Port),
 			Path:   api.GetResolvePath(),
 		}
-		reqsLocsManager.removeFromExploring(reqBody.DeploymentId)
+		clientsManager.RemoveFromExploring(reqBody.DeploymentId)
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
 		return
 	default:
@@ -341,17 +331,17 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 			Host:   fallback + ":" + strconv.Itoa(archimedes.Port),
 			Path:   api.GetResolvePath(),
 		}
-		reqsLocsManager.removeFromExploring(reqBody.DeploymentId)
+		clientsManager.RemoveFromExploring(reqBody.DeploymentId)
 		http.Redirect(w, r, fallbackURL.String(), http.StatusPermanentRedirect)
 		return
 	}
 
-	reqsLocsManager.updateNumRequests(reqBody.DeploymentId, reqBody.Location)
+	clientsManager.UpdateNumRequests(reqBody.DeploymentId, reqBody.Location)
 
 	var resp api.ResolveResponseBody
 	resp = *resolved
 
-	reqsLocsManager.removeFromExploring(reqBody.DeploymentId)
+	clientsManager.RemoveFromExploring(reqBody.DeploymentId)
 	utils.SendJSONReplyOK(w, resp)
 }
 
@@ -527,14 +517,14 @@ func setExploringClientLocationHandler(_ http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("set exploring location %v for service %s", reqBody, serviceId)
 
-	reqsLocsManager.addToExploring(serviceId, reqBody)
+	clientsManager.AddToExploring(serviceId, reqBody)
 }
 
 // TODO simulating
 func getLoadHandler(w http.ResponseWriter, r *http.Request) {
 	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
 
-	load := reqsLocsManager.getLoad(serviceId)
+	load := clientsManager.GetLoad(serviceId)
 	log.Debugf("got load %d for service %s", load, serviceId)
 
 	utils.SendJSONReplyOK(w, load)
@@ -542,7 +532,7 @@ func getLoadHandler(w http.ResponseWriter, r *http.Request) {
 
 func getClientCentroidsHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, serviceIdPathVar)
-	centroids, ok := reqsLocsManager.getDeploymentCentroids(deploymentId)
+	centroids, ok := clientsManager.GetDeploymentClientsCentroids(deploymentId)
 	if !ok {
 		w.WriteHeader(http.StatusNoContent)
 	} else {
