@@ -16,8 +16,8 @@ type (
 	exploringCellsValue = []s2.CellID
 
 	activeCell struct {
-		cells map[s2.CellID]interface{}
-		lock  sync.Mutex
+		cells map[s2.CellID]*cell_manager.Cell
+		sync.RWMutex
 	}
 	activeCellsValue = *activeCell
 
@@ -36,7 +36,8 @@ const (
 	minCellLevel = 8
 	maxCellLevel = 16
 
-	maxClientsInCell = 300
+	maxClientsToSplit = 300
+	minClientsToMerge = 200
 
 	timeBetweenSplitAttempts = 5 * time.Second
 )
@@ -75,7 +76,7 @@ func (r *reqsLocationManager) updateNumRequests(deploymentId string, location *p
 		r.updateBatch(entry, location)
 	}
 
-	r.updateCellsWithClientLocation(deploymentId, location)
+	r.addClientToCells(deploymentId, location)
 }
 
 func (r *reqsLocationManager) addNewEntry(deploymentId string, location *publicUtils.Location) {
@@ -187,7 +188,7 @@ func (r *reqsLocationManager) removeFromExploring(deploymentId string) {
 	r.exploringCells.Delete(deploymentId)
 }
 
-func (r *reqsLocationManager) updateCellsWithClientLocation(deploymentId string, location *publicUtils.Location) {
+func (r *reqsLocationManager) addClientToCells(deploymentId string, location *publicUtils.Location) {
 	deploymentCells := r.getDeploymentCells(deploymentId)
 
 	leafId := s2.CellIDFromLatLng(location.ToLatLng())
@@ -218,12 +219,53 @@ func (r *reqsLocationManager) updateCellsWithClientLocation(deploymentId string,
 	}
 }
 
-func (r *reqsLocationManager) removeClientFromCell() {
+func (r *reqsLocationManager) removeClientsFromCells(deploymentId string, locations map[string]*locationsEntry) {
+	deploymentCells := r.getDeploymentCells(deploymentId)
 
+	var (
+		topCellId s2.CellID
+		topCell   *cell_manager.Cell
+	)
+	for _, locEntry := range locations {
+		cellId := s2.CellIDFromLatLng(locEntry.Location.ToLatLng())
+
+		deploymentCells.RLock()
+		deploymentCells.IterateCellsNoLock(func(id s2.CellID, cell *cell_manager.Cell) bool {
+			if id.Contains(cellId) {
+				topCellId = id
+				topCell = cell
+				return false
+			}
+			return true
+		})
+		deploymentCells.RUnlock()
+
+		downmostCellId, downmostCell, locks, level := r.findDownmostCellAndLock(topCellId, topCell, cellId)
+		downmostCell.RemoveClientsNoLock(locEntry.Location, locEntry.Number)
+
+		possibleChildIds := downmostCellId.Parent(level).Children()
+		totalNumClients := 0
+		for _, childId := range possibleChildIds {
+			cell, ok := r.getActiveCellFromDeployment(deploymentId, childId)
+			if ok {
+				totalNumClients += cell.GetNumClients()
+			}
+		}
+
+		if totalNumClients < minClientsToMerge {
+			go mergeCells()
+		}
+
+		downmostCell.Unlock()
+
+		for i := range locks {
+			locks[len(locks)-1-i].RUnlock()
+		}
+	}
 }
 
-func (r *reqsLocationManager) addToDownmostCell(cellId s2.CellID, c *cell_manager.Cell, leafId s2.CellID,
-	deploymentId string, location *publicUtils.Location) {
+func (r *reqsLocationManager) findDownmostCellAndLock(cellId s2.CellID, c *cell_manager.Cell,
+	leafId s2.CellID) (s2.CellID, *cell_manager.Cell, []*sync.RWMutex, int) {
 	level := cellId.Level()
 	discoverCell := c
 	resultCellId := cellId
@@ -257,8 +299,8 @@ searchChild:
 
 		if !childContains {
 			c.Children.RUnlock()
-
-			resultCellId = leafId.Parent(level + 1)
+			level++
+			resultCellId = leafId.Parent(level)
 			discoverCell = cell_manager.NewCell(0, map[string]*cell_manager.ClientLocation{})
 
 			var loaded bool
@@ -292,9 +334,16 @@ searchChild:
 		goto searchChild
 	}
 
+	return resultCellId, discoverCell, locks, level
+}
+
+func (r *reqsLocationManager) addToDownmostCell(cellId s2.CellID, c *cell_manager.Cell, leafId s2.CellID,
+	deploymentId string, location *publicUtils.Location) {
+
+	resultCellId, discoverCell, locks, _ := r.findDownmostCellAndLock(cellId, c, leafId)
 	discoverCell.AddClientNoLock(location)
 
-	if resultCellId.Level() < maxCellLevel && discoverCell.GetNumClientsNoLock() == maxClientsInCell {
+	if resultCellId.Level() < maxCellLevel && discoverCell.GetNumClientsNoLock() == maxClientsToSplit {
 		go r.splitMaxedCell(deploymentId, resultCellId, discoverCell)
 	}
 
@@ -303,7 +352,6 @@ searchChild:
 	for i := range locks {
 		locks[len(locks)-1-i].RUnlock()
 	}
-
 }
 
 func (r *reqsLocationManager) getDeploymentCells(deploymentId string) *cell_manager.CellsCollection {
@@ -349,7 +397,7 @@ func (r *reqsLocationManager) splitMaxedCell(deploymentId string, cellId s2.Cell
 		})
 
 		for tempCellId, tempCell := range newCells {
-			if tempCell.GetNumClients() > maxClientsInCell {
+			if tempCell.GetNumClients() > maxClientsToSplit {
 				toSplitIds = append(toSplitIds, tempCellId)
 				toSplitCells = append(toSplitCells, tempCell)
 			}
@@ -369,16 +417,16 @@ func (r *reqsLocationManager) splitMaxedCell(deploymentId string, cellId s2.Cell
 	}
 }
 
-func (r *reqsLocationManager) addActiveCellToDeployment(deploymentId string, cellId s2.CellID) {
+func (r *reqsLocationManager) addActiveCellToDeployment(deploymentId string, cellId s2.CellID, cell *cell_manager.Cell) {
 	value, ok := r.activeCells.Load(deploymentId)
 	if !ok {
 		return
 	}
 
 	activeCells := value.(activeCellsValue)
-	activeCells.lock.Lock()
-	activeCells.cells[cellId] = nil
-	activeCells.lock.Unlock()
+	activeCells.Lock()
+	activeCells.cells[cellId] = cell
+	activeCells.Unlock()
 }
 
 func (r *reqsLocationManager) removeActiveCellFromDeployment(deploymentId string, cellId s2.CellID) {
@@ -388,9 +436,24 @@ func (r *reqsLocationManager) removeActiveCellFromDeployment(deploymentId string
 	}
 
 	activeCells := value.(activeCellsValue)
-	activeCells.lock.Lock()
+	activeCells.Lock()
 	delete(activeCells.cells, cellId)
-	activeCells.lock.Unlock()
+	activeCells.Unlock()
+}
+
+func (r *reqsLocationManager) getActiveCellFromDeployment(deploymentId string, cellId s2.CellID) (*cell_manager.Cell,
+	bool) {
+	value, ok := r.activeCells.Load(deploymentId)
+	if !ok {
+		return nil, false
+	}
+
+	activeCells := value.(activeCellsValue)
+	activeCells.RLock()
+	cell, ok := activeCells.cells[cellId]
+	activeCells.RUnlock()
+
+	return cell, ok
 }
 
 func (r *reqsLocationManager) manageLoadBatch() {
@@ -421,4 +484,6 @@ func (r *reqsLocationManager) waitToRemove(deploymentId string, entry *batchValu
 		}
 	}
 	r.numReqsLock.Unlock()
+
+	r.removeClientFromCells(deploymentId, entry.Locations)
 }

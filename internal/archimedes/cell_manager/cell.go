@@ -53,6 +53,20 @@ func (c *Cell) AddClientNoLock(loc *publicUtils.Location) {
 func (c *Cell) RemoveClient(loc *publicUtils.Location) {
 	c.Lock()
 	defer c.Unlock()
+	c.RemoveClientNoLock(loc)
+}
+
+func (c *Cell) RemoveClientsNoLock(loc *publicUtils.Location, amount int) {
+	c.numClients -= amount
+	id := loc.GetId()
+	value := c.clientLocations[id]
+	value.Count -= amount
+	if value.Count == 0 {
+		delete(c.clientLocations, id)
+	}
+}
+
+func (c *Cell) RemoveClientNoLock(loc *publicUtils.Location) {
 	c.numClients--
 	id := loc.GetId()
 	value := c.clientLocations[id]
