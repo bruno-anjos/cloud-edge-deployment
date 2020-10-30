@@ -23,7 +23,11 @@ func newCollection() *Collection {
 func (cc *Collection) LoadCell(cellId s2.CellID) (cell *Cell, loaded bool) {
 	var value interface{}
 	value, loaded = cc.cells.Load(cellId)
-	return value.(*Cell), loaded
+	if loaded {
+		cell = value.(*Cell)
+	}
+
+	return
 }
 
 func (cc *Collection) LoadOrStoreCell(cellId s2.CellID, cell *Cell) (actual *Cell, loaded bool) {

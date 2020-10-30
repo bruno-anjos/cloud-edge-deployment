@@ -22,7 +22,7 @@ func resolve(toResolve string) (resolved string) {
 	resolved = toResolve
 
 	switch host {
-	case publicUtils.ArchimedesServiceName, publicUtils.DeployerServiceName, publicUtils.SchedulerServiceName,
+	case publicUtils.ArchimedesServiceName, publicUtils.DeployerDeploymentName, publicUtils.SchedulerServiceName,
 		publicUtils.AutonomicServiceName:
 		resolved = "localhost" + ":" + port
 	}

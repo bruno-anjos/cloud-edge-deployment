@@ -20,54 +20,54 @@ func init() {
 	log.SetLevel(log.InfoLevel)
 }
 
-func addServiceHandler(_ http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+func addDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	var serviceConfig api.AddServiceRequestBody
-	err := json.NewDecoder(r.Body).Decode(&serviceConfig)
+	var deploymentConfig api.AddDeploymentRequestBody
+	err := json.NewDecoder(r.Body).Decode(&deploymentConfig)
 	if err != nil {
 		panic(err)
 	}
 
-	autonomicSystem.addService(serviceId, serviceConfig.StrategyId)
+	autonomicSystem.addDeployment(deploymentId, deploymentConfig.StrategyId)
 
 	return
 }
 
-func removeServiceHandler(_ http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
-	autonomicSystem.removeService(serviceId)
+func removeDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	autonomicSystem.removeDeployment(deploymentId)
 }
 
-func getAllServicesHandler(w http.ResponseWriter, _ *http.Request) {
-	resp := api.GetAllServicesResponseBody{}
-	services := autonomicSystem.getServices()
-	for serviceId, s := range services {
-		resp[serviceId] = s.ToDTO()
+func getAllDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
+	resp := api.GetAllDeploymentsResponseBody{}
+	deployments := autonomicSystem.getDeployments()
+	for deploymentId, s := range deployments {
+		resp[deploymentId] = s.ToDTO()
 	}
 
 	utils.SendJSONReplyOK(w, resp)
 }
 
-func addServiceChildHandler(_ http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+func addDeploymentChildHandler(_ http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	childId := utils.ExtractPathVar(r, childIdPathVar)
 
-	autonomicSystem.addServiceChild(serviceId, childId)
+	autonomicSystem.addDeploymentChild(deploymentId, childId)
 }
 
-func removeServiceChildHandler(_ http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+func removeDeploymentChildHandler(_ http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	childId := utils.ExtractPathVar(r, childIdPathVar)
 
-	autonomicSystem.removeServiceChild(serviceId, childId)
+	autonomicSystem.removeDeploymentChild(deploymentId, childId)
 }
 
-func setServiceParentHandler(_ http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+func setDeploymentParentHandler(_ http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	parentId := utils.ExtractPathVar(r, parentIdPathVar)
 
-	autonomicSystem.setServiceParent(serviceId, parentId)
+	autonomicSystem.setDeploymentParent(deploymentId, parentId)
 }
 
 func isNodeInVicinityHandler(w http.ResponseWriter, r *http.Request) {
@@ -110,8 +110,8 @@ func getVicinityHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 func getMyLocationHandler(w http.ResponseWriter, _ *http.Request) {
-	location := autonomicSystem.getMyLocation()
-	if location == nil {
+	location, err := autonomicSystem.getMyLocation()
+	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -122,50 +122,50 @@ func getMyLocationHandler(w http.ResponseWriter, _ *http.Request) {
 	utils.SendJSONReplyOK(w, respBody)
 }
 
-func getLoadForServiceHandler(w http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
-	load, ok := autonomicSystem.getLoad(serviceId)
+func getLoadForDeploymentHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	load, ok := autonomicSystem.getLoad(deploymentId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	log.Debugf("service %s has load %f", serviceId, load)
+	log.Debugf("deployment %s has load %f", deploymentId, load)
 
 	utils.SendJSONReplyOK(w, load)
 }
 
 func setExploreSuccessfullyHandler(w http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	childId := utils.ExtractPathVar(r, childIdPathVar)
 
-	_, ok := autonomicSystem.services.Load(serviceId)
+	_, ok := autonomicSystem.deployments.Load(deploymentId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	log.Debugf("setting explore success %s %s", serviceId, childId)
+	log.Debugf("setting explore success %s %s", deploymentId, childId)
 
-	ok = autonomicSystem.setExploreSuccess(serviceId, childId)
+	ok = autonomicSystem.setExploreSuccess(deploymentId, childId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	log.Debugf("explored service %s through %s successfully", serviceId, childId)
+	log.Debugf("explored deployment %s through %s successfully", deploymentId, childId)
 }
 
 func blacklistNodeHandler(w http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	nodeId := utils.ExtractPathVar(r, nodeIdPathVar)
 
-	value, ok := autonomicSystem.services.Load(serviceId)
+	value, ok := autonomicSystem.deployments.Load(deploymentId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	auxService := value.(servicesMapValue)
-	auxService.BlacklistNode(nodeId)
+	auxDeployment := value.(deploymentsMapValue)
+	auxDeployment.BlacklistNode(nodeId)
 }

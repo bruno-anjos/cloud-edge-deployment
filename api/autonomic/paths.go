@@ -10,10 +10,10 @@ const (
 
 	PrefixPath = "/autonomic"
 
-	ServicesPath         = "/services"
-	ServicePath          = "/services/%s"
-	ServiceChildPath     = "/services/%s/child/%s"
-	ServiceParentPath    = "/services/%s/parent/%s"
+	DeploymentsPath      = "/deployments"
+	DeploymentPath       = "/deployments/%s"
+	DeploymentChildPath  = "/deployments/%s/child/%s"
+	DeploymentParentPath = "/deployments/%s/parent/%s"
 	IsNodeInVicinityPath = "/vicinity/%s"
 	ClosestNodePath      = "/closest"
 	VicinityPath         = "/vicinity"
@@ -23,20 +23,20 @@ const (
 	BlacklistPath        = "/blacklist/%s/%s"
 )
 
-func GetServicesPath() string {
-	return PrefixPath + ServicesPath
+func GetDeploymentsPath() string {
+	return PrefixPath + DeploymentsPath
 }
 
-func GetServicePath(serviceId string) string {
-	return PrefixPath + fmt.Sprintf(ServicePath, serviceId)
+func GetDeploymentPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentPath, deploymentId)
 }
 
-func GetServiceChildPath(serviceId, childId string) string {
-	return PrefixPath + fmt.Sprintf(ServiceChildPath, serviceId, childId)
+func GetDeploymentChildPath(deploymentId, childId string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentChildPath, deploymentId, childId)
 }
 
-func GetServiceParentPath(serviceId, parentId string) string {
-	return PrefixPath + fmt.Sprintf(ServiceParentPath, serviceId, parentId)
+func GetDeploymentParentPath(deploymentId, parentId string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentParentPath, deploymentId, parentId)
 }
 
 func GetIsNodeInVicinityPath(nodeId string) string {
@@ -55,10 +55,10 @@ func GetMyLocationPath() string {
 	return PrefixPath + MyLocationPath
 }
 
-func GetExploredPath(serviceId, childId string) string {
-	return PrefixPath + fmt.Sprintf(ExplorePath, serviceId, childId)
+func GetExploredPath(deploymentId, childId string) string {
+	return PrefixPath + fmt.Sprintf(ExplorePath, deploymentId, childId)
 }
 
-func GetBlacklistPath(serviceId, nodeId string) string {
-	return PrefixPath + fmt.Sprintf(BlacklistPath, serviceId, nodeId)
+func GetBlacklistPath(deploymentId, nodeId string) string {
+	return PrefixPath + fmt.Sprintf(BlacklistPath, deploymentId, nodeId)
 }

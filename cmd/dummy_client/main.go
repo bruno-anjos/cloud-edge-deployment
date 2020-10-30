@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/bruno-anjos/archimedesHTTPClient"
@@ -22,13 +22,13 @@ const (
 )
 
 type config struct {
-	Service         string               `json:"service"`
-	RequestTimeout  int                  `json:"request_timeout"`
-	MaxRequests     int                  `json:"max_requests"`
-	NumberOfClients int                  `json:"number_of_clients"`
-	Fallback        string               `json:"fallback"`
-	Location        publicUtils.Location `json:"location"`
-	Port            int                  `json:"port"`
+	Deployment      string    `json:"service"`
+	RequestTimeout  int       `json:"request_timeout"`
+	MaxRequests     int       `json:"max_requests"`
+	NumberOfClients int       `json:"number_of_clients"`
+	Fallback        string    `json:"fallback"`
+	Location        s2.LatLng `json:"location"`
+	Port            int       `json:"port"`
 }
 
 func main() {
@@ -59,29 +59,29 @@ func main() {
 		log.Fatalf("port is zero")
 	}
 
-	serviceUrl := url.URL{
+	deploymentUrl := url.URL{
 		Scheme: "http",
-		Host:   conf.Service + ":" + strconv.Itoa(conf.Port),
+		Host:   conf.Deployment + ":" + strconv.Itoa(conf.Port),
 	}
 
 	wg := &sync.WaitGroup{}
 	log.Debugf("Launching %d clients...", conf.NumberOfClients)
 	for i := 1; i <= conf.NumberOfClients; i++ {
 		wg.Add(1)
-		go runClient(wg, i, serviceUrl, &conf)
+		go runClient(wg, i, deploymentUrl, &conf)
 	}
 
 	wg.Wait()
 }
 
-func runClient(wg *sync.WaitGroup, clientNum int, serviceUrl url.URL, config *config) {
+func runClient(wg *sync.WaitGroup, clientNum int, deploymentUrl url.URL, config *config) {
 	defer wg.Done()
 
 	log.Debugf("[%d] Starting client", clientNum)
 
 	client := &http.Client{}
-	client.InitArchimedesClient(config.Fallback, archimedes.Port, &config.Location)
-	r, err := http.NewRequest(defaultHttp.MethodGet, serviceUrl.String(), nil)
+	client.InitArchimedesClient(config.Fallback, archimedes.Port, config.Location)
+	r, err := http.NewRequest(defaultHttp.MethodGet, deploymentUrl.String(), nil)
 	if err != nil {
 		panic(err)
 	}

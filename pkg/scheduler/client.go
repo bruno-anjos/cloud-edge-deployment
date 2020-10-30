@@ -18,14 +18,14 @@ func NewSchedulerClient(addr string) *Client {
 	}
 }
 
-func (c *Client) StartInstance(serviceName, imageName string, ports nat.PortSet, static bool,
+func (c *Client) StartInstance(deploymentName, imageName string, ports nat.PortSet, static bool,
 	envVars []string) (status int) {
 	reqBody := api.StartInstanceRequestBody{
-		ServiceName: serviceName,
-		ImageName:   imageName,
-		Ports:       ports,
-		Static:      static,
-		EnvVars:     envVars,
+		DeploymentName: deploymentName,
+		ImageName:      imageName,
+		Ports:          ports,
+		Static:         static,
+		EnvVars:        envVars,
 	}
 
 	path := api.GetInstancesPath()

@@ -3,19 +3,13 @@ package cell
 import (
 	"sync"
 
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/golang/geo/s2"
 )
 
 type (
-	ClientLocation struct {
-		Location *publicUtils.Location
-		Count    int
-	}
-
 	Cell struct {
 		numClients      int
-		clientLocations map[string]*ClientLocation
+		clientLocations map[s2.CellID]int
 		HasParent       bool
 		Parent          s2.CellID
 		Children        map[s2.CellID]interface{}
@@ -23,7 +17,7 @@ type (
 	}
 )
 
-func NewCell(numClients int, clientLocations map[string]*ClientLocation, parent s2.CellID, hasParent bool) *Cell {
+func NewCell(numClients int, clientLocations map[s2.CellID]int, parent s2.CellID, hasParent bool) *Cell {
 	return &Cell{
 		numClients:      numClients,
 		clientLocations: clientLocations,
@@ -33,76 +27,57 @@ func NewCell(numClients int, clientLocations map[string]*ClientLocation, parent 
 	}
 }
 
-func (c *Cell) AddClientAndReturnCurrent(loc *publicUtils.Location) int {
+func (c *Cell) AddClientAndReturnCurrent(loc s2.CellID) int {
 	c.Lock()
 	defer c.Unlock()
 	c.AddClientNoLock(loc)
 	return c.numClients
 }
 
-func (c *Cell) AddClientNoLock(loc *publicUtils.Location) {
+func (c *Cell) AddClientNoLock(loc s2.CellID) {
 	c.numClients++
-	id := loc.GetId()
-	value, ok := c.clientLocations[id]
-	if !ok {
-		c.clientLocations[id] = &ClientLocation{
-			Location: loc,
-			Count:    1,
-		}
-	} else {
-		value.Count++
-	}
+	c.clientLocations[loc]++
 }
 
-func (c *Cell) AddClientsNoLock(loc *publicUtils.Location, amount int) {
+func (c *Cell) AddClientsNoLock(loc s2.CellID, amount int) {
 	c.numClients += amount
-	id := loc.GetId()
-	value, ok := c.clientLocations[id]
-	if !ok {
-		c.clientLocations[id] = &ClientLocation{
-			Location: loc,
-			Count:    amount,
-		}
-	} else {
-		value.Count += amount
-	}
+	c.clientLocations[loc] += amount
 }
 
-func (c *Cell) RemoveClient(loc *publicUtils.Location) {
+func (c *Cell) RemoveClient(loc s2.CellID) {
 	c.Lock()
 	defer c.Unlock()
 	c.RemoveClientNoLock(loc)
 }
 
-func (c *Cell) RemoveClients(loc *publicUtils.Location, amount int) {
+func (c *Cell) RemoveClients(loc s2.CellID, amount int) {
 	c.Lock()
 	defer c.Unlock()
+	_, ok := c.clientLocations[loc]
+	if !ok {
+		return
+	}
+
 	c.numClients -= amount
-	id := loc.GetId()
-	value := c.clientLocations[id]
-	value.Count -= amount
-	if value.Count == 0 {
-		delete(c.clientLocations, id)
+	c.clientLocations[loc] -= amount
+	if c.clientLocations[loc] == 0 {
+		delete(c.clientLocations, loc)
 	}
 }
 
-func (c *Cell) RemoveClientsNoLock(loc *publicUtils.Location, amount int) {
+func (c *Cell) RemoveClientsNoLock(loc s2.CellID, amount int) {
 	c.numClients -= amount
-	id := loc.GetId()
-	value := c.clientLocations[id]
-	value.Count -= amount
-	if value.Count == 0 {
-		delete(c.clientLocations, id)
+	c.clientLocations[loc]--
+	if c.clientLocations[loc] == 0 {
+		delete(c.clientLocations, loc)
 	}
 }
 
-func (c *Cell) RemoveClientNoLock(loc *publicUtils.Location) {
+func (c *Cell) RemoveClientNoLock(loc s2.CellID) {
 	c.numClients--
-	id := loc.GetId()
-	value := c.clientLocations[id]
-	value.Count--
-	if value.Count == 0 {
-		delete(c.clientLocations, id)
+	c.clientLocations[loc]--
+	if c.clientLocations[loc] == 0 {
+		delete(c.clientLocations, loc)
 	}
 }
 
@@ -116,9 +91,9 @@ func (c *Cell) GetNumClientsNoLock() int {
 	return c.numClients
 }
 
-func (c *Cell) IterateLocationsNoLock(f func(locId string, loc *ClientLocation) bool) {
-	for locId, loc := range c.clientLocations {
-		if !f(locId, loc) {
+func (c *Cell) IterateLocationsNoLock(f func(locId s2.CellID, amount int) bool) {
+	for locId, amount := range c.clientLocations {
+		if !f(locId, amount) {
 			break
 		}
 	}

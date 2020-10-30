@@ -6,8 +6,8 @@ import (
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/go-connections/nat"
+	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -26,12 +26,12 @@ func NewArchimedesClient(addr string) *Client {
 	return archClient
 }
 
-func (c *Client) RegisterService(serviceId string, ports nat.PortSet) (status int) {
-	reqBody := api.RegisterServiceRequestBody{
+func (c *Client) RegisterDeployment(deploymentId string, ports nat.PortSet) (status int) {
+	reqBody := api.RegisterDeploymentRequestBody{
 		Ports: ports,
 	}
 
-	path := api.GetServicePath(serviceId)
+	path := api.GetDeploymentPath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -39,15 +39,15 @@ func (c *Client) RegisterService(serviceId string, ports nat.PortSet) (status in
 	return
 }
 
-func (c *Client) RegisterServiceInstance(serviceId, instanceId string, static bool,
+func (c *Client) RegisterDeploymentInstance(deploymentId, instanceId string, static bool,
 	portTranslation nat.PortMap, local bool) (status int) {
-	reqBody := api.RegisterServiceInstanceRequestBody{
+	reqBody := api.RegisterDeploymentInstanceRequestBody{
 		Static:          static,
 		PortTranslation: portTranslation,
 		Local:           local,
 	}
 
-	path := api.GetServiceInstancePath(serviceId, instanceId)
+	path := api.GetDeploymentInstancePath(deploymentId, instanceId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -55,8 +55,8 @@ func (c *Client) RegisterServiceInstance(serviceId, instanceId string, static bo
 	return
 }
 
-func (c *Client) DeleteService(serviceId string) (status int) {
-	path := api.GetServicePath(serviceId)
+func (c *Client) DeleteDeployment(deploymentId string) (status int) {
+	path := api.GetDeploymentPath(deploymentId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -64,8 +64,8 @@ func (c *Client) DeleteService(serviceId string) (status int) {
 	return
 }
 
-func (c *Client) DeleteServiceInstance(serviceId, instanceId string) (status int) {
-	path := api.GetServiceInstancePath(serviceId, instanceId)
+func (c *Client) DeleteDeploymentInstance(deploymentId, instanceId string) (status int) {
+	path := api.GetDeploymentInstancePath(deploymentId, instanceId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -73,27 +73,27 @@ func (c *Client) DeleteServiceInstance(serviceId, instanceId string) (status int
 	return
 }
 
-func (c *Client) GetServices() (services map[string]*api.Service, status int) {
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), api.GetServicesPath(), nil)
+func (c *Client) GetDeployments() (deployments map[string]*api.Deployment, status int) {
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), api.GetDeploymentsPath(), nil)
 
-	services = api.GetAllServicesResponseBody{}
-	status, _ = utils.DoRequest(c.Client, req, &services)
+	deployments = api.GetAllDeploymentsResponseBody{}
+	status, _ = utils.DoRequest(c.Client, req, &deployments)
 	return
 }
 
-func (c *Client) GetService(serviceId string) (instances map[string]*api.Instance, status int) {
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), api.GetServicePath(serviceId), nil)
+func (c *Client) GetDeployment(deploymentId string) (instances map[string]*api.Instance, status int) {
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), api.GetDeploymentPath(deploymentId), nil)
 
-	instances = api.GetServiceResponseBody{}
+	instances = api.GetDeploymentResponseBody{}
 	status, _ = utils.DoRequest(c.Client, req, &instances)
 	return
 }
 
-func (c *Client) GetServiceInstance(serviceId, instanceId string) (instance *api.Instance, status int) {
-	path := api.GetServiceInstancePath(serviceId, instanceId)
+func (c *Client) GetDeploymentInstance(deploymentId, instanceId string) (instance *api.Instance, status int) {
+	path := api.GetDeploymentInstancePath(deploymentId, instanceId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
-	instance = &api.GetServiceInstanceResponseBody{}
+	instance = &api.GetDeploymentInstanceResponseBody{}
 	status, _ = utils.DoRequest(c.Client, req, instance)
 
 	return
@@ -109,7 +109,7 @@ func (c *Client) GetInstance(instanceId string) (instance *api.Instance, status 
 	return
 }
 
-func (c *Client) Resolve(host string, port nat.Port, deploymentId string, cLocation *publicUtils.Location,
+func (c *Client) Resolve(host string, port nat.Port, deploymentId string, cLocation s2.CellID,
 	reqId string) (rHost, rPort string, status int) {
 
 	reqBody := api.ResolveRequestBody{
@@ -150,29 +150,29 @@ func (c *Client) ResolveLocally(host string, port nat.Port) (rHost, rPort string
 	return
 }
 
-func (c *Client) Redirect(serviceId, target string, amount int) (status int) {
+func (c *Client) Redirect(deploymentId, target string, amount int) (status int) {
 	reqBody := api.RedirectRequestBody{
 		Amount: int32(amount),
 		Target: target,
 	}
 
-	path := api.GetRedirectPath(serviceId)
+	path := api.GetRedirectPath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 	return
 }
 
-func (c *Client) RemoveRedirect(serviceId string) (status int) {
-	path := api.GetRedirectPath(serviceId)
+func (c *Client) RemoveRedirect(deploymentId string) (status int) {
+	path := api.GetRedirectPath(deploymentId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
 	return
 }
 
-func (c *Client) GetRedirected(serviceId string) (redirected int32, status int) {
-	path := api.GetRedirectedPath(serviceId)
+func (c *Client) GetRedirected(deploymentId string) (redirected int32, status int) {
+	path := api.GetRedirectedPath(deploymentId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, &redirected)
@@ -192,8 +192,8 @@ func (c *Client) SetResolvingAnswer(id string, resolved *api.ResolvedDTO) (statu
 	return
 }
 
-func (c *Client) GetLoad(serviceId string) (load int, status int) {
-	path := api.GetLoadPath(serviceId)
+func (c *Client) GetLoad(deploymentId string) (load int, status int) {
+	path := api.GetLoadPath(deploymentId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, &load)
@@ -201,16 +201,15 @@ func (c *Client) GetLoad(serviceId string) (load int, status int) {
 	return
 }
 
-func (c *Client) GetAvgClientLocation(serviceId string) (loc *publicUtils.Location, status int) {
-	path := api.GetAvgClientLocationPath(serviceId)
+func (c *Client) GetAvgClientLocation(deploymentId string) (loc s2.CellID, status int) {
+	path := api.GetAvgClientLocationPath(deploymentId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	var resp *http.Response
 	status, resp = utils.DoRequest(c.Client, req, nil)
 
 	if status == http.StatusOK {
-		loc = &publicUtils.Location{}
-		err := json.NewDecoder(resp.Body).Decode(loc)
+		err := json.NewDecoder(resp.Body).Decode(&loc)
 		if err != nil {
 			panic(err)
 		}
@@ -219,12 +218,11 @@ func (c *Client) GetAvgClientLocation(serviceId string) (loc *publicUtils.Locati
 	return
 }
 
-func (c *Client) SetExploringClientLocation(serviceId string, location *publicUtils.Location) (status int) {
-	reqBody := api.SetExploringClientLocationRequestBody{
-		Location: location,
-	}
+func (c *Client) SetExploringCells(deploymentId string, cell s2.CellID) (status int) {
+	var reqBody api.SetExploringClientLocationRequestBody
+	reqBody = cell
 
-	path := api.GetSetExploringClientLocationPath(serviceId)
+	path := api.GetSetExploringClientLocationPath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)

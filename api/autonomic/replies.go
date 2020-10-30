@@ -1,12 +1,12 @@
 package autonomic
 
 import (
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	"github.com/golang/geo/s2"
 )
 
 type (
-	GetAllServicesResponseBody = map[string]*ServiceDTO
-	ClosestNodeResponseBody    = string
-	GetVicinityResponseBody    = map[string]interface{}
-	GetMyLocationResponseBody  = *utils.Location
+	GetAllDeploymentsResponseBody = map[string]*DeploymentDTO
+	ClosestNodeResponseBody       = string
+	GetVicinityResponseBody       = map[string]s2.CellID
+	GetMyLocationResponseBody     = s2.CellID
 )

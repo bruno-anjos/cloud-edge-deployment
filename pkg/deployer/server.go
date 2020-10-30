@@ -11,5 +11,5 @@ const (
 )
 
 var (
-	DefaultHostPort = publicUtils.DeployerServiceName + ":" + strconv.Itoa(Port)
+	DefaultHostPort = publicUtils.DeployerDeploymentName + ":" + strconv.Itoa(Port)
 )

@@ -99,20 +99,20 @@ func addNode(addr string) {
 	}
 }
 
-func addDeployment(serviceId, filename string, static bool) {
+func addDeployment(deploymentId, filename string, static bool) {
 	fileBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		log.Fatal("error reading file: ", err)
 	}
 
-	status := deployerClient.RegisterService(serviceId, static, fileBytes, nil, nil)
+	status := deployerClient.RegisterDeployment(deploymentId, static, fileBytes, nil, nil)
 	if status != http.StatusOK {
 		log.Fatalf("got status %d from deployer", status)
 	}
 }
 
-func deleteDeployment(serviceId string) {
-	status := deployerClient.DeleteService(serviceId)
+func deleteDeployment(deploymentId string) {
+	status := deployerClient.DeleteDeployment(deploymentId)
 	if status != http.StatusOK {
 		log.Fatalf("got status %d from deployer", status)
 	}

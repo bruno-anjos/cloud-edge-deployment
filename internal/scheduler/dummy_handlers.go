@@ -32,19 +32,19 @@ func dummyStartInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if containerInstance.ServiceName == "" || containerInstance.ImageName == "" {
+	if containerInstance.DeploymentName == "" || containerInstance.ImageName == "" {
 		log.Errorf("invalid container instance: %v", containerInstance)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	log.Debugf("[DUMMY] starting random instance for service %s", containerInstance.ServiceName)
+	log.Debugf("[DUMMY] starting random instance for deployment %s", containerInstance.DeploymentName)
 
-	instanceId := containerInstance.ServiceName + "-" + utils.RandomString(10)
+	instanceId := containerInstance.DeploymentName + "-" + utils.RandomString(10)
 
 	portBindings := generatePortBindings(containerInstance.Ports)
 
-	status := deployerClient.RegisterServiceInstance(containerInstance.ServiceName, instanceId,
+	status := deployerClient.RegisterDeploymentInstance(containerInstance.DeploymentName, instanceId,
 		containerInstance.Static,
 		portBindings, true)
 

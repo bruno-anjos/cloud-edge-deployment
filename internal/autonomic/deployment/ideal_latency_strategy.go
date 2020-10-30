@@ -1,4 +1,4 @@
-package service
+package deployment
 
 import (
 	"net/http"
@@ -15,16 +15,16 @@ type idealLatencyStrategy struct {
 	redirectingTo string
 	redirectGoal  int
 	redirecting   bool
-	lbGoal        *serviceLoadBalanceGoal
+	lbGoal        *deploymentLoadBalanceGoal
 	archClient    *archimedes.Client
-	service       *Service
+	deployment    *Deployment
 }
 
-func newDefaultIdealLatencyStrategy(service *Service) *idealLatencyStrategy {
-	lbGoal := newLoadBalanceGoal(service)
+func newDefaultIdealLatencyStrategy(deployment *Deployment) *idealLatencyStrategy {
+	lbGoal := newLoadBalanceGoal(deployment)
 
 	defaultGoals := []Goal{
-		newIdealLatencyGoal(service),
+		newIdealLatencyGoal(deployment),
 		lbGoal,
 	}
 
@@ -32,7 +32,7 @@ func newDefaultIdealLatencyStrategy(service *Service) *idealLatencyStrategy {
 		basicStrategy: newBasicStrategy(public.StrategyIdealLatencyId, defaultGoals),
 		archClient:    archimedes.NewArchimedesClient(archimedes.DefaultHostPort),
 		lbGoal:        lbGoal,
-		service:       service,
+		deployment:    deployment,
 	}
 }
 
@@ -70,17 +70,17 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 		if i.redirecting {
 			// case where i WAS already redirecting
 
-			redirected, status := i.archClient.GetRedirected(i.service.ServiceId)
+			redirected, status := i.archClient.GetRedirected(i.deployment.DeploymentId)
 			if status != http.StatusOK {
 				return nil
 			}
 
 			if int(redirected) >= i.redirectGoal {
 				targetArchClient := archimedes.NewArchimedesClient(i.redirectingTo + ":" + strconv.Itoa(archimedes.Port))
-				status = targetArchClient.RemoveRedirect(i.service.ServiceId)
+				status = targetArchClient.RemoveRedirect(i.deployment.DeploymentId)
 				if status != http.StatusOK {
-					log.Errorf("got status %d while removing redirections for service %s at %s", status,
-						i.service.ServiceId, i.redirectingTo)
+					log.Errorf("got status %d while removing redirections for deployment %s at %s", status,
+						i.deployment.DeploymentId, i.redirectingTo)
 				}
 			}
 
@@ -93,7 +93,7 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 		}
 	} else if i.redirecting {
 		i.redirecting = false
-		i.archClient.RemoveRedirect(i.service.ServiceId)
+		i.archClient.RemoveRedirect(i.deployment.DeploymentId)
 	}
 
 	return action

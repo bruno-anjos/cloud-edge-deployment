@@ -9,45 +9,45 @@ const (
 	MetricLocation           = "METRIC_LOCATION"
 	MetricLocationInVicinity = "METRIC_LOCATION_VICINITY"
 
-	// SERVICE METRICS
-	metricNumberOfInstancesPerServiceId   = "METRIC_NUMBER_OF_INSTANCES_PER_SERVICE_%s"
-	metricLoadPerServiceInChild           = "METRIC_LOAD_PER_SERVICE_%s_IN_CHILD_%s"
-	metricLoadPerServiceInChildren        = "METRIC_LOAD_PER_SERVICE_%s_IN_CHILDREN"
-	metricAggLoadPerServiceInChildren     = "METRIC_AGG_LOAD_PER_SERVICE_%s_IN_CHILDREN"
-	metricClientLatencyPerService         = "METRIC_CLIENT_LATENCY_PER_SERVICE_%s"
-	metricProcessingTimePerService        = "METRIC_PROCESSING_TIME_PER_SERVICE_%s"
-	metricAverageClientLocationPerService = "METRIC_AVERAGE_CLIENT_LOCATION_PER_SERVICE_%s"
-	metricLoadPerService                  = "METRIC_LOAD_PER_SERVICE_%s"
+	// DEPLOYMENT METRICS
+	metricNumberOfInstancesPerDeploymentId   = "METRIC_NUMBER_OF_INSTANCES_PER_DEPLOYMENT_%s"
+	metricLoadPerDeploymentInChild           = "METRIC_LOAD_PER_DEPLOYMENT_%s_IN_CHILD_%s"
+	metricLoadPerDeploymentInChildren        = "METRIC_LOAD_PER_DEPLOYMENT_%s_IN_CHILDREN"
+	metricAggLoadPerDeploymentInChildren     = "METRIC_AGG_LOAD_PER_DEPLOYMENT_%s_IN_CHILDREN"
+	metricClientLatencyPerDeployment         = "METRIC_CLIENT_LATENCY_PER_DEPLOYMENT_%s"
+	metricProcessingTimePerDeployment        = "METRIC_PROCESSING_TIME_PER_DEPLOYMENT_%s"
+	metricAverageClientLocationPerDeployment = "METRIC_AVERAGE_CLIENT_LOCATION_PER_DEPLOYMENT_%s"
+	metricLoadPerDeployment                  = "METRIC_LOAD_PER_DEPLOYMENT_%s"
 )
 
-func GetNumInstancesMetricId(serviceId string) string {
-	return fmt.Sprintf(metricNumberOfInstancesPerServiceId, serviceId)
+func GetNumInstancesMetricId(deploymentId string) string {
+	return fmt.Sprintf(metricNumberOfInstancesPerDeploymentId, deploymentId)
 }
 
-func GetLoadPerServiceInChildMetricId(serviceId, childId string) string {
-	return fmt.Sprintf(metricLoadPerServiceInChild, serviceId, childId)
+func GetLoadPerDeploymentInChildMetricId(deploymentId, childId string) string {
+	return fmt.Sprintf(metricLoadPerDeploymentInChild, deploymentId, childId)
 }
 
-func GetLoadPerServiceInChildrenMetricId(serviceId string) string {
-	return fmt.Sprintf(metricLoadPerServiceInChildren, serviceId)
+func GetLoadPerDeploymentInChildrenMetricId(deploymentId string) string {
+	return fmt.Sprintf(metricLoadPerDeploymentInChildren, deploymentId)
 }
 
-func GetAggLoadPerServiceInChildrenMetricId(serviceId string) string {
-	return fmt.Sprintf(metricAggLoadPerServiceInChildren, serviceId)
+func GetAggLoadPerDeploymentInChildrenMetricId(deploymentId string) string {
+	return fmt.Sprintf(metricAggLoadPerDeploymentInChildren, deploymentId)
 }
 
-func GetClientLatencyPerServiceMetricId(serviceId string) string {
-	return fmt.Sprintf(metricClientLatencyPerService, serviceId)
+func GetClientLatencyPerDeploymentMetricId(deploymentId string) string {
+	return fmt.Sprintf(metricClientLatencyPerDeployment, deploymentId)
 }
 
-func GetProcessingTimePerServiceMetricId(serviceId string) string {
-	return fmt.Sprintf(metricProcessingTimePerService, serviceId)
+func GetProcessingTimePerDeploymentMetricId(deploymentId string) string {
+	return fmt.Sprintf(metricProcessingTimePerDeployment, deploymentId)
 }
 
-func GetAverageClientLocationPerServiceMetricId(serviceId string) string {
-	return fmt.Sprintf(metricAverageClientLocationPerService, serviceId)
+func GetAverageClientLocationPerDeploymentMetricId(deploymentId string) string {
+	return fmt.Sprintf(metricAverageClientLocationPerDeployment, deploymentId)
 }
 
-func GetLoadPerService(serviceId string) string {
-	return fmt.Sprintf(metricLoadPerService, serviceId)
+func GetLoadPerDeployment(deploymentId string) string {
+	return fmt.Sprintf(metricLoadPerDeployment, deploymentId)
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -87,14 +87,14 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO) bool {
 		return false
 	}
 
-	t.autonomicClient.RegisterService(dto.DeploymentId, autonomic.StrategyIdealLatencyId)
+	t.autonomicClient.RegisterDeployment(dto.DeploymentId, autonomic.StrategyIdealLatencyId)
 	if dto.Parent != nil {
 		log.Debugf("will set my parent as %s", dto.Parent.Addr)
-		t.autonomicClient.SetServiceParent(dto.DeploymentId, dto.Parent.Addr)
+		t.autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent.Addr)
 		deplClient := deployer.NewDeployerClient(dto.Parent.Id + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself.Id, location, 1)
+		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself.Id, location.ID(), 1)
 		if status != http.StatusOK {
-			log.Errorf("got status %d while trying to propagate location to %s for service %s", status,
+			log.Errorf("got status %d while trying to propagate location to %s for deployment %s", status,
 				dto.Parent.Id, dto.DeploymentId)
 		}
 	}
@@ -112,9 +112,9 @@ func (t *hierarchyTable) removeDeployment(deploymentId string) {
 	if entry.NumChildren == 0 {
 		log.Errorf("removing deployment that is still someones father")
 	} else {
-		archimedesClient.DeleteService(deploymentId)
+		archimedesClient.DeleteDeployment(deploymentId)
 		t.hierarchyEntries.Delete(deploymentId)
-		t.autonomicClient.DeleteService(deploymentId)
+		t.autonomicClient.DeleteDeployment(deploymentId)
 	}
 }
 
@@ -188,7 +188,7 @@ func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node) {
 	entry.Children.Store(child.Id, child)
 	atomic.AddInt32(&entry.NumChildren, 1)
 
-	t.autonomicClient.AddServiceChild(deploymentId, child.Id)
+	t.autonomicClient.AddDeploymentChild(deploymentId, child.Id)
 
 	return
 }
@@ -201,7 +201,7 @@ func (t *hierarchyTable) removeChild(deploymentId, childId string) {
 
 	entry := value.(typeHierarchyEntriesMapValue)
 	entry.Children.Delete(childId)
-	t.autonomicClient.RemoveServiceChild(deploymentId, childId)
+	t.autonomicClient.RemoveDeploymentChild(deploymentId, childId)
 	removeTerminalLocsForChild(deploymentId, childId)
 
 	atomic.AddInt32(&entry.NumChildren, -1)
@@ -439,7 +439,7 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 		grandparent := hTable.getGrandparent(deploymentId)
 		if grandparent == nil {
 			deplClient := deployer.NewDeployerClient(fallback + ":" + strconv.Itoa(deployer.Port))
-			status := deplClient.Fallback(deploymentId, myself.Id, location)
+			status := deplClient.Fallback(deploymentId, myself.Id, location.ID())
 			if status != http.StatusOK {
 				log.Debugf("tried to fallback to %s, got %d", fallback, status)
 				deleteDeploymentAsync(deploymentId)
@@ -450,7 +450,7 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 		newParentChan := hTable.setDeploymentAsOrphan(deploymentId)
 
 		deplClient := deployer.NewDeployerClient(grandparent.Addr + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.WarnOfDeadChild(deploymentId, deadParent.Id, myself, alternatives, location)
+		status := deplClient.WarnOfDeadChild(deploymentId, deadParent.Id, myself, alternatives, location.ID())
 		if status != http.StatusOK {
 			log.Errorf("got status %d while renegotiating parent %s with %s for deployment %s", status,
 				deadParent, grandparent.Id, deploymentId)
@@ -470,7 +470,7 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 	case <-waitingTimer.C:
 		log.Debugf("falling back to %s", fallback)
 		deplClient := deployer.NewDeployerClient(fallback)
-		status := deplClient.Fallback(deploymentId, myself.Id, location)
+		status := deplClient.Fallback(deploymentId, myself.Id, location.ID())
 		if status != http.StatusOK {
 			log.Debugf("tried to fallback to %s, got %d", fallback, status)
 			return
@@ -482,7 +482,7 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 	}
 }
 
-func attemptToExtend(deploymentId, target string, targetLocation *publicUtils.Location, children []*utils.Node,
+func attemptToExtend(deploymentId, target string, targetLocation s2.CellID, children []*utils.Node,
 	parent *utils.Node, maxHops int, alternatives map[string]*utils.Node, isExploring bool) {
 	var extendTimer *time.Timer
 
@@ -553,7 +553,7 @@ func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children 
 	depClient := deployer.NewDeployerClient(nodeToExtendTo.Id + ":" + strconv.Itoa(deployer.Port))
 
 	log.Debugf("extending deployment %s to %s", deploymentId, nodeToExtendTo.Id)
-	status := depClient.RegisterService(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Parent, dto.Children)
+	status := depClient.RegisterDeployment(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Parent, dto.Children)
 	if status == http.StatusConflict {
 		log.Debugf("deployment %s is already present in %s", deploymentId, nodeToExtendTo.Id)
 	} else if status != http.StatusOK {
@@ -576,7 +576,7 @@ func loadFallbackHostname(filename string) string {
 	return string(fileBytes)
 }
 
-func getAlternative(alternatives map[string]*utils.Node, targetLocation *publicUtils.Location, maxHops int,
+func getAlternative(alternatives map[string]*utils.Node, targetLocation s2.CellID, maxHops int,
 	toExclude map[string]interface{}) (result string) {
 	if len(alternatives) > 0 {
 		for alternative := range alternatives {

@@ -1,8 +1,8 @@
 package utils
 
 const (
-	ServiceEnvVarName  = "SERVICE_ID"
-	InstanceEnvVarName = "INSTANCE_ID"
+	DeploymentEnvVarName = "DEPLOYMENT_ID"
+	InstanceEnvVarName   = "INSTANCE_ID"
 )
 
 const (

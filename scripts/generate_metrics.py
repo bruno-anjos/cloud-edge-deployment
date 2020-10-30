@@ -6,6 +6,8 @@ import os
 import random
 import sys
 
+import s2sphere
+
 """
 {
   "METRIC_NODE_ADDR": "node21",
@@ -14,27 +16,27 @@ import sys
     "node21": 5000.0,
     "node23": 2000.0
   },
-  "METRIC_NUMBER_OF_INSTANCES_PER_SERVICE_A": 0,
-  "METRIC_LOAD_PER_SERVICE_A_IN_CHILD_node22": 0,
-  "METRIC_LOAD_PER_SERVICE_A_IN_CHILD_node23": 0,
-  "METRIC_LOAD_PER_SERVICE_A_IN_CHILDREN": {},
-  "METRIC_AGG_LOAD_PER_SERVICE_A_IN_CHILDREN": 0,
-  "METRIC_CLIENT_LATENCY_PER_SERVICE_A": 150,
-  "METRIC_PROCESSING_TIME_PER_SERVICE_A": 10,
-  "METRIC_AVERAGE_CLIENT_LOCATION_PER_SERVICE_A": 1000.0
+  "METRIC_NUMBER_OF_INSTANCES_PER_DEPLOYMENT_A": 0,
+  "METRIC_LOAD_PER_DEPLOYMENT_A_IN_CHILD_node22": 0,
+  "METRIC_LOAD_PER_DEPLOYMENT_A_IN_CHILD_node23": 0,
+  "METRIC_LOAD_PER_DEPLOYMENT_A_IN_CHILDREN": {},
+  "METRIC_AGG_LOAD_PER_DEPLOYMENT_A_IN_CHILDREN": 0,
+  "METRIC_CLIENT_LATENCY_PER_DEPLOYMENT_A": 150,
+  "METRIC_PROCESSING_TIME_PER_DEPLOYMENT_A": 10,
+  "METRIC_AVERAGE_CLIENT_LOCATION_PER_DEPLOYMENT_A": 1000.0
 }
 """
 
 sortingService = ""
 nodes_config_name = "NODES_CONFIG"
-services_config_name = "SERVICES_CONFIG"
+services_config_name = "DEPLOYMENTS_CONFIG"
 fallback_config_name = "FALLBACK_CONFIG"
 
 
 def calcDist(l1, l2):
-    dX = l2["X"] - l1["X"]
-    dY = l2["Y"] - l1["Y"]
-    return math.sqrt(dX ** 2 + dY ** 2)
+    dLat = l2["lat"] - l1["lat"]
+    dLng = l2["lng"] - l1["lng"]
+    return math.sqrt(dLat ** 2 + dLng ** 2)
 
 
 def sortChildren(n, sortingService, nodesLocations, clientLocations):
@@ -89,52 +91,38 @@ def generateDictsForServiceTree():
     processingTime = generateServiceProcessingTime()
     serviceLatency = generateServiceLatency()
 
-    circle_r = 5000
-    inner_circle_exclude = 3000
-    circle_x = 10000 / 2
-    circle_y = 10000 / 2
+    minLat, maxLat, minLong, maxLong = -90, 90, -180, 180
 
-    alpha = 2 * math.pi * random.random()
-    r = ((circle_r - inner_circle_exclude) * math.sqrt(random.random()) + inner_circle_exclude)
-    x = int(r * math.cos(alpha) + circle_x)
-    y = int(r * math.sin(alpha) + circle_y)
-
-    serviceLocation = {"X": x, "Y": y}
+    serviceLocation = {"lat": random.randrange(minLat, maxLat), "lng": random.randint(minLong, maxLong)}
 
     return serviceLocation, processingTime, serviceLatency
 
 
 def generateNodeMetrics(nodeId, loc, visibleNodes, children, nodesLocations, services, serviceLatencies,
                         processingTimes, clientLocations, lastNode):
-    visibleNodesLocation = ",\n".join([f""""{nodeId}": {{
-        "X": {nodesLocations[nodeId]["X"]},
-        "Y": {nodesLocations[nodeId]["Y"]}
-    }}""" for nodeId in visibleNodes])
+    visibleNodesLocation = ",\n".join([
+                                          f""""{nodeId}": "{s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(nodesLocations[nodeId]["lat"], nodesLocations[nodeId]["lng"])).to_token()}" """
+                                          for nodeId in visibleNodes])
 
     other = []
     for s in services:
-        other += [f"\"METRIC_LOAD_PER_SERVICE_{s}_IN_CHILDREN\": {{}}",
-                  f"\"METRIC_AGG_LOAD_PER_SERVICE_{s}_IN_CHILDREN\": 0",
-                  f"\"METRIC_CLIENT_LATENCY_PER_SE RVICE_{s}\": {serviceLatencies[s]}",
-                  f"\"METRIC_PROCESSING_TIME_PER_SERVICE_{s}\": {processingTimes[s]}",
-                  f"\"METRIC_NUMBER_OF_INSTANCES_PER_SERVICE_{s}\": 0",
-                  f"\"METRIC_LOAD_PER_SERVICE_{s}\": 0",
-                  f"""\"METRIC_AVERAGE_CLIENT_LOCATION_PER_SERVICE_{s}\": {{
-                        "X": {clientLocations[s]["X"]},
-                        "Y": {clientLocations[s]["Y"]}
-                    }}
-                    """]
+        cellToken = s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(clientLocations[s]["lat"],
+                                                                              clientLocations[s]["lng"])).to_token()
+        other += [f"\"METRIC_LOAD_PER_DEPLOYMENT_{s}_IN_CHILDREN\": {{}}",
+                  f"\"METRIC_AGG_LOAD_PER_DEPLOYMENT_{s}_IN_CHILDREN\": 0",
+                  f"\"METRIC_CLIENT_LATENCY_PER_DEPLOYMENT_{s}\": {serviceLatencies[s]}",
+                  f"\"METRIC_PROCESSING_TIME_PER_DEPLOYMENT_{s}\": {processingTimes[s]}",
+                  f"\"METRIC_NUMBER_OF_INSTANCES_PER_DEPLOYMENT_{s}\": 0",
+                  f"\"METRIC_LOAD_PER_DEPLOYMENT_{s}\": 0",
+                  f"""\"METRIC_AVERAGE_CLIENT_LOCATION_PER_DEPLOYMENT_{s}\": "{cellToken}" """]
         for child in children:
-            other += [f"\"METRIC_LOAD_PER_SERVICE_{s}_IN_CHILD_{child}\": 0"]
+            other += [f"\"METRIC_LOAD_PER_DEPLOYMENT_{s}_IN_CHILD_{child}\": 0"]
 
     otherStrings = ",\n".join(other)
 
     m = f"""{{
         "METRIC_NODE_ADDR": "{nodeId}",
-        "METRIC_LOCATION": {{
-            "X": {loc["X"]},
-            "Y": {loc["Y"]}
-        }},
+        "METRIC_LOCATION": "{s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(loc["lat"], loc["lng"]))}",
         "METRIC_LOCATION_VICINITY": {{
             {visibleNodesLocation}
         }},
@@ -144,7 +132,7 @@ def generateNodeMetrics(nodeId, loc, visibleNodes, children, nodesLocations, ser
     return m
 
 
-sortingLocation = {"X": 0, "Y": 0}
+sortingLocation = {"lat": 0, "lng": 0}
 
 
 def sortByDistance(n, nodesLocations):
@@ -183,19 +171,18 @@ def loadNodeLocationsFromConfig(config):
         originalNode = fromOriginalToDummy[node]
         x = nodeConfig["coords"][0]
         y = nodeConfig["coords"][1]
-        locations[originalNode] = {"X": x, "Y": y}
+        locations[originalNode] = {"lat": x, "lng": y}
     return locations
 
 
 def calcMidNode(nodesLocations):
     midNode = ""
     minDistToMid = -1
-    minNodeLoc, maxNodeLoc = 0, 10000
 
-    midPoint = ((maxNodeLoc - minNodeLoc) / 2) + minNodeLoc
+    midPoint = {"lat": 0, "lng": 0}
 
     for node, location in nodesLocations.items():
-        dist = calcDist(location, {"X": midPoint, "Y": midPoint})
+        dist = calcDist(location, midPoint)
         if minDistToMid == -1 or dist < minDistToMid:
             midNode = node
             minDistToMid = dist
@@ -204,15 +191,15 @@ def calcMidNode(nodesLocations):
 
 def generateLocations():
     nodesLocations = {}
-    minNodeLoc, maxNodeLoc = 0, 10000
+    minLat, maxLat, minLong, maxLong = -90, 90, -180, 180
 
     midNode = ""
     minDistToMid = -1
-    midPoint = ((maxNodeLoc - minNodeLoc) / 2) + minNodeLoc
+    midPoint = {"lat": 0, "lng": 0}
     for node in nodes:
-        location = {"X": random.randint(minNodeLoc, maxNodeLoc), "Y": random.randint(minNodeLoc, maxNodeLoc)}
+        location = {"lat": random.randint(minLat, maxLat), "lng": random.randint(minLong, maxLong)}
         nodesLocations[node] = location
-        dist = calcDist(location, {"X": midPoint, "Y": midPoint})
+        dist = calcDist(location, midPoint)
         if minDistToMid == -1 or dist < minDistToMid:
             midNode = node
             minDistToMid = dist

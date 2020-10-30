@@ -35,44 +35,45 @@ func newActionWithArgs(actionId string, args ...interface{}) *actionWithArgs {
 	}
 }
 
-type actionWithServiceTarget struct {
+type actionWithDeploymentTarget struct {
 	*actionWithArgs
 }
 
-func newActionWithServiceTarget(actionId, serviceId, target string, args ...interface{}) *actionWithServiceTarget {
-	newArgs := []interface{}{serviceId, target}
+func newActionWithDeploymentTarget(actionId, deploymentId, target string,
+	args ...interface{}) *actionWithDeploymentTarget {
+	newArgs := []interface{}{deploymentId, target}
 	newArgs = append(newArgs, args...)
 
-	return &actionWithServiceTarget{
+	return &actionWithDeploymentTarget{
 		actionWithArgs: newActionWithArgs(actionId, newArgs...),
 	}
 }
 
-func (a *actionWithServiceTarget) GetServiceId() string {
+func (a *actionWithDeploymentTarget) GetDeploymentId() string {
 	return a.Args[0].(string)
 }
 
-func (a *actionWithServiceTarget) GetTarget() string {
+func (a *actionWithDeploymentTarget) GetTarget() string {
 	return a.Args[1].(string)
 }
 
-type actionWithServiceOriginTarget struct {
-	*actionWithServiceTarget
+type actionWithDeploymentOriginTarget struct {
+	*actionWithDeploymentTarget
 }
 
-func newActionWithServiceOriginTarget(actionId, serviceId, origin, target string,
-	args ...interface{}) *actionWithServiceOriginTarget {
+func newActionWithDeploymentOriginTarget(actionId, deploymentId, origin, target string,
+	args ...interface{}) *actionWithDeploymentOriginTarget {
 	newArgs := make([]interface{}, len(args)+1)
 	newArgs[0] = origin
 	for i, arg := range args {
 		newArgs[i+1] = arg
 	}
 
-	return &actionWithServiceOriginTarget{
-		actionWithServiceTarget: newActionWithServiceTarget(actionId, serviceId, target, newArgs...),
+	return &actionWithDeploymentOriginTarget{
+		actionWithDeploymentTarget: newActionWithDeploymentTarget(actionId, deploymentId, target, newArgs...),
 	}
 }
 
-func (a *actionWithServiceOriginTarget) GetOrigin() string {
+func (a *actionWithDeploymentOriginTarget) GetOrigin() string {
 	return a.Args[2].(string)
 }

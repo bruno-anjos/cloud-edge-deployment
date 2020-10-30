@@ -1,4 +1,4 @@
-package service
+package deployment
 
 import (
 	"net/http"
@@ -8,9 +8,8 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
-	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -35,25 +34,25 @@ type (
 	loadType = int
 )
 
-type serviceLoadBalanceGoal struct {
-	service      *Service
+type deploymentLoadBalanceGoal struct {
+	deployment   *Deployment
 	dependencies []string
 	staleCycles  int
 }
 
-func newLoadBalanceGoal(service *Service) *serviceLoadBalanceGoal {
+func newLoadBalanceGoal(deployment *Deployment) *deploymentLoadBalanceGoal {
 	dependencies := []string{
-		metrics.GetAggLoadPerServiceInChildrenMetricId(service.ServiceId),
-		metrics.GetLoadPerServiceInChildrenMetricId(service.ServiceId),
+		metrics.GetAggLoadPerDeploymentInChildrenMetricId(deployment.DeploymentId),
+		metrics.GetLoadPerDeploymentInChildrenMetricId(deployment.DeploymentId),
 	}
 
-	return &serviceLoadBalanceGoal{
-		service:      service,
+	return &deploymentLoadBalanceGoal{
+		deployment:   deployment,
 		dependencies: dependencies,
 	}
 }
 
-func (l *serviceLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range,
+func (l *deploymentLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range,
 	actionArgs []interface{}) {
 	isAlreadyMax = true
 	optRange = optDomain
@@ -105,27 +104,23 @@ func (l *serviceLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, 
 	return
 }
 
-func (l *serviceLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, info map[string]interface{},
+func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, info map[string]interface{},
 	success bool) {
 	domain = nil
 	info = nil
 	success = false
 
-	value, ok := l.service.Environment.GetMetric(metrics.MetricLocationInVicinity)
+	value, ok := l.deployment.Environment.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		log.Debugf("no value for metric %s", metrics.MetricLocationInVicinity)
 		return nil, nil, false
 	}
 
-	var locationsInVicinity map[string]publicUtils.Location
-	err := mapstructure.Decode(value, &locationsInVicinity)
-	if err != nil {
-		panic(err)
-	}
+	locationsInVicinity := value.(map[string]interface{})
 
 	info = map[string]interface{}{}
 	archClient := archimedes.NewArchimedesClient(myself.Id + ":" + strconv.Itoa(archimedes.Port))
-	load, status := archClient.GetLoad(l.service.ServiceId)
+	load, status := archClient.GetLoad(l.deployment.DeploymentId)
 	if status != http.StatusOK {
 		load = 0
 	}
@@ -134,14 +129,14 @@ func (l *serviceLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, i
 	info[myself.Id] = load
 
 	for nodeId := range locationsInVicinity {
-		_, okS := l.service.Suspected.Load(nodeId)
-		if okS || nodeId == l.service.ParentId {
+		_, okS := l.deployment.Suspected.Load(nodeId)
+		if okS || nodeId == l.deployment.ParentId {
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}
 		domain = append(domain, nodeId)
 		archClient.SetHostPort(nodeId + ":" + strconv.Itoa(archimedes.Port))
-		load, status = archClient.GetLoad(l.service.ServiceId)
+		load, status = archClient.GetLoad(l.deployment.DeploymentId)
 		if status != http.StatusOK {
 			info[nodeId] = 0
 		} else {
@@ -155,7 +150,7 @@ func (l *serviceLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, i
 	return
 }
 
-func (l *serviceLoadBalanceGoal) Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range) {
+func (l *deploymentLoadBalanceGoal) Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range) {
 	ordered = candidates
 	sort.Slice(ordered, func(i, j int) bool {
 		loadI := sortingCriteria[ordered[i]].(loadType)
@@ -166,11 +161,11 @@ func (l *serviceLoadBalanceGoal) Order(candidates Domain, sortingCriteria map[st
 	return
 }
 
-func (l *serviceLoadBalanceGoal) Filter(candidates, domain Domain) (filtered Range) {
+func (l *deploymentLoadBalanceGoal) Filter(candidates, domain Domain) (filtered Range) {
 	return DefaultFilter(candidates, domain)
 }
 
-func (l *serviceLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria map[string]interface{}) (cutoff Range,
+func (l *deploymentLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria map[string]interface{}) (cutoff Range,
 	maxed bool) {
 
 	cutoff = nil
@@ -196,38 +191,44 @@ func (l *serviceLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria ma
 	return
 }
 
-func (l *serviceLoadBalanceGoal) GenerateAction(target string, args ...interface{}) actions.Action {
+func (l *deploymentLoadBalanceGoal) GenerateAction(target string, args ...interface{}) actions.Action {
 	log.Debugf("generating action %s", (args[lbActionTypeArgIndex]).(string))
 
 	switch args[lbActionTypeArgIndex].(string) {
-	case actions.ExtendServiceId:
-		return actions.NewExtendServiceAction(l.service.ServiceId, target, false, myself,
-			nil, nil)
+	case actions.ExtendDeploymentId:
+		autoClient := autonomic.NewAutonomicClient(target + ":" + strconv.Itoa(autonomic.Port))
+		location, status := autoClient.GetLocation()
+		if status != http.StatusOK {
+			log.Errorf("got status %d while getting %s location", status, target)
+			return nil
+		}
+		return actions.NewExtendDeploymentAction(l.deployment.DeploymentId, target, false, myself,
+			nil, location)
 	case actions.RedirectClientsId:
-		return actions.NewRedirectAction(l.service.ServiceId, args[lbFromIndex].(string), target, args[lbAmountIndex].(int))
+		return actions.NewRedirectAction(l.deployment.DeploymentId, args[lbFromIndex].(string), target, args[lbAmountIndex].(int))
 	}
 
 	return nil
 }
 
-func (l *serviceLoadBalanceGoal) TestDryRun() bool {
+func (l *deploymentLoadBalanceGoal) TestDryRun() bool {
 	return true
 }
 
-func (l *serviceLoadBalanceGoal) GetDependencies() (metrics []string) {
+func (l *deploymentLoadBalanceGoal) GetDependencies() (metrics []string) {
 	return l.dependencies
 }
 
-func (l *serviceLoadBalanceGoal) GetId() string {
+func (l *deploymentLoadBalanceGoal) GetId() string {
 	return loadBalanceGoalId
 }
 
-func (l *serviceLoadBalanceGoal) getHighLoads() map[string]loadType {
+func (l *deploymentLoadBalanceGoal) getHighLoads() map[string]loadType {
 	highLoads := map[string]loadType{}
-	l.service.Children.Range(func(key, value interface{}) bool {
-		childId := key.(serviceChildrenMapKey)
-		metric := metrics.GetLoadPerServiceInChildMetricId(l.service.ServiceId, childId)
-		value, mOk := l.service.Environment.GetMetric(metric)
+	l.deployment.Children.Range(func(key, value interface{}) bool {
+		childId := key.(deploymentChildrenMapKey)
+		metric := metrics.GetLoadPerDeploymentInChildMetricId(l.deployment.DeploymentId, childId)
+		value, mOk := l.deployment.Environment.GetMetric(metric)
 		if !mOk {
 			log.Debugf("no value for metric %s", metric)
 			return true
@@ -244,18 +245,18 @@ func (l *serviceLoadBalanceGoal) getHighLoads() map[string]loadType {
 	return highLoads
 }
 
-func (l *serviceLoadBalanceGoal) handleOverload(candidates Range) (
+func (l *deploymentLoadBalanceGoal) handleOverload(candidates Range) (
 	actionArgs []interface{}, newOptRange Range) {
 	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
 
-	actionArgs[lbActionTypeArgIndex] = actions.ExtendServiceId
+	actionArgs[lbActionTypeArgIndex] = actions.ExtendDeploymentId
 	deplClient := deployer.NewDeployerClient("")
 	for _, candidate := range candidates {
-		_, okC := l.service.Children.Load(candidate)
+		_, okC := l.deployment.Children.Load(candidate)
 		if !okC {
 			deplClient.SetHostPort(candidate + ":" + strconv.Itoa(deployer.Port))
-			hasService, _ := deplClient.HasService(l.service.ServiceId)
-			if hasService {
+			hasDeployment, _ := deplClient.HasDeployment(l.deployment.DeploymentId)
+			if hasDeployment {
 				continue
 			}
 			newOptRange = append(newOptRange, candidate)
@@ -268,9 +269,9 @@ func (l *serviceLoadBalanceGoal) handleOverload(candidates Range) (
 	return
 }
 
-func (l *serviceLoadBalanceGoal) checkIfShouldBeRemoved() bool {
+func (l *deploymentLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 	hasChildren := false
-	l.service.Children.Range(func(key, value interface{}) bool {
+	l.deployment.Children.Range(func(key, value interface{}) bool {
 		hasChildren = true
 		return false
 	})
@@ -280,9 +281,9 @@ func (l *serviceLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 	}
 
 	archClient := archimedes.NewArchimedesClient("localhost:" + strconv.Itoa(archimedes.Port))
-	load, status := archClient.GetLoad(l.service.ServiceId)
+	load, status := archClient.GetLoad(l.deployment.DeploymentId)
 	if status != http.StatusOK {
-		log.Errorf("got status %d when asking for load for service %s", status, l.service.ServiceId)
+		log.Errorf("got status %d when asking for load for deployment %s", status, l.deployment.DeploymentId)
 		return false
 	}
 
@@ -295,7 +296,7 @@ func (l *serviceLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 	return l.staleCycles == staleCyclesNumToRemove
 }
 
-func (l *serviceLoadBalanceGoal) checkIfHasAlternatives(sortingCriteria map[string]interface{}) (hasAlternatives bool) {
+func (l *deploymentLoadBalanceGoal) checkIfHasAlternatives(sortingCriteria map[string]interface{}) (hasAlternatives bool) {
 	myLoad := sortingCriteria[myself.Id].(loadType)
 
 	var (
@@ -305,8 +306,8 @@ func (l *serviceLoadBalanceGoal) checkIfHasAlternatives(sortingCriteria map[stri
 		load := value.(loadType)
 		if float64(load) < maximumLoad && float64(load) < float64(myLoad)/2. {
 			deplClient.SetHostPort(nodeId + ":" + strconv.Itoa(deployer.Port))
-			hasService, _ := deplClient.HasService(l.service.ServiceId)
-			if hasService {
+			hasDeployment, _ := deplClient.HasDeployment(l.deployment.DeploymentId)
+			if hasDeployment {
 				hasAlternatives = true
 				break
 			}

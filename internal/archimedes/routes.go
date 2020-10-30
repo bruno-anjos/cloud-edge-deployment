@@ -10,40 +10,40 @@ import (
 
 // Route names
 const (
-	registerServiceName         = "REGISTER_SERVICE"
-	deleteServiceName           = "DELETE_SERVICE"
-	registerServiceInstanceName = "REGISTER_SERVICE_INSTANCE"
-	deleteServiceInstanceName   = "DELETE_SERVICE_INSTANCE"
-	getAllServicesName          = "GET_ALL_SERVICES"
-	getAllServiceInstancesName  = "GET_ALL_SERVICE_INSTANCES"
-	getServiceInstanceName      = "GET_SERVICE_INSTANCE"
-	getInstanceName             = "GET_INSTANCE"
-	discoverName                = "DISCOVER"
-	whoAreYouName               = "WHO_ARE_YOU"
-	getTableName                = "GET_TABLE"
-	resolveName                 = "RESOLVE"
-	redirectName                = "REDIRECT"
-	removeRedirectName          = "REMOVE_REDIRECT"
-	getRedirectedName           = "GET_REDIRECTED"
-	resolveLocallyName          = "RESOLVE_LOCALLY"
-	getLoadName                 = "GET_LOAD"
-	getAvgClientLocationName    = "GET_AVG_CLIENT_LOCATION"
-	setExploringLocationName    = "SET_EXPLORING_CLIENT_LOCATION"
+	registerDeploymentName         = "REGISTER_DEPLOYMENT"
+	deleteDeploymentName           = "DELETE_DEPLOYMENT"
+	registerDeploymentInstanceName = "REGISTER_DEPLOYMENT_INSTANCE"
+	deleteDeploymentInstanceName   = "DELETE_DEPLOYMENT_INSTANCE"
+	getAllDeploymentsName          = "GET_ALL_DEPLOYMENTS"
+	getAllDeploymentInstancesName  = "GET_ALL_DEPLOYMENT_INSTANCES"
+	getDeploymentInstanceName      = "GET_DEPLOYMENT_INSTANCE"
+	getInstanceName                = "GET_INSTANCE"
+	discoverName                   = "DISCOVER"
+	whoAreYouName                  = "WHO_ARE_YOU"
+	getTableName                   = "GET_TABLE"
+	resolveName                    = "RESOLVE"
+	redirectName                   = "REDIRECT"
+	removeRedirectName             = "REMOVE_REDIRECT"
+	getRedirectedName              = "GET_REDIRECTED"
+	resolveLocallyName             = "RESOLVE_LOCALLY"
+	getLoadName                    = "GET_LOAD"
+	getAvgClientLocationName       = "GET_AVG_CLIENT_LOCATION"
+	setExploringLocationName       = "SET_EXPLORING_CLIENT_LOCATION"
 )
 
 // Path variables
 const (
-	serviceIdPathVar  = "serviceId"
-	instanceIdPathVar = "instanceId"
+	deploymentIdPathVar = "deploymentId"
+	instanceIdPathVar   = "instanceId"
 )
 
 var (
-	_serviceIdPathVarFormatted  = fmt.Sprintf(utils.PathVarFormat, serviceIdPathVar)
-	_instanceIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, instanceIdPathVar)
+	_deploymentIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, deploymentIdPathVar)
+	_instanceIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, instanceIdPathVar)
 
-	servicesRoute        = archimedes.ServicesPath
-	serviceRoute         = fmt.Sprintf(archimedes.ServicePath, _serviceIdPathVarFormatted)
-	serviceInstanceRoute = fmt.Sprintf(archimedes.ServiceInstancePath, _serviceIdPathVarFormatted,
+	deploymentsRoute        = archimedes.DeploymentsPath
+	deploymentRoute         = fmt.Sprintf(archimedes.DeploymentPath, _deploymentIdPathVarFormatted)
+	deploymentInstanceRoute = fmt.Sprintf(archimedes.DeploymentInstancePath, _deploymentIdPathVarFormatted,
 		_instanceIdPathVarFormatted)
 	instanceRoute                   = fmt.Sprintf(archimedes.InstancePath, _instanceIdPathVarFormatted)
 	discoverRoute                   = archimedes.DiscoverPath
@@ -51,11 +51,11 @@ var (
 	tableRoute                      = archimedes.TablePath
 	resolveRoute                    = archimedes.ResolvePath
 	resolveLocallyRoute             = archimedes.ResolveLocallyPath
-	redirectRoute                   = fmt.Sprintf(archimedes.RedirectPath, _serviceIdPathVarFormatted)
-	redirectedRoute                 = fmt.Sprintf(archimedes.RedirectedPath, _serviceIdPathVarFormatted)
-	getLoadRoute                    = fmt.Sprintf(archimedes.LoadPath, _serviceIdPathVarFormatted)
-	getAvgClientLocationRoute       = fmt.Sprintf(archimedes.AvgClientLocationPath, _serviceIdPathVarFormatted)
-	setExploringClientLocationRoute = fmt.Sprintf(archimedes.ExploringClientLocationPath, _serviceIdPathVarFormatted)
+	redirectRoute                   = fmt.Sprintf(archimedes.RedirectPath, _deploymentIdPathVarFormatted)
+	redirectedRoute                 = fmt.Sprintf(archimedes.RedirectedPath, _deploymentIdPathVarFormatted)
+	getLoadRoute                    = fmt.Sprintf(archimedes.LoadPath, _deploymentIdPathVarFormatted)
+	getAvgClientLocationRoute       = fmt.Sprintf(archimedes.AvgClientLocationPath, _deploymentIdPathVarFormatted)
+	setExploringClientLocationRoute = fmt.Sprintf(archimedes.ExploringClientLocationPath, _deploymentIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{
@@ -109,45 +109,45 @@ var Routes = []utils.Route{
 	},
 
 	{
-		Name:        registerServiceName,
+		Name:        registerDeploymentName,
 		Method:      http.MethodPost,
-		Pattern:     serviceRoute,
-		HandlerFunc: registerServiceHandler,
+		Pattern:     deploymentRoute,
+		HandlerFunc: registerDeploymentHandler,
 	},
 
 	{
-		Name:        deleteServiceName,
+		Name:        deleteDeploymentName,
 		Method:      http.MethodDelete,
-		Pattern:     serviceRoute,
-		HandlerFunc: deleteServiceHandler,
+		Pattern:     deploymentRoute,
+		HandlerFunc: deleteDeploymentHandler,
 	},
 
 	{
-		Name:        registerServiceInstanceName,
+		Name:        registerDeploymentInstanceName,
 		Method:      http.MethodPost,
-		Pattern:     serviceInstanceRoute,
-		HandlerFunc: registerServiceInstanceHandler,
+		Pattern:     deploymentInstanceRoute,
+		HandlerFunc: registerDeploymentInstanceHandler,
 	},
 
 	{
-		Name:        deleteServiceInstanceName,
+		Name:        deleteDeploymentInstanceName,
 		Method:      http.MethodDelete,
-		Pattern:     serviceInstanceRoute,
-		HandlerFunc: deleteServiceInstanceHandler,
+		Pattern:     deploymentInstanceRoute,
+		HandlerFunc: deleteDeploymentInstanceHandler,
 	},
 
 	{
-		Name:        getAllServicesName,
+		Name:        getAllDeploymentsName,
 		Method:      http.MethodGet,
-		Pattern:     servicesRoute,
-		HandlerFunc: getAllServicesHandler,
+		Pattern:     deploymentsRoute,
+		HandlerFunc: getAllDeploymentsHandler,
 	},
 
 	{
-		Name:        getAllServiceInstancesName,
+		Name:        getAllDeploymentInstancesName,
 		Method:      http.MethodGet,
-		Pattern:     serviceRoute,
-		HandlerFunc: getAllServiceInstancesHandler,
+		Pattern:     deploymentRoute,
+		HandlerFunc: getAllDeploymentInstancesHandler,
 	},
 
 	{
@@ -158,10 +158,10 @@ var Routes = []utils.Route{
 	},
 
 	{
-		Name:        getServiceInstanceName,
+		Name:        getDeploymentInstanceName,
 		Method:      http.MethodGet,
-		Pattern:     serviceInstanceRoute,
-		HandlerFunc: getServiceInstanceHandler,
+		Pattern:     deploymentInstanceRoute,
+		HandlerFunc: getDeploymentInstanceHandler,
 	},
 
 	{
@@ -182,7 +182,7 @@ var Routes = []utils.Route{
 		Name:        getTableName,
 		Method:      http.MethodGet,
 		Pattern:     tableRoute,
-		HandlerFunc: getServicesTableHandler,
+		HandlerFunc: getDeploymentsTableHandler,
 	},
 
 	{

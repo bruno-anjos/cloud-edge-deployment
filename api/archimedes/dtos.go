@@ -10,7 +10,7 @@ type ResolvedDTO struct {
 	Port string
 }
 
-type serviceDTO struct {
+type deploymentDTO struct {
 	Ports nat.PortSet
 }
 
@@ -20,9 +20,9 @@ type InstanceDTO struct {
 	Local           bool
 }
 
-type ServicesTableEntryDTO struct {
+type DeploymentsTableEntryDTO struct {
 	Host, HostAddr string
-	Service        *Service
+	Deployment     *Deployment
 	Instances      map[string]*Instance
 	NumberOfHops   int
 	MaxHops        int
@@ -33,7 +33,7 @@ type DiscoverMsg struct {
 	MessageId    uuid.UUID
 	Origin       string
 	NeighborSent string
-	Entries      map[string]*ServicesTableEntryDTO
+	Entries      map[string]*DeploymentsTableEntryDTO
 }
 
 type ToResolveDTO struct {

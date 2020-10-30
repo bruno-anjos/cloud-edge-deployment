@@ -10,9 +10,9 @@ import (
 )
 
 type (
-	servicesTableEntry struct {
+	deploymentsTableEntry struct {
 		Host         *utils.Node
-		Service      *api.Service
+		Deployment   *api.Deployment
 		Instances    *sync.Map
 		NumberOfHops int
 		MaxHops      int
@@ -21,10 +21,10 @@ type (
 	}
 )
 
-func newTempServiceTableEntry() *servicesTableEntry {
-	return &servicesTableEntry{
+func newTempDeploymentTableEntry() *deploymentsTableEntry {
+	return &deploymentsTableEntry{
 		Host:         nil,
-		Service:      nil,
+		Deployment:   nil,
 		Instances:    nil,
 		NumberOfHops: 0,
 		MaxHops:      0,
@@ -33,7 +33,7 @@ func newTempServiceTableEntry() *servicesTableEntry {
 	}
 }
 
-func (se *servicesTableEntry) toChangedDTO() *api.ServicesTableEntryDTO {
+func (se *deploymentsTableEntry) toChangedDTO() *api.DeploymentsTableEntryDTO {
 	instances := map[string]*api.Instance{}
 
 	se.EntryLock.RLock()
@@ -50,10 +50,10 @@ func (se *servicesTableEntry) toChangedDTO() *api.ServicesTableEntryDTO {
 		return true
 	})
 
-	return &api.ServicesTableEntryDTO{
+	return &api.DeploymentsTableEntryDTO{
 		Host:         se.Host.Id,
 		HostAddr:     se.Host.Addr,
-		Service:      se.Service,
+		Deployment:   se.Deployment,
 		Instances:    instances,
 		NumberOfHops: se.NumberOfHops,
 		MaxHops:      se.MaxHops,
@@ -61,7 +61,7 @@ func (se *servicesTableEntry) toChangedDTO() *api.ServicesTableEntryDTO {
 	}
 }
 
-func (se *servicesTableEntry) toDTO() *api.ServicesTableEntryDTO {
+func (se *deploymentsTableEntry) toDTO() *api.DeploymentsTableEntryDTO {
 	instances := map[string]*api.Instance{}
 
 	se.EntryLock.RLock()
@@ -75,10 +75,10 @@ func (se *servicesTableEntry) toDTO() *api.ServicesTableEntryDTO {
 		return true
 	})
 
-	return &api.ServicesTableEntryDTO{
+	return &api.DeploymentsTableEntryDTO{
 		Host:         se.Host.Id,
 		HostAddr:     se.Host.Addr,
-		Service:      se.Service,
+		Deployment:   se.Deployment,
 		Instances:    instances,
 		NumberOfHops: se.NumberOfHops,
 		MaxHops:      se.MaxHops,
@@ -87,42 +87,42 @@ func (se *servicesTableEntry) toDTO() *api.ServicesTableEntryDTO {
 }
 
 type (
-	servicesTable struct {
-		addLock              sync.Mutex
-		servicesMap          sync.Map
-		instancesMap         sync.Map
-		neighborsServicesMap sync.Map
+	deploymentsTable struct {
+		addLock                 sync.Mutex
+		deploymentsMap          sync.Map
+		instancesMap            sync.Map
+		neighborsDeploymentsMap sync.Map
 	}
 
-	typeServicesTableMapKey   = string
-	typeServicesTableMapValue = *servicesTableEntry
+	typeDeploymentsTableMapKey   = string
+	typeDeploymentsTableMapValue = *deploymentsTableEntry
 
 	typeInstancesMapKey   = string
 	typeInstancesMapValue = *api.Instance
 
-	typeNeighborsServicesMapKey   = string
-	typeNeighborsServicesMapValue = *sync.Map
+	typeNeighborsDeploymentsMapKey   = string
+	typeNeighborsDeploymentsMapValue = *sync.Map
 )
 
-func newServicesTable() *servicesTable {
-	return &servicesTable{
-		addLock:              sync.Mutex{},
-		servicesMap:          sync.Map{},
-		instancesMap:         sync.Map{},
-		neighborsServicesMap: sync.Map{},
+func newDeploymentsTable() *deploymentsTable {
+	return &deploymentsTable{
+		addLock:                 sync.Mutex{},
+		deploymentsMap:          sync.Map{},
+		instancesMap:            sync.Map{},
+		neighborsDeploymentsMap: sync.Map{},
 	}
 }
 
-func (st *servicesTable) updateService(serviceId string, newEntry *api.ServicesTableEntryDTO) bool {
-	value, ok := st.servicesMap.Load(serviceId)
+func (st *deploymentsTable) updateDeployment(deploymentId string, newEntry *api.DeploymentsTableEntryDTO) bool {
+	value, ok := st.deploymentsMap.Load(deploymentId)
 	if !ok {
-		log.Fatalf("service %s doesnt exist", serviceId)
+		log.Fatalf("deployment %s doesnt exist", deploymentId)
 	}
 
-	entry := value.(typeServicesTableMapValue)
+	entry := value.(typeDeploymentsTableMapValue)
 	entry.EntryLock.RLock()
 
-	log.Debugf("got service on version %d, have %d", entry.Version, newEntry.Version)
+	log.Debugf("got deployment on version %d, have %d", entry.Version, newEntry.Version)
 
 	// ignore messages with no new information
 	if newEntry.Version <= entry.Version {
@@ -136,7 +136,7 @@ func (st *servicesTable) updateService(serviceId string, newEntry *api.ServicesT
 
 	// message is fresher, comes from the closest neighbor or closer and it has new information
 	entry.Host = utils.NewNode(newEntry.Host, newEntry.HostAddr)
-	entry.Service = newEntry.Service
+	entry.Deployment = newEntry.Deployment
 
 	entry.Instances.Range(func(key, value interface{}) bool {
 		instanceId := key.(typeInstancesMapKey)
@@ -159,35 +159,35 @@ func (st *servicesTable) updateService(serviceId string, newEntry *api.ServicesT
 	entry.Version = newEntry.Version
 	entry.MaxHops = maxHops
 
-	log.Debugf("updated service %s table entry to: %+v", serviceId, entry)
+	log.Debugf("updated deployment %s table entry to: %+v", deploymentId, entry)
 	log.Debugf("with instances %+v", newEntry.Instances)
 
 	return true
 }
 
-func (st *servicesTable) addService(serviceId string, newEntry *api.ServicesTableEntryDTO) (added bool) {
-	_, ok := st.servicesMap.Load(serviceId)
+func (st *deploymentsTable) addDeployment(deploymentId string, newEntry *api.DeploymentsTableEntryDTO) (added bool) {
+	_, ok := st.deploymentsMap.Load(deploymentId)
 	if ok {
 		added = false
 		return
 	}
 
 	st.addLock.Lock()
-	_, ok = st.servicesMap.Load(serviceId)
+	_, ok = st.deploymentsMap.Load(deploymentId)
 	if ok {
 		st.addLock.Unlock()
 		added = false
 		return
 	}
 
-	newTableEntry := newTempServiceTableEntry()
+	newTableEntry := newTempDeploymentTableEntry()
 	newTableEntry.EntryLock.Lock()
 	defer newTableEntry.EntryLock.Unlock()
-	st.servicesMap.Store(serviceId, newTableEntry)
+	st.deploymentsMap.Store(deploymentId, newTableEntry)
 	st.addLock.Unlock()
 
 	newTableEntry.Host = utils.NewNode(newEntry.Host, newEntry.HostAddr)
-	newTableEntry.Service = newEntry.Service
+	newTableEntry.Deployment = newEntry.Deployment
 
 	newInstancesMap := &sync.Map{}
 	for instanceId, instance := range newEntry.Instances {
@@ -200,57 +200,57 @@ func (st *servicesTable) addService(serviceId string, newEntry *api.ServicesTabl
 	newTableEntry.Version = newEntry.Version
 	newTableEntry.MaxHops = maxHops
 
-	servicesMap := &sync.Map{}
-	servicesMap.Store(serviceId, struct{}{})
-	st.neighborsServicesMap.Store(newEntry.Host, servicesMap)
+	deploymentsMap := &sync.Map{}
+	deploymentsMap.Store(deploymentId, struct{}{})
+	st.neighborsDeploymentsMap.Store(newEntry.Host, deploymentsMap)
 
 	added = true
 
-	log.Debugf("added new table entry for service %s: %+v", serviceId, newTableEntry)
+	log.Debugf("added new table entry for deployment %s: %+v", deploymentId, newTableEntry)
 	log.Debugf("with instances %+v", newEntry.Instances)
 
 	return
 }
 
-func (st *servicesTable) getService(serviceId string) (service *api.Service, ok bool) {
-	value, ok := st.servicesMap.Load(serviceId)
+func (st *deploymentsTable) getDeployment(deploymentId string) (deployment *api.Deployment, ok bool) {
+	value, ok := st.deploymentsMap.Load(deploymentId)
 	if !ok {
 		return nil, false
 	}
 
-	entry := value.(typeServicesTableMapValue)
+	entry := value.(typeDeploymentsTableMapValue)
 	entry.EntryLock.RLock()
 	defer entry.EntryLock.RUnlock()
 
-	return entry.Service, true
+	return entry.Deployment, true
 }
 
-func (st *servicesTable) getAllServices() map[string]*api.Service {
-	services := map[string]*api.Service{}
+func (st *deploymentsTable) getAllDeployments() map[string]*api.Deployment {
+	deployments := map[string]*api.Deployment{}
 
-	st.servicesMap.Range(func(key, value interface{}) bool {
-		serviceId := key.(string)
-		entry := value.(typeServicesTableMapValue)
+	st.deploymentsMap.Range(func(key, value interface{}) bool {
+		deploymentId := key.(string)
+		entry := value.(typeDeploymentsTableMapValue)
 		entry.EntryLock.RLock()
 		defer entry.EntryLock.RUnlock()
 
-		services[serviceId] = entry.Service
+		deployments[deploymentId] = entry.Deployment
 
 		return true
 	})
 
-	return services
+	return deployments
 }
 
-func (st *servicesTable) getAllServiceInstances(serviceId string) map[string]*api.Instance {
+func (st *deploymentsTable) getAllDeploymentInstances(deploymentId string) map[string]*api.Instance {
 	instances := map[string]*api.Instance{}
 
-	value, ok := st.servicesMap.Load(serviceId)
+	value, ok := st.deploymentsMap.Load(deploymentId)
 	if !ok {
 		return instances
 	}
 
-	entry := value.(typeServicesTableMapValue)
+	entry := value.(typeDeploymentsTableMapValue)
 	entry.EntryLock.RLock()
 	defer entry.EntryLock.RUnlock()
 
@@ -266,14 +266,14 @@ func (st *servicesTable) getAllServiceInstances(serviceId string) map[string]*ap
 	return instances
 }
 
-func (st *servicesTable) addInstance(serviceId, instanceId string, instance *api.Instance) (added bool) {
-	value, ok := st.servicesMap.Load(serviceId)
+func (st *deploymentsTable) addInstance(deploymentId, instanceId string, instance *api.Instance) (added bool) {
+	value, ok := st.deploymentsMap.Load(deploymentId)
 	if !ok {
 		added = false
 		return
 	}
 
-	entry := value.(typeServicesTableMapValue)
+	entry := value.(typeDeploymentsTableMapValue)
 	entry.EntryLock.Lock()
 	defer entry.EntryLock.Unlock()
 
@@ -286,13 +286,13 @@ func (st *servicesTable) addInstance(serviceId, instanceId string, instance *api
 	return
 }
 
-func (st *servicesTable) serviceHasInstance(serviceId, instanceId string) bool {
-	value, ok := st.servicesMap.Load(serviceId)
+func (st *deploymentsTable) deploymentHasInstance(deploymentId, instanceId string) bool {
+	value, ok := st.deploymentsMap.Load(deploymentId)
 	if !ok {
 		return false
 	}
 
-	entry := value.(typeServicesTableMapValue)
+	entry := value.(typeDeploymentsTableMapValue)
 
 	entry.EntryLock.RLock()
 	defer entry.EntryLock.RUnlock()
@@ -302,13 +302,13 @@ func (st *servicesTable) serviceHasInstance(serviceId, instanceId string) bool {
 	return ok
 }
 
-func (st *servicesTable) getServiceInstance(serviceId, instanceId string) (*api.Instance, bool) {
-	value, ok := st.servicesMap.Load(serviceId)
+func (st *deploymentsTable) getDeploymentInstance(deploymentId, instanceId string) (*api.Instance, bool) {
+	value, ok := st.deploymentsMap.Load(deploymentId)
 	if !ok {
 		return nil, false
 	}
 
-	entry := value.(typeServicesTableMapValue)
+	entry := value.(typeDeploymentsTableMapValue)
 
 	entry.EntryLock.RLock()
 	defer entry.EntryLock.RUnlock()
@@ -321,7 +321,7 @@ func (st *servicesTable) getServiceInstance(serviceId, instanceId string) (*api.
 	return value.(typeInstancesMapValue), ok
 }
 
-func (st *servicesTable) getInstance(instanceId string) (instance *api.Instance, ok bool) {
+func (st *deploymentsTable) getInstance(instanceId string) (instance *api.Instance, ok bool) {
 	value, ok := st.instancesMap.Load(instanceId)
 	if !ok {
 		return nil, false
@@ -330,29 +330,29 @@ func (st *servicesTable) getInstance(instanceId string) (instance *api.Instance,
 	return value.(typeInstancesMapValue), true
 }
 
-func (st *servicesTable) deleteService(serviceId string) {
-	value, ok := st.servicesMap.Load(serviceId)
+func (st *deploymentsTable) deleteDeployment(deploymentId string) {
+	value, ok := st.deploymentsMap.Load(deploymentId)
 	if !ok {
 		return
 	}
 
-	entry := value.(typeServicesTableMapValue)
+	entry := value.(typeDeploymentsTableMapValue)
 	entry.EntryLock.RLock()
 	defer entry.EntryLock.RUnlock()
 
 	entry.Instances.Range(func(key, _ interface{}) bool {
 		instanceId := key.(typeInstancesMapKey)
-		st.deleteInstance(serviceId, instanceId)
+		st.deleteInstance(deploymentId, instanceId)
 		return true
 	})
 
-	st.servicesMap.Delete(serviceId)
+	st.deploymentsMap.Delete(deploymentId)
 }
 
-func (st *servicesTable) deleteInstance(serviceId, instanceId string) {
-	value, ok := st.instancesMap.Load(serviceId)
+func (st *deploymentsTable) deleteInstance(deploymentId, instanceId string) {
+	value, ok := st.instancesMap.Load(deploymentId)
 	if ok {
-		entry := value.(typeServicesTableMapValue)
+		entry := value.(typeDeploymentsTableMapValue)
 		entry.EntryLock.RLock()
 		entry.Instances.Delete(instanceId)
 		numInstances := 0
@@ -362,8 +362,8 @@ func (st *servicesTable) deleteInstance(serviceId, instanceId string) {
 		})
 
 		if numInstances == 0 {
-			log.Debugf("no instances left, deleting service %s", serviceId)
-			defer st.deleteService(serviceId)
+			log.Debugf("no instances left, deleting deployment %s", deploymentId)
+			defer st.deleteDeployment(deploymentId)
 		}
 
 		entry.EntryLock.RUnlock()
@@ -372,42 +372,42 @@ func (st *servicesTable) deleteInstance(serviceId, instanceId string) {
 	st.instancesMap.Delete(instanceId)
 }
 
-func (st *servicesTable) updateTableWithDiscoverMessage(neighbor string,
+func (st *deploymentsTable) updateTableWithDiscoverMessage(neighbor string,
 	discoverMsg *api.DiscoverMsg) (changed bool) {
 	log.Debugf("updating table from message %s", discoverMsg.MessageId.String())
 
 	changed = false
 
-	for serviceId, entry := range discoverMsg.Entries {
-		log.Debugf("%s has service %s", neighbor, serviceId)
+	for deploymentId, entry := range discoverMsg.Entries {
+		log.Debugf("%s has deployment %s", neighbor, deploymentId)
 
 		if entry.Host == archimedesId {
 			continue
 		}
 
-		_, ok := st.servicesMap.Load(serviceId)
+		_, ok := st.deploymentsMap.Load(deploymentId)
 		if ok {
-			log.Debugf("service %s already existed, updating", serviceId)
-			updated := st.updateService(serviceId, entry)
+			log.Debugf("deployment %s already existed, updating", deploymentId)
+			updated := st.updateDeployment(deploymentId, entry)
 			if updated {
 				changed = true
 			}
 			continue
 		}
 
-		st.addService(serviceId, entry)
+		st.addDeployment(deploymentId, entry)
 		changed = true
 	}
 
 	return changed
 }
 
-func (st *servicesTable) toChangedDiscoverMsg() *api.DiscoverMsg {
-	entries := map[string]*api.ServicesTableEntryDTO{}
+func (st *deploymentsTable) toChangedDiscoverMsg() *api.DiscoverMsg {
+	entries := map[string]*api.DeploymentsTableEntryDTO{}
 
-	st.servicesMap.Range(func(key, value interface{}) bool {
-		serviceId := key.(typeServicesTableMapKey)
-		entry := value.(typeServicesTableMapValue)
+	st.deploymentsMap.Range(func(key, value interface{}) bool {
+		deploymentId := key.(typeDeploymentsTableMapKey)
+		entry := value.(typeDeploymentsTableMapValue)
 
 		entry.EntryLock.RLock()
 
@@ -420,7 +420,7 @@ func (st *servicesTable) toChangedDiscoverMsg() *api.DiscoverMsg {
 		entryDTO := entry.toChangedDTO()
 		entryDTO.NumberOfHops++
 
-		entries[serviceId] = entryDTO
+		entries[deploymentId] = entryDTO
 
 		return true
 	})
@@ -437,15 +437,15 @@ func (st *servicesTable) toChangedDiscoverMsg() *api.DiscoverMsg {
 	}
 }
 
-func (st *servicesTable) toDiscoverMsg() *api.DiscoverMsg {
-	entries := map[string]*api.ServicesTableEntryDTO{}
+func (st *deploymentsTable) toDiscoverMsg() *api.DiscoverMsg {
+	entries := map[string]*api.DeploymentsTableEntryDTO{}
 
-	st.servicesMap.Range(func(key, value interface{}) bool {
-		serviceId := key.(typeServicesTableMapKey)
-		entry := value.(typeServicesTableMapValue)
+	st.deploymentsMap.Range(func(key, value interface{}) bool {
+		deploymentId := key.(typeDeploymentsTableMapKey)
+		entry := value.(typeDeploymentsTableMapValue)
 
 		entryDTO := entry.toDTO()
-		entries[serviceId] = entryDTO
+		entries[deploymentId] = entryDTO
 
 		return true
 	})
@@ -462,16 +462,16 @@ func (st *servicesTable) toDiscoverMsg() *api.DiscoverMsg {
 	}
 }
 
-func (st *servicesTable) deleteNeighborServices(neighborId string) {
-	value, ok := st.neighborsServicesMap.Load(neighborId)
+func (st *deploymentsTable) deleteNeighborDeployments(neighborId string) {
+	value, ok := st.neighborsDeploymentsMap.Load(neighborId)
 	if !ok {
 		return
 	}
 
-	services := value.(typeNeighborsServicesMapValue)
-	services.Range(func(key, _ interface{}) bool {
-		serviceId := key.(typeNeighborsServicesMapKey)
-		sTable.deleteService(serviceId)
+	deployments := value.(typeNeighborsDeploymentsMapValue)
+	deployments.Range(func(key, _ interface{}) bool {
+		deploymentId := key.(typeNeighborsDeploymentsMapKey)
+		sTable.deleteDeployment(deploymentId)
 		return true
 	})
 }

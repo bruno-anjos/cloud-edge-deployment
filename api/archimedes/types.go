@@ -4,13 +4,13 @@ import (
 	"github.com/docker/go-connections/nat"
 )
 
-type Service struct {
+type Deployment struct {
 	Id    string
 	Ports nat.PortSet
 }
 
-func (s *Service) ToTransfarable() *Service {
-	return &Service{
+func (s *Deployment) ToTransfarable() *Deployment {
+	return &Deployment{
 		Id:    s.Id,
 		Ports: s.Ports,
 	}
@@ -18,7 +18,7 @@ func (s *Service) ToTransfarable() *Service {
 
 type Instance struct {
 	Id              string
-	ServiceId       string
+	DeploymentId    string
 	Ip              string
 	PortTranslation nat.PortMap
 	Initialized     bool

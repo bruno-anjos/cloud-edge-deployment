@@ -98,7 +98,7 @@ func startInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if containerInstance.ServiceName == "" || containerInstance.ImageName == "" {
+	if containerInstance.DeploymentName == "" || containerInstance.ImageName == "" {
 		log.Errorf("invalid container instance: %v", containerInstance)
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -138,14 +138,14 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	//
 	// Create container and get containers id in response
 	//
-	instanceId := containerInstance.ServiceName + "-" + utils.RandomString(10)
+	instanceId := containerInstance.DeploymentName + "-" + utils.RandomString(10)
 
 	log.Debugf("instance %s has following portBindings: %+v", instanceId, portBindings)
 
-	serviceIdEnvVar := utils.ServiceEnvVarName + "=" + containerInstance.ServiceName
+	deploymentIdEnvVar := utils.DeploymentEnvVarName + "=" + containerInstance.DeploymentName
 	instanceIdEnvVar := utils.InstanceEnvVarName + "=" + instanceId
 
-	envVars := []string{serviceIdEnvVar, instanceIdEnvVar}
+	envVars := []string{deploymentIdEnvVar, instanceIdEnvVar}
 	envVars = append(envVars, containerInstance.EnvVars...)
 
 	out, err := dockerClient.ImagePull(context.Background(), containerInstance.ImageName, types.ImagePullOptions{})
@@ -190,7 +190,7 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	//
 	// Add container instance to archimedes
 	//
-	status := deployerClient.RegisterServiceInstance(containerInstance.ServiceName, instanceId,
+	status := deployerClient.RegisterDeploymentInstance(containerInstance.DeploymentName, instanceId,
 		containerInstance.Static,
 		portBindings, true)
 

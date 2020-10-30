@@ -1,12 +1,12 @@
 package autonomic
 
-type serviceConfig struct {
+type deploymentConfig struct {
 	StrategyId string
 }
 
-type ServiceDTO struct {
-	ServiceId  string
-	StrategyId string
-	Children   []string
-	ParentId   string
+type DeploymentDTO struct {
+	DeploymentId string
+	StrategyId   string
+	Children     []string
+	ParentId     string
 }

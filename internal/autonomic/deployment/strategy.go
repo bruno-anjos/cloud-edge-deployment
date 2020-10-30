@@ -1,4 +1,4 @@
-package service
+package deployment
 
 import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"

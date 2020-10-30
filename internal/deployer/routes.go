@@ -12,7 +12,7 @@ import (
 const (
 	getDeploymentsName             = "GET_DEPLOYMENTS"
 	registerDeploymentName         = "REGISTER_DEPLOYMENT"
-	registerServiceInstanceName    = "REGISTER_SERVICE_INSTANCE"
+	registerDeploymentInstanceName = "REGISTER_DEPLOYMENT_INSTANCE"
 	deleteDeploymentName           = "DELETE_DEPLOYMENT"
 	whoAreYouName                  = "WHO_ARE_YOU"
 	addNodeName                    = "ADD_NODE"
@@ -37,8 +37,8 @@ const (
 	iAmYourChildName               = "I_AM_YOUR_CHILD"
 
 	// scheduler
-	heartbeatServiceInstanceName         = "HEARTBEAT_SERVICE_INSTANCE"
-	registerHeartbeatServiceInstanceName = "REGISTER_HEARTBEAT"
+	heartbeatDeploymentInstanceName         = "HEARTBEAT_DEPLOYMENT_INSTANCE"
+	registerHeartbeatDeploymentInstanceName = "REGISTER_HEARTBEAT"
 )
 
 // Path variables
@@ -63,8 +63,8 @@ var (
 	iAmYourParentRoute         = fmt.Sprintf(deployer.IAmYourParentPath, _deploymentIdPathVarFormatted)
 	hierarchyTableRoute        = deployer.HierarchyTablePath
 	migrateDeploymentRoute     = fmt.Sprintf(deployer.MigrateDeploymentPath, _deploymentIdPathVarFormatted)
-	extendDeploymentToRoute    = fmt.Sprintf(deployer.ExtendServiceToPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
-	shortenDeploymentFromRoute = fmt.Sprintf(deployer.ShortenServiceFromPath, _deploymentIdPathVarFormatted,
+	extendDeploymentToRoute    = fmt.Sprintf(deployer.ExtendDeploymentToPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	shortenDeploymentFromRoute = fmt.Sprintf(deployer.ShortenDeploymentFromPath, _deploymentIdPathVarFormatted,
 		_deployerIdPathVarFormatted)
 	setGrandparentRoute             = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
 	fallbackRoute                   = fmt.Sprintf(deployer.FallbackPath, _deploymentIdPathVarFormatted)
@@ -248,23 +248,23 @@ var Routes = []utils.Route{
 	},
 
 	{
-		Name:        heartbeatServiceInstanceName,
+		Name:        heartbeatDeploymentInstanceName,
 		Method:      http.MethodPut,
 		Pattern:     deploymentInstanceAliveRoute,
-		HandlerFunc: heartbeatServiceInstanceHandler,
+		HandlerFunc: heartbeatDeploymentInstanceHandler,
 	},
 
 	{
-		Name:        registerHeartbeatServiceInstanceName,
+		Name:        registerHeartbeatDeploymentInstanceName,
 		Method:      http.MethodPost,
 		Pattern:     deploymentInstanceAliveRoute,
-		HandlerFunc: registerHeartbeatServiceInstanceHandler,
+		HandlerFunc: registerHeartbeatDeploymentInstanceHandler,
 	},
 
 	{
-		Name:        registerServiceInstanceName,
+		Name:        registerDeploymentInstanceName,
 		Method:      http.MethodPost,
 		Pattern:     deploymentInstanceRoute,
-		HandlerFunc: registerServiceInstanceHandler,
+		HandlerFunc: registerDeploymentInstanceHandler,
 	},
 }

@@ -6,7 +6,7 @@ import (
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	"github.com/golang/geo/s2"
 )
 
 type Client struct {
@@ -19,12 +19,12 @@ func NewAutonomicClient(addr string) *Client {
 	}
 }
 
-func (c *Client) RegisterService(serviceId, strategyId string) (status int) {
-	reqBody := api.AddServiceRequestBody{
+func (c *Client) RegisterDeployment(deploymentId, strategyId string) (status int) {
+	reqBody := api.AddDeploymentRequestBody{
 		StrategyId: strategyId,
 	}
 
-	path := api.GetServicePath(serviceId)
+	path := api.GetDeploymentPath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -32,8 +32,8 @@ func (c *Client) RegisterService(serviceId, strategyId string) (status int) {
 	return
 }
 
-func (c *Client) DeleteService(serviceId string) (status int) {
-	path := api.GetServicePath(serviceId)
+func (c *Client) DeleteDeployment(deploymentId string) (status int) {
+	path := api.GetDeploymentPath(deploymentId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -41,16 +41,16 @@ func (c *Client) DeleteService(serviceId string) (status int) {
 	return
 }
 
-func (c *Client) GetServices() (services map[string]*api.ServiceDTO, status int) {
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), api.GetServicesPath(), nil)
+func (c *Client) GetDeployments() (deployments map[string]*api.DeploymentDTO, status int) {
+	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), api.GetDeploymentsPath(), nil)
 
-	services = api.GetAllServicesResponseBody{}
-	status, _ = utils.DoRequest(c.Client, req, &services)
+	deployments = api.GetAllDeploymentsResponseBody{}
+	status, _ = utils.DoRequest(c.Client, req, &deployments)
 	return
 }
 
-func (c *Client) AddServiceChild(serviceId, childId string) (status int) {
-	path := api.GetServiceChildPath(serviceId, childId)
+func (c *Client) AddDeploymentChild(deploymentId, childId string) (status int) {
+	path := api.GetDeploymentChildPath(deploymentId, childId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -58,8 +58,8 @@ func (c *Client) AddServiceChild(serviceId, childId string) (status int) {
 	return
 }
 
-func (c *Client) RemoveServiceChild(serviceId, childId string) (status int) {
-	path := api.GetServiceChildPath(serviceId, childId)
+func (c *Client) RemoveDeploymentChild(deploymentId, childId string) (status int) {
+	path := api.GetDeploymentChildPath(deploymentId, childId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -67,8 +67,8 @@ func (c *Client) RemoveServiceChild(serviceId, childId string) (status int) {
 	return
 }
 
-func (c *Client) SetServiceParent(serviceId, parentId string) (status int) {
-	path := api.GetServiceParentPath(serviceId, parentId)
+func (c *Client) SetDeploymentParent(deploymentId, parentId string) (status int) {
+	path := api.GetDeploymentParentPath(deploymentId, parentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -92,7 +92,7 @@ func (c *Client) IsNodeInVicinity(nodeId string) (isInVicinity bool) {
 	return
 }
 
-func (c *Client) GetClosestNode(location *publicUtils.Location, toExclude map[string]interface{}) (closest string) {
+func (c *Client) GetClosestNode(location s2.CellID, toExclude map[string]interface{}) (closest string) {
 	reqBody := api.ClosestNodeRequestBody{
 		Location:  location,
 		ToExclude: toExclude,
@@ -115,7 +115,7 @@ func (c *Client) GetClosestNode(location *publicUtils.Location, toExclude map[st
 	return
 }
 
-func (c *Client) GetVicinity() (vicinity map[string]interface{}, status int) {
+func (c *Client) GetVicinity() (vicinity map[string]s2.CellID, status int) {
 	path := api.GetVicinityPath()
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
@@ -137,7 +137,7 @@ func (c *Client) GetVicinity() (vicinity map[string]interface{}, status int) {
 	return
 }
 
-func (c *Client) GetLocation() (location *publicUtils.Location, status int) {
+func (c *Client) GetLocation() (location s2.CellID, status int) {
 	path := api.GetMyLocationPath()
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
@@ -153,14 +153,14 @@ func (c *Client) GetLocation() (location *publicUtils.Location, status int) {
 		}
 		location = respBody
 	} else {
-		location = nil
+		location = 0
 	}
 
 	return
 }
 
-func (c *Client) SetExploredSuccessfully(serviceId, childId string) (status int) {
-	path := api.GetExploredPath(serviceId, childId)
+func (c *Client) SetExploredSuccessfully(deploymentId, childId string) (status int) {
+	path := api.GetExploredPath(deploymentId, childId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
@@ -168,8 +168,8 @@ func (c *Client) SetExploredSuccessfully(serviceId, childId string) (status int)
 	return
 }
 
-func (c *Client) BlacklistNode(serviceId, nodeId string) (status int) {
-	path := api.GetBlacklistPath(serviceId, nodeId)
+func (c *Client) BlacklistNode(deploymentId, nodeId string) (status int) {
+	path := api.GetBlacklistPath(deploymentId, nodeId)
 
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
 	status, _ = utils.DoRequest(c.Client, req, nil)

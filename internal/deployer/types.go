@@ -16,8 +16,8 @@ type Deployment struct {
 	Lock              *sync.RWMutex
 }
 
-type PairServiceIdStatus struct {
-	ServiceId string
-	IsUp      bool
-	Mutex     *sync.Mutex
+type PairDeploymentIdStatus struct {
+	DeploymentId string
+	IsUp         bool
+	Mutex        *sync.Mutex
 }

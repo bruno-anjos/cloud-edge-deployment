@@ -41,7 +41,7 @@ const (
 
 var (
 	messagesReceived sync.Map
-	sTable           *servicesTable
+	sTable           *deploymentsTable
 	redirectionsMap  sync.Map
 	archimedesId     string
 	hostname         string
@@ -51,7 +51,7 @@ var (
 func init() {
 	messagesReceived = sync.Map{}
 
-	sTable = newServicesTable()
+	sTable = newDeploymentsTable()
 	redirectionsMap = sync.Map{}
 	clientsManager = clients.NewManager()
 
@@ -66,12 +66,12 @@ func init() {
 	log.Infof("ARCHIMEDES ID: %s", archimedesId)
 }
 
-func registerServiceHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("handling request in registerService handler")
+func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("handling request in registerDeployment handler")
 
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	req := api.RegisterServiceRequestBody{}
+	req := api.RegisterDeploymentRequestBody{}
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		log.Error(err)
@@ -79,58 +79,58 @@ func registerServiceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serviceDTO := req
+	deploymentDTO := req
 
-	service := &api.Service{
-		Id:    serviceId,
-		Ports: serviceDTO.Ports,
+	deployment := &api.Deployment{
+		Id:    deploymentId,
+		Ports: deploymentDTO.Ports,
 	}
 
-	_, ok := sTable.getService(serviceId)
+	_, ok := sTable.getDeployment(deploymentId)
 	if ok {
 		w.WriteHeader(http.StatusConflict)
 		return
 	}
 
-	newTableEntry := &api.ServicesTableEntryDTO{
+	newTableEntry := &api.DeploymentsTableEntryDTO{
 		Host:         archimedesId,
 		HostAddr:     archimedes.DefaultHostPort,
-		Service:      service,
+		Deployment:   deployment,
 		Instances:    map[string]*api.Instance{},
 		NumberOfHops: 0,
 		MaxHops:      0,
 		Version:      0,
 	}
 
-	sTable.addService(serviceId, newTableEntry)
-	sendServicesTable()
+	sTable.addDeployment(deploymentId, newTableEntry)
+	sendDeploymentsTable()
 
-	log.Debugf("added service %s", serviceId)
+	log.Debugf("added deployment %s", deploymentId)
 }
 
-func deleteServiceHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("handling request in deleteService handler")
+func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("handling request in deleteDeployment handler")
 
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	_, ok := sTable.getService(serviceId)
+	_, ok := sTable.getDeployment(deploymentId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	sTable.deleteService(serviceId)
-	redirectionsMap.Delete(serviceId)
+	sTable.deleteDeployment(deploymentId)
+	redirectionsMap.Delete(deploymentId)
 
-	log.Debugf("deleted service %s", serviceId)
+	log.Debugf("deleted deployment %s", deploymentId)
 }
 
-func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("handling request in registerServiceInstance handler")
+func registerDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("handling request in registerDeploymentInstance handler")
 
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	_, ok := sTable.getService(serviceId)
+	_, ok := sTable.getDeployment(deploymentId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -138,7 +138,7 @@ func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
 
-	req := api.RegisterServiceInstanceRequestBody{}
+	req := api.RegisterDeploymentInstanceRequestBody{}
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -147,7 +147,7 @@ func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	instanceDTO := req
 
-	ok = sTable.serviceHasInstance(serviceId, instanceId)
+	ok = sTable.deploymentHasInstance(deploymentId, instanceId)
 	if ok {
 		w.WriteHeader(http.StatusConflict)
 		return
@@ -166,77 +166,77 @@ func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	instance := &api.Instance{
 		Id:              instanceId,
 		Ip:              host,
-		ServiceId:       serviceId,
+		DeploymentId:    deploymentId,
 		PortTranslation: instanceDTO.PortTranslation,
 		Initialized:     instanceDTO.Static,
 		Static:          instanceDTO.Static,
 		Local:           instanceDTO.Local,
 	}
 
-	sTable.addInstance(serviceId, instanceId, instance)
-	sendServicesTable()
-	log.Debugf("added instance %s to service %s", instanceId, serviceId)
+	sTable.addInstance(deploymentId, instanceId, instance)
+	sendDeploymentsTable()
+	log.Debugf("added instance %s to deployment %s", instanceId, deploymentId)
 }
 
-func deleteServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("handling request in deleteServiceInstance handler")
+func deleteDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("handling request in deleteDeploymentInstance handler")
 
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
-	_, ok := sTable.getService(serviceId)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	_, ok := sTable.getDeployment(deploymentId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
-	instance, ok := sTable.getServiceInstance(serviceId, instanceId)
+	instance, ok := sTable.getDeploymentInstance(deploymentId, instanceId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	sTable.deleteInstance(instance.ServiceId, instanceId)
+	sTable.deleteInstance(instance.DeploymentId, instanceId)
 
-	log.Debugf("deleted instance %s from service %s", instanceId, serviceId)
+	log.Debugf("deleted instance %s from deployment %s", instanceId, deploymentId)
 }
 
-func getAllServicesHandler(w http.ResponseWriter, _ *http.Request) {
-	log.Debug("handling request in getAllServices handler")
+func getAllDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
+	log.Debug("handling request in getAllDeployments handler")
 
-	var resp api.GetAllServicesResponseBody
-	resp = sTable.getAllServices()
+	var resp api.GetAllDeploymentsResponseBody
+	resp = sTable.getAllDeployments()
 	utils.SendJSONReplyOK(w, resp)
 }
 
-func getAllServiceInstancesHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("handling request in getAllServiceInstances handler")
+func getAllDeploymentInstancesHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("handling request in getAllDeploymentInstances handler")
 
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	_, ok := sTable.getService(serviceId)
+	_, ok := sTable.getDeployment(deploymentId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	var resp api.GetServiceResponseBody
-	resp = sTable.getAllServiceInstances(serviceId)
+	var resp api.GetDeploymentResponseBody
+	resp = sTable.getAllDeploymentInstances(deploymentId)
 	utils.SendJSONReplyOK(w, resp)
 }
 
-func getServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("handling request in getServiceInstance handler")
+func getDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("handling request in getDeploymentInstance handler")
 
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
 
-	instance, ok := sTable.getServiceInstance(serviceId, instanceId)
+	instance, ok := sTable.getDeploymentInstance(deploymentId, instanceId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	var resp api.GetServiceInstanceResponseBody
+	var resp api.GetDeploymentInstanceResponseBody
 	resp = *instance
 
 	utils.SendJSONReplyOK(w, resp)
@@ -263,8 +263,8 @@ func whoAreYouHandler(w http.ResponseWriter, _ *http.Request) {
 	utils.SendJSONReplyOK(w, resp)
 }
 
-func getServicesTableHandler(w http.ResponseWriter, _ *http.Request) {
-	var resp api.GetServicesTableResponseBody
+func getDeploymentsTableHandler(w http.ResponseWriter, _ *http.Request) {
+	var resp api.GetDeploymentsTableResponseBody
 	discoverMsg := sTable.toDiscoverMsg()
 	if discoverMsg != nil {
 		resp = *discoverMsg
@@ -296,7 +296,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deplClient := deployer.NewDeployerClient(publicUtils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
+	deplClient := deployer.NewDeployerClient(publicUtils.DeployerDeploymentName + ":" + strconv.Itoa(deployer.Port))
 	redirectTo, status := deplClient.RedirectDownTheTree(reqBody.DeploymentId, reqBody.Location)
 	switch status {
 	case http.StatusNoContent:
@@ -377,7 +377,7 @@ func checkForRedirections(hostToResolve string) (redirect bool, targetUrl url.UR
 				Path:   api.GetResolvePath(),
 			}
 			if reachedGoal {
-				log.Debugf("completed goal of redirecting %d clients to %s for service %s", redirectConfig.Target,
+				log.Debugf("completed goal of redirecting %d clients to %s for deployment %s", redirectConfig.Target,
 					redirectConfig.Goal, hostToResolve)
 				redirectConfig.Done = true
 			}
@@ -391,7 +391,7 @@ func checkForRedirections(hostToResolve string) (redirect bool, targetUrl url.UR
 func resolveLocally(toResolve *api.ToResolveDTO) (resolved *api.ResolvedDTO, found bool) {
 	found = false
 
-	service, sOk := sTable.getService(toResolve.Host)
+	deployment, sOk := sTable.getDeployment(toResolve.Host)
 	if !sOk {
 		instance, iOk := sTable.getInstance(toResolve.Host)
 		if !iOk {
@@ -402,10 +402,10 @@ func resolveLocally(toResolve *api.ToResolveDTO) (resolved *api.ResolvedDTO, fou
 		return
 	}
 
-	instances := sTable.getAllServiceInstances(service.Id)
+	instances := sTable.getAllDeploymentInstances(deployment.Id)
 
 	if len(instances) == 0 {
-		log.Debugf("no instances for service %s", service.Id)
+		log.Debugf("no instances for deployment %s", deployment.Id)
 		return
 	}
 
@@ -428,7 +428,7 @@ func resolveLocally(toResolve *api.ToResolveDTO) (resolved *api.ResolvedDTO, fou
 }
 
 func discoverHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("handling request in discoverService handler")
+	log.Debug("handling request in discoverDeployment handler")
 
 	req := api.DiscoverRequestBody{}
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -464,7 +464,7 @@ func discoverHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func redirectHandler(w http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
 	var req api.RedirectRequestBody
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -483,20 +483,20 @@ func redirectHandler(w http.ResponseWriter, r *http.Request) {
 		Done:    false,
 	}
 
-	redirectionsMap.Store(serviceId, redirectConfig)
+	redirectionsMap.Store(deploymentId, redirectConfig)
 }
 
 func removeRedirectionHandler(_ http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
-	redirectionsMap.Delete(serviceId)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	redirectionsMap.Delete(deploymentId)
 }
 
 func getRedirectedHandler(w http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	value, ok := redirectionsMap.Load(serviceId)
+	value, ok := redirectionsMap.Load(deploymentId)
 	if !ok {
-		log.Debugf("service %s is not being redirected", serviceId)
+		log.Debugf("deployment %s is not being redirected", deploymentId)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -507,7 +507,7 @@ func getRedirectedHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func setExploringClientLocationHandler(_ http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
 	var reqBody api.SetExploringClientLocationRequestBody
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -515,23 +515,23 @@ func setExploringClientLocationHandler(_ http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	log.Debugf("set exploring location %v for service %s", reqBody, serviceId)
+	log.Debugf("set exploring location %v for deployment %s", reqBody, deploymentId)
 
-	clientsManager.AddToExploring(serviceId, reqBody)
+	clientsManager.AddToExploring(deploymentId, reqBody)
 }
 
 // TODO simulating
 func getLoadHandler(w http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, serviceIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	load := clientsManager.GetLoad(serviceId)
-	log.Debugf("got load %d for service %s", load, serviceId)
+	load := clientsManager.GetLoad(deploymentId)
+	log.Debugf("got load %d for deployment %s", load, deploymentId)
 
 	utils.SendJSONReplyOK(w, load)
 }
 
 func getClientCentroidsHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, serviceIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	centroids, ok := clientsManager.GetDeploymentClientsCentroids(deploymentId)
 	if !ok {
 		w.WriteHeader(http.StatusNoContent)
@@ -552,20 +552,20 @@ func preprocessMessage(remoteAddr string, discoverMsg *api.DiscoverMsg) {
 }
 
 func postprocessMessage(discoverMsg *api.DiscoverMsg) {
-	var servicesToDelete []string
+	var deploymentsToDelete []string
 
-	for serviceId, entry := range discoverMsg.Entries {
+	for deploymentId, entry := range discoverMsg.Entries {
 		if entry.NumberOfHops > maxHops {
-			servicesToDelete = append(servicesToDelete, serviceId)
+			deploymentsToDelete = append(deploymentsToDelete, deploymentId)
 		}
 	}
 
-	for _, serviceToDelete := range servicesToDelete {
-		delete(discoverMsg.Entries, serviceToDelete)
+	for _, deploymentToDelete := range deploymentsToDelete {
+		delete(discoverMsg.Entries, deploymentToDelete)
 	}
 }
 
-func sendServicesTable() {
+func sendDeploymentsTable() {
 	discoverMsg := sTable.toChangedDiscoverMsg()
 	if discoverMsg == nil {
 		return

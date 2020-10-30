@@ -1,39 +1,39 @@
 package autonomic
 
 import (
-	"math"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/service"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
-	"github.com/mitchellh/mapstructure"
+	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 )
 
 type (
-	servicesMapKey   = string
-	servicesMapValue = *service.Service
+	deploymentsMapKey   = string
+	deploymentsMapValue = *deployment.Deployment
 )
 
 const (
-	defaultInterval     = 30 * time.Second
-	initialServiceDelay = 30 * time.Second
-	blacklistInterval   = (4 * 30) * time.Second
+	defaultInterval        = 30 * time.Second
+	initialDeploymentDelay = 30 * time.Second
+	blacklistInterval      = (4 * 30) * time.Second
 )
 
 type (
 	system struct {
-		services  *sync.Map
-		env       *environment.Environment
-		suspected *sync.Map
+		deployments *sync.Map
+		env         *environment.Environment
+		suspected   *sync.Map
 
 		deployerClient   *deployer.Client
 		archimedesClient *archimedes.Client
@@ -45,7 +45,7 @@ type (
 
 func newSystem() *system {
 	return &system{
-		services:         &sync.Map{},
+		deployments:      &sync.Map{},
 		env:              environment.NewEnvironment(),
 		suspected:        &sync.Map{},
 		deployerClient:   deployer.NewDeployerClient(deployer.DefaultHostPort),
@@ -54,33 +54,33 @@ func newSystem() *system {
 	}
 }
 
-func (a *system) addService(serviceId, strategyId string) {
-	if _, ok := a.services.Load(serviceId); ok {
+func (a *system) addDeployment(deploymentId, strategyId string) {
+	if _, ok := a.deployments.Load(deploymentId); ok {
 		return
 	}
 
-	s, err := service.New(serviceId, strategyId, a.suspected, a.env)
+	s, err := deployment.New(deploymentId, strategyId, a.suspected, a.env)
 	if err != nil {
 		panic(err)
 	}
 
-	a.services.Store(serviceId, s)
-	go a.handleService(s)
+	a.deployments.Store(deploymentId, s)
+	go a.handleDeployments(s)
 
 	return
 }
 
-func (a *system) removeService(serviceId string) {
-	a.services.Delete(serviceId)
+func (a *system) removeDeployment(deploymentId string) {
+	a.deployments.Delete(deploymentId)
 }
 
-func (a *system) addServiceChild(serviceId, childId string) {
-	value, ok := a.services.Load(serviceId)
+func (a *system) addDeploymentChild(deploymentId, childId string) {
+	value, ok := a.deployments.Load(deploymentId)
 	if !ok {
 		return
 	}
 
-	s := value.(servicesMapValue)
+	s := value.(deploymentsMapValue)
 	value, ok = a.env.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		log.Errorf("no metric %s", metrics.MetricLocationInVicinity)
@@ -88,51 +88,47 @@ func (a *system) addServiceChild(serviceId, childId string) {
 	}
 
 	locations := value.(map[string]interface{})
-	value, ok = locations[childId]
+	cellValue, ok := locations[childId]
 	if !ok {
 		log.Errorf("no location for child %s", childId)
 		return
 	}
 
-	var location utils.Location
-	err := mapstructure.Decode(value, &location)
-	if err != nil {
-		panic(err)
-	}
+	location := s2.CellIDFromToken(cellValue.(string))
 
 	a.suspected.Delete(childId)
-	s.AddChild(childId, &location)
+	s.AddChild(childId, location)
 }
 
-func (a *system) removeServiceChild(serviceId, childId string) {
-	value, ok := a.services.Load(serviceId)
+func (a *system) removeDeploymentChild(deploymentId, childId string) {
+	value, ok := a.deployments.Load(deploymentId)
 	if !ok {
 		return
 	}
 
-	s := value.(servicesMapValue)
+	s := value.(deploymentsMapValue)
 	s.AddSuspectedChild(childId)
 	s.RemoveChild(childId)
 }
 
-func (a *system) setServiceParent(serviceId, parentId string) {
-	value, ok := a.services.Load(serviceId)
+func (a *system) setDeploymentParent(deploymentId, parentId string) {
+	value, ok := a.deployments.Load(deploymentId)
 	if !ok {
 		return
 	}
 
-	s := value.(servicesMapValue)
+	s := value.(deploymentsMapValue)
 	s.SetParent(parentId)
 }
 
-func (a *system) getServices() (services map[string]*service.Service) {
-	services = map[string]*service.Service{}
+func (a *system) getDeployments() (deployments map[string]*deployment.Deployment) {
+	deployments = map[string]*deployment.Deployment{}
 
-	a.services.Range(func(key, value interface{}) bool {
-		serviceId := key.(servicesMapKey)
-		s := value.(servicesMapValue)
+	a.deployments.Range(func(key, value interface{}) bool {
+		deploymentId := key.(deploymentsMapKey)
+		s := value.(deploymentsMapValue)
 
-		services[serviceId] = s
+		deployments[deploymentId] = s
 
 		return true
 	})
@@ -141,18 +137,13 @@ func (a *system) getServices() (services map[string]*service.Service) {
 }
 
 func (a *system) isNodeInVicinity(nodeId string) bool {
-	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
-	if !ok {
-		return false
-	}
-
-	vicinity := value.(map[string]interface{})
-	_, ok = vicinity[nodeId]
+	vicinity := a.getVicinity()
+	_, ok := vicinity[nodeId]
 
 	return ok
 }
 
-func (a *system) closestNodeTo(location *utils.Location, toExclude map[string]interface{}) (nodeId string) {
+func (a *system) closestNodeTo(location s2.CellID, toExclude map[string]interface{}) (nodeId string) {
 	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		return ""
@@ -168,20 +159,15 @@ func (a *system) closestNodeTo(location *utils.Location, toExclude map[string]in
 		ordered = append(ordered, node)
 	}
 
+	locationCell := s2.CellFromCellID(location)
 	sort.Slice(ordered, func(i, j int) bool {
-		var iLoc utils.Location
-		err := mapstructure.Decode(vicinity[ordered[i]], &iLoc)
-		if err != nil {
-			panic(err)
-		}
+		iId := s2.CellIDFromToken(vicinity[ordered[i]].(string))
+		jId := s2.CellIDFromToken(vicinity[ordered[j]].(string))
 
-		var jLoc utils.Location
-		err = mapstructure.Decode(vicinity[ordered[j]], &jLoc)
-		if err != nil {
-			panic(err)
-		}
+		iCell := s2.CellFromCellID(iId)
+		jCell := s2.CellFromCellID(jId)
 
-		return math.Abs(iLoc.CalcDist(location)) < math.Abs(jLoc.CalcDist(location))
+		return iCell.DistanceToCell(locationCell) < jCell.DistanceToCell(locationCell)
 	})
 
 	if len(ordered) < 1 {
@@ -191,45 +177,43 @@ func (a *system) closestNodeTo(location *utils.Location, toExclude map[string]in
 	return ordered[0]
 }
 
-func (a *system) getVicinity() map[string]interface{} {
+func (a *system) getVicinity() map[string]s2.CellID {
 	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		return nil
 	}
 
-	vicinity := value.(map[string]interface{})
+	vicinityTokens := value.(map[string]interface{})
+	vicinity := map[string]s2.CellID{}
+	for nodeId, cellValue := range vicinityTokens {
+		vicinity[nodeId] = s2.CellIDFromToken(cellValue.(string))
+	}
 
 	return vicinity
 }
 
-func (a *system) getMyLocation() *utils.Location {
+func (a *system) getMyLocation() (s2.CellID, error) {
 	value, ok := a.env.GetMetric(metrics.MetricLocation)
 	if !ok {
-		return nil
+		return 0, errors.New("could not fetch my location")
 	}
 
-	var location utils.Location
-	err := mapstructure.Decode(value, &location)
-	if err != nil {
-		panic(err)
-	}
-
-	return &location
+	return s2.CellIDFromToken(value.(string)), nil
 }
 
-func (a *system) handleService(service *service.Service) {
-	time.Sleep(initialServiceDelay)
+func (a *system) handleDeployments(deployment *deployment.Deployment) {
+	time.Sleep(initialDeploymentDelay)
 
 	timer := time.NewTimer(defaultInterval)
 
 	for {
 		<-timer.C
 
-		log.Debugf("evaluating service %s", service.ServiceId)
+		log.Debugf("evaluating deployment %s", deployment.DeploymentId)
 
-		action := service.GenerateAction()
+		action := deployment.GenerateAction()
 		if action != nil {
-			log.Debugf("generated action of type %s for service %s", action.GetActionId(), service.ServiceId)
+			log.Debugf("generated action of type %s for deployment %s", action.GetActionId(), deployment.DeploymentId)
 			a.performAction(action)
 		}
 		timer.Reset(defaultInterval)
@@ -240,13 +224,13 @@ func (a *system) performAction(action actions.Action) {
 	switch assertedAction := action.(type) {
 	case *actions.RedirectAction:
 		assertedAction.Execute(a.archimedesClient)
-	case *actions.ExtendServiceAction:
+	case *actions.ExtendDeploymentAction:
 		if assertedAction.IsExploring() {
-			id := assertedAction.GetServiceId() + "_" + assertedAction.GetTarget()
+			id := assertedAction.GetDeploymentId() + "_" + assertedAction.GetTarget()
 			exploreChan := make(exploringMapValue)
 			log.Debugf("exploring child %s", id)
 			a.exploring.Store(id, exploreChan)
-			go a.waitToBlacklist(assertedAction.GetServiceId(), assertedAction.GetTarget(), exploreChan)
+			go a.waitToBlacklist(assertedAction.GetDeploymentId(), assertedAction.GetTarget(), exploreChan)
 		}
 		assertedAction.Execute(a.deployerClient)
 	case *actions.MigrateAction:
@@ -256,13 +240,13 @@ func (a *system) performAction(action actions.Action) {
 	}
 }
 
-func (a *system) getLoad(serviceId string) (float64, bool) {
-	value, ok := a.services.Load(serviceId)
+func (a *system) getLoad(deploymentId string) (float64, bool) {
+	value, ok := a.deployments.Load(deploymentId)
 	if !ok {
 		return 0, false
 	}
 
-	return value.(servicesMapValue).GetLoad(), true
+	return value.(deploymentsMapValue).GetLoad(), true
 }
 
 func (a *system) setExploreSuccess(deploymentId, childId string) bool {
@@ -281,19 +265,19 @@ func (a *system) setExploreSuccess(deploymentId, childId string) bool {
 	return true
 }
 
-func (a *system) waitToBlacklist(serviceId, childId string, exploredChan <-chan interface{}) {
-	value, ok := a.services.Load(serviceId)
+func (a *system) waitToBlacklist(deploymentId, childId string, exploredChan <-chan interface{}) {
+	value, ok := a.deployments.Load(deploymentId)
 	if !ok {
 		return
 	}
 
-	auxService := value.(servicesMapValue)
+	auxDeployment := value.(deploymentsMapValue)
 
 	timer := time.NewTimer(blacklistInterval)
 	select {
 	case <-exploredChan:
-		log.Debugf("exploring %s through %s was a success", serviceId, childId)
+		log.Debugf("exploring %s through %s was a success", deploymentId, childId)
 	case <-timer.C:
-		auxService.BlacklistNode(childId)
+		auxDeployment.BlacklistNode(childId)
 	}
 }

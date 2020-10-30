@@ -10,48 +10,48 @@ import (
 
 // Route names
 const (
-	registerServiceName      = "REGISTER_SERVICE"
-	deleteServiceName        = "DELETE_SERVICE"
-	getAllServicesName       = "GET_ALL_SERVICES"
-	addServiceChildName      = "ADD_SERVICE_CHILD"
-	removeServiceChildName   = "REMOVE_SERVICE_CHILD"
-	setServiceParentName     = "SET_SERVICE_PARENT"
-	isNodeInVicinityName     = "IS_NODE_IN_VICINITY"
-	closestNodeName          = "CLOSEST_NODE"
-	getVicinityName          = "GET_VICINITY"
-	getMyLocationName        = "GET_MY_LOCATION"
-	getLoadName              = "GET_LOAD"
-	exploredSuccessfullyName = "EXPLORED_SUCCESSFULLY"
-	blacklistName            = "BLACKLIST"
+	registerDeploymentName    = "REGISTER_DEPLOYMENT"
+	deleteDeploymentName      = "DELETE_DEPLOYMENT"
+	getAllDeploymentsName     = "GET_ALL_DEPLOYMENTS"
+	addDeploymentChildName    = "ADD_DEPLOYMENT_CHILD"
+	removeDeploymentChildName = "REMOVE_DEPLOYMENT_CHILD"
+	setDeploymentParentName   = "SET_DEPLOYMENT_PARENT"
+	isNodeInVicinityName      = "IS_NODE_IN_VICINITY"
+	closestNodeName           = "CLOSEST_NODE"
+	getVicinityName           = "GET_VICINITY"
+	getMyLocationName         = "GET_MY_LOCATION"
+	getLoadName               = "GET_LOAD"
+	exploredSuccessfullyName  = "EXPLORED_SUCCESSFULLY"
+	blacklistName             = "BLACKLIST"
 )
 
 // Path variables
 const (
-	serviceIdPathVar = "serviceId"
-	childIdPathVar   = "childId"
-	parentIdPathVar  = "parentId"
-	nodeIdPathVar    = "nodeId"
+	deploymentIdPathVar = "deploymentId"
+	childIdPathVar      = "childId"
+	parentIdPathVar     = "parentId"
+	nodeIdPathVar       = "nodeId"
 )
 
 var (
-	_serviceIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, serviceIdPathVar)
-	_childIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, childIdPathVar)
-	_parentIdPathVarFormatted  = fmt.Sprintf(utils.PathVarFormat, parentIdPathVar)
-	_nodeIdPathVarFormatted    = fmt.Sprintf(utils.PathVarFormat, nodeIdPathVar)
+	_deploymentIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, deploymentIdPathVar)
+	_childIdPathVarFormatted      = fmt.Sprintf(utils.PathVarFormat, childIdPathVar)
+	_parentIdPathVarFormatted     = fmt.Sprintf(utils.PathVarFormat, parentIdPathVar)
+	_nodeIdPathVarFormatted       = fmt.Sprintf(utils.PathVarFormat, nodeIdPathVar)
 
-	servicesRoute     = autonomic.ServicesPath
-	serviceRoute      = fmt.Sprintf(autonomic.ServicePath, _serviceIdPathVarFormatted)
-	serviceChildRoute = fmt.Sprintf(autonomic.ServiceChildPath, _serviceIdPathVarFormatted,
+	deploymentsRoute     = autonomic.DeploymentsPath
+	deploymentRoute      = fmt.Sprintf(autonomic.DeploymentPath, _deploymentIdPathVarFormatted)
+	deploymentChildRoute = fmt.Sprintf(autonomic.DeploymentChildPath, _deploymentIdPathVarFormatted,
 		_childIdPathVarFormatted)
-	serviceParentRoute = fmt.Sprintf(autonomic.ServiceParentPath, _serviceIdPathVarFormatted,
+	deploymentParentRoute = fmt.Sprintf(autonomic.DeploymentParentPath, _deploymentIdPathVarFormatted,
 		_parentIdPathVarFormatted)
 	isNodeInVicinityRoute     = fmt.Sprintf(autonomic.IsNodeInVicinityPath, _nodeIdPathVarFormatted)
 	closestNodeRoute          = autonomic.ClosestNodePath
 	getVicinityRoute          = autonomic.VicinityPath
 	getMyLocationRoute        = autonomic.MyLocationPath
-	getLoadRoute              = fmt.Sprintf(autonomic.LoadPath, _serviceIdPathVarFormatted)
-	exploredSuccessfullyRoute = fmt.Sprintf(autonomic.ExplorePath, _serviceIdPathVarFormatted, _childIdPathVarFormatted)
-	blacklistRoute            = fmt.Sprintf(autonomic.BlacklistPath, _serviceIdPathVarFormatted, _nodeIdPathVarFormatted)
+	getLoadRoute              = fmt.Sprintf(autonomic.LoadPath, _deploymentIdPathVarFormatted)
+	exploredSuccessfullyRoute = fmt.Sprintf(autonomic.ExplorePath, _deploymentIdPathVarFormatted, _childIdPathVarFormatted)
+	blacklistRoute            = fmt.Sprintf(autonomic.BlacklistPath, _deploymentIdPathVarFormatted, _nodeIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{
@@ -73,7 +73,7 @@ var Routes = []utils.Route{
 		Name:        getLoadName,
 		Method:      http.MethodGet,
 		Pattern:     getLoadRoute,
-		HandlerFunc: getLoadForServiceHandler,
+		HandlerFunc: getLoadForDeploymentHandler,
 	},
 
 	{
@@ -105,44 +105,44 @@ var Routes = []utils.Route{
 	},
 
 	{
-		Name:        setServiceParentName,
+		Name:        setDeploymentParentName,
 		Method:      http.MethodPost,
-		Pattern:     serviceParentRoute,
-		HandlerFunc: setServiceParentHandler,
+		Pattern:     deploymentParentRoute,
+		HandlerFunc: setDeploymentParentHandler,
 	},
 
 	{
-		Name:        addServiceChildName,
+		Name:        addDeploymentChildName,
 		Method:      http.MethodPost,
-		Pattern:     serviceChildRoute,
-		HandlerFunc: addServiceChildHandler,
+		Pattern:     deploymentChildRoute,
+		HandlerFunc: addDeploymentChildHandler,
 	},
 
 	{
-		Name:        removeServiceChildName,
+		Name:        removeDeploymentChildName,
 		Method:      http.MethodDelete,
-		Pattern:     serviceChildRoute,
-		HandlerFunc: removeServiceChildHandler,
+		Pattern:     deploymentChildRoute,
+		HandlerFunc: removeDeploymentChildHandler,
 	},
 
 	{
-		Name:        registerServiceName,
+		Name:        registerDeploymentName,
 		Method:      http.MethodPost,
-		Pattern:     serviceRoute,
-		HandlerFunc: addServiceHandler,
+		Pattern:     deploymentRoute,
+		HandlerFunc: addDeploymentHandler,
 	},
 
 	{
-		Name:        deleteServiceName,
+		Name:        deleteDeploymentName,
 		Method:      http.MethodDelete,
-		Pattern:     serviceRoute,
-		HandlerFunc: removeServiceHandler,
+		Pattern:     deploymentRoute,
+		HandlerFunc: removeDeploymentHandler,
 	},
 
 	{
-		Name:        getAllServicesName,
+		Name:        getAllDeploymentsName,
 		Method:      http.MethodGet,
-		Pattern:     servicesRoute,
-		HandlerFunc: getAllServicesHandler,
+		Pattern:     deploymentsRoute,
+		HandlerFunc: getAllDeploymentsHandler,
 	},
 }

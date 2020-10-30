@@ -19,6 +19,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
 	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/go-connections/nat"
+	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 
 	"gopkg.in/yaml.v3"
@@ -30,16 +31,16 @@ type (
 
 	typeSuspectedChildMapKey = string
 
-	typeServicesLocationsValue = terminalServiceLocations
+	typeDeploymentsLocationsValue = terminalDeploymentLocations
 
-	terminalServiceLocations = *sync.Map
+	terminalDeploymentLocations = *sync.Map
 
 	typeTerminalLocationKey   = string
-	typeTerminalLocationValue = *publicUtils.Location
+	typeTerminalLocationValue = s2.CellID
 
 	typeExploringValue = *sync.Once
 
-	typeNodeLocationCache = *publicUtils.Location
+	typeNodeLocationCache = s2.CellID
 )
 
 // Timeouts
@@ -66,7 +67,7 @@ var (
 
 var (
 	hostname string
-	location *publicUtils.Location
+	location s2.Cell
 	fallback string
 	myself   *utils.Node
 
@@ -77,8 +78,8 @@ var (
 	hTable *hierarchyTable
 	pTable *parentsTable
 
-	serviceLocations       sync.Map
-	addServiceLocationLock sync.Mutex
+	deploymentLocations       sync.Map
+	addDeploymentLocationLock sync.Mutex
 
 	suspectedChild       sync.Map
 	suspectedDeployments sync.Map
@@ -111,8 +112,8 @@ func init() {
 	suspectedDeployments = sync.Map{}
 	children = sync.Map{}
 
-	serviceLocations = sync.Map{}
-	addServiceLocationLock = sync.Mutex{}
+	deploymentLocations = sync.Map{}
+	addDeploymentLocationLock = sync.Mutex{}
 
 	nodeLocationCache = sync.Map{}
 
@@ -126,11 +127,16 @@ func init() {
 
 	simulateAlternatives()
 
-	var status int
+	var (
+		locationId s2.CellID
+		status     int
+	)
 	for status != http.StatusOK {
-		location, status = hTable.autonomicClient.GetLocation()
+		locationId, status = hTable.autonomicClient.GetLocation()
 		time.Sleep(10 * time.Second)
 	}
+
+	location = s2.CellFromCellID(locationId)
 
 	log.Debugf("got location %f", location)
 
@@ -150,20 +156,20 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("got location from %s for deployment %s", reqBody.ChildId, deploymentId)
 
-	var nodeLocations typeServicesLocationsValue
-	value, ok := serviceLocations.Load(deploymentId)
+	var nodeLocations typeDeploymentsLocationsValue
+	value, ok := deploymentLocations.Load(deploymentId)
 	if !ok {
-		addServiceLocationLock.Lock()
-		value, ok = serviceLocations.Load(deploymentId)
+		addDeploymentLocationLock.Lock()
+		value, ok = deploymentLocations.Load(deploymentId)
 		if !ok {
 			nodeLocations = &sync.Map{}
-			serviceLocations.Store(deploymentId, nodeLocations)
+			deploymentLocations.Store(deploymentId, nodeLocations)
 		} else {
-			nodeLocations = value.(typeServicesLocationsValue)
+			nodeLocations = value.(typeDeploymentsLocationsValue)
 		}
-		addServiceLocationLock.Unlock()
+		addDeploymentLocationLock.Unlock()
 	} else {
-		nodeLocations = value.(typeServicesLocationsValue)
+		nodeLocations = value.(typeDeploymentsLocationsValue)
 	}
 	nodeLocations.Store(reqBody.ChildId, reqBody.Location)
 
@@ -173,14 +179,14 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 
 	parent := hTable.getParent(deploymentId)
 	deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
-	log.Debugf("propagating %s location for services %+v to %s", reqBody.ChildId, deploymentId, parent.Id)
+	log.Debugf("propagating %s location for deployments %+v to %s", reqBody.ChildId, deploymentId, parent.Id)
 	deplClient.PropagateLocationToHorizon(deploymentId, reqBody.ChildId, reqBody.Location, reqBody.TTL+1)
 }
 
 func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	log.Debugf("handling migrate request")
 
-	serviceId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
 	var migrateDTO api.MigrateDTO
 	err := json.NewDecoder(r.Body).Decode(&migrateDTO)
@@ -189,21 +195,21 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !hTable.hasDeployment(serviceId) {
-		log.Debugf("deployment %s does not exist, ignoring migration request", serviceId)
+	if !hTable.hasDeployment(deploymentId) {
+		log.Debugf("deployment %s does not exist, ignoring migration request", deploymentId)
 		return
 	}
 
-	deploymentChildren := hTable.getChildren(serviceId)
+	deploymentChildren := hTable.getChildren(deploymentId)
 	origin, ok := deploymentChildren[migrateDTO.Origin]
 	if !ok {
-		log.Debugf("origin %s does not exist for service %s", migrateDTO.Origin, serviceId)
+		log.Debugf("origin %s does not exist for deployment %s", migrateDTO.Origin, deploymentId)
 		return
 	}
 
 	target, ok := deploymentChildren[migrateDTO.Target]
 	if !ok {
-		log.Debugf("target %s does not exist for service %s", migrateDTO.Target, serviceId)
+		log.Debugf("target %s does not exist for deployment %s", migrateDTO.Target, deploymentId)
 		return
 	}
 
@@ -213,12 +219,12 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	}
 
 	client := deployer.NewDeployerClient(origin.Addr + ":" + strconv.Itoa(deployer.Port))
-	client.DeleteService(serviceId)
+	client.DeleteDeployment(deploymentId)
 
 	client.SetHostPort(target.Addr)
-	config := hTable.getDeploymentConfig(serviceId)
-	isStatic := hTable.isStatic(serviceId)
-	client.RegisterService(serviceId, isStatic, config, myself, nil)
+	config := hTable.getDeploymentConfig(deploymentId)
+	isStatic := hTable.isStatic(deploymentId)
+	client.RegisterDeployment(deploymentId, isStatic, config, myself, nil)
 }
 
 func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
@@ -239,7 +245,7 @@ func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	go attemptToExtend(deploymentId, targetAddr, nil, reqBody.Children, reqBody.Parent, 0, nil, reqBody.Exploring)
+	go attemptToExtend(deploymentId, targetAddr, reqBody.Location, reqBody.Children, reqBody.Parent, 0, nil, reqBody.Exploring)
 }
 
 func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
@@ -264,15 +270,15 @@ func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := deployer.NewDeployerClient(targetId + ":" + strconv.Itoa(deployer.Port))
-	client.DeleteService(deploymentId)
+	client.DeleteDeployment(deploymentId)
 }
 
 func childDeletedDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	log.Debugf("handling child deleted request")
-	serviceId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	childId := utils.ExtractPathVar(r, nodeIdPathVar)
 
-	hTable.removeChild(serviceId, childId)
+	hTable.removeChild(deploymentId, childId)
 }
 
 func getDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
@@ -487,11 +493,11 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		bestDiff    = location.CalcDist(clientLocation)
-		bestNode    = myself.Id
-		autoClient  *autonomic.Client
-		auxLocation *publicUtils.Location
-		status      int
+		bestDiff      = location.DistanceToCell(s2.CellFromCellID(clientLocation))
+		bestNode      = myself.Id
+		autoClient    *autonomic.Client
+		auxLocationId s2.CellID
+		status        int
 	)
 
 	for id := range auxChildren {
@@ -502,17 +508,18 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 			} else {
 				autoClient.SetHostPort(id + ":" + strconv.Itoa(autonomic.Port))
 			}
-			auxLocation, status = autoClient.GetLocation()
+			auxLocationId, status = autoClient.GetLocation()
 			if status != http.StatusOK {
 				log.Errorf("got %d while trying to get %s location", status, id)
 				continue
 			}
-			nodeLocationCache.Store(id, auxLocation)
+			nodeLocationCache.Store(id, auxLocationId)
 		} else {
-			auxLocation = value.(typeNodeLocationCache)
+			auxLocationId = value.(typeNodeLocationCache)
 		}
 
-		currDiff := auxLocation.CalcDist(clientLocation)
+		auxLocation := s2.CellFromCellID(auxLocationId)
+		currDiff := auxLocation.DistanceToCell(s2.CellFromCellID(clientLocation))
 		if currDiff < bestDiff {
 			bestDiff = currDiff
 			bestNode = id
@@ -521,13 +528,14 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("best node in vicinity to redirect client from %+v to is %s", clientLocation, bestNode)
 
-	value, ok := serviceLocations.Load(deploymentId)
+	value, ok := deploymentLocations.Load(deploymentId)
 	if ok {
-		terminalLocations := value.(terminalServiceLocations)
+		terminalLocations := value.(terminalDeploymentLocations)
 		terminalLocations.Range(func(key, value interface{}) bool {
 			nodeId := key.(typeTerminalLocationKey)
-			nodeLoc := value.(typeTerminalLocationValue)
-			diff := nodeLoc.CalcDist(clientLocation)
+			nodeLocId := value.(typeTerminalLocationValue)
+			nodeLoc := s2.CellFromCellID(nodeLocId)
+			diff := nodeLoc.DistanceToCell(s2.CellFromCellID(clientLocation))
 			if diff < bestDiff {
 				bestNode = nodeId
 				bestDiff = diff
@@ -547,7 +555,7 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 			once := value.(typeExploringValue)
 			once.Do(func() {
 				childAutoClient := autonomic.NewAutonomicClient(myself.Id + ":" + strconv.Itoa(autonomic.Port))
-				status := childAutoClient.SetExploredSuccessfully(deploymentId, bestNode)
+				status = childAutoClient.SetExploredSuccessfully(deploymentId, bestNode)
 				if status != http.StatusOK {
 					log.Errorf("got status %d when setting %s exploration as success", status, bestNode)
 				}
@@ -578,7 +586,7 @@ func hasDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // TODO function simulating lower API
-func getNodeCloserTo(location *publicUtils.Location, maxHopsToLookFor int,
+func getNodeCloserTo(location s2.CellID, maxHopsToLookFor int,
 	excludeNodes map[string]interface{}) (closest string, found bool) {
 	closest = hTable.autonomicClient.GetClosestNode(location, excludeNodes)
 	found = closest != ""
@@ -588,7 +596,7 @@ func getNodeCloserTo(location *publicUtils.Location, maxHopsToLookFor int,
 func addDeploymentAsync(deployment *Deployment, deploymentId string) {
 	log.Debugf("adding deployment %s", deploymentId)
 
-	status := archimedesClient.RegisterService(deploymentId, deployment.Ports)
+	status := archimedesClient.RegisterDeployment(deploymentId, deployment.Ports)
 	if status != http.StatusOK {
 		log.Errorf("got status code %d from archimedes", status)
 		return
@@ -600,9 +608,9 @@ func addDeploymentAsync(deployment *Deployment, deploymentId string) {
 		if status != http.StatusOK {
 			log.Errorf("got status code %d from scheduler", status)
 
-			status = archimedesClient.DeleteService(deploymentId)
+			status = archimedesClient.DeleteDeployment(deploymentId)
 			if status != http.StatusOK {
-				log.Error("error deleting service that failed initializing")
+				log.Error("error deleting deployment that failed initializing")
 			}
 
 			hTable.removeDeployment(deploymentId)
@@ -612,13 +620,13 @@ func addDeploymentAsync(deployment *Deployment, deploymentId string) {
 }
 
 func deleteDeploymentAsync(deploymentId string) {
-	instances, status := archimedesClient.GetService(deploymentId)
+	instances, status := archimedesClient.GetDeployment(deploymentId)
 	if status != http.StatusOK {
-		log.Errorf("got status %d while requesting service %s instances", status, deploymentId)
+		log.Errorf("got status %d while requesting deployment %s instances", status, deploymentId)
 		return
 	}
 
-	status = archimedesClient.DeleteService(deploymentId)
+	status = archimedesClient.DeleteDeployment(deploymentId)
 	if status != http.StatusOK {
 		log.Warnf("got status code %d from archimedes", status)
 		return
@@ -638,7 +646,7 @@ func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool)
 
 	numContainers := len(deploymentYAML.Spec.Template.Spec.Containers)
 	if numContainers > 1 {
-		panic("more than one container per service is not supported")
+		panic("more than one container per deployment is not supported")
 	} else if numContainers == 0 {
 		panic("no container provided")
 	}
@@ -661,7 +669,7 @@ func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool)
 	}
 
 	deployment := Deployment{
-		DeploymentId:      deploymentYAML.Spec.ServiceName,
+		DeploymentId:      deploymentYAML.Spec.DeploymentName,
 		NumberOfInstances: deploymentYAML.Spec.Replicas,
 		Image:             containerSpec.Image,
 		EnvVars:           envVars,
@@ -746,15 +754,15 @@ func getParentAlternatives(parentId string) (alternatives map[string]*utils.Node
 	return
 }
 
-func getDeploymentTerminalLocations(deploymentId string) []*publicUtils.Location {
-	value, ok := serviceLocations.Load(deploymentId)
+func getDeploymentTerminalLocations(deploymentId string) []s2.CellID {
+	value, ok := deploymentLocations.Load(deploymentId)
 	if !ok {
 		log.Debugf("no terminal locations for deployment %s", deploymentId)
 		return nil
 	}
 
-	deploymentLocations := value.(typeServicesLocationsValue)
-	var locations []*publicUtils.Location
+	deploymentLocations := value.(typeDeploymentsLocationsValue)
+	var locations []s2.CellID
 	deploymentLocations.Range(func(key, value interface{}) bool {
 		childLocation := value.(typeTerminalLocationValue)
 		locations = append(locations, childLocation)
@@ -765,11 +773,11 @@ func getDeploymentTerminalLocations(deploymentId string) []*publicUtils.Location
 }
 
 func removeTerminalLocsForChild(deploymentId, childId string) {
-	value, ok := serviceLocations.Load(deploymentId)
+	value, ok := deploymentLocations.Load(deploymentId)
 	if !ok {
 		return
 	}
 
-	deploymentLocs := value.(typeServicesLocationsValue)
+	deploymentLocs := value.(typeDeploymentsLocationsValue)
 	deploymentLocs.Delete(childId)
 }

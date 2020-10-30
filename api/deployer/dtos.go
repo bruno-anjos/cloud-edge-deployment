@@ -23,9 +23,9 @@ type (
 
 	DeploymentYAML struct {
 		Spec struct {
-			Replicas    int
-			ServiceName string `yaml:"serviceName"`
-			Template    struct {
+			Replicas       int
+			DeploymentName string `yaml:"serviceName"`
+			Template       struct {
 				Spec struct {
 					Containers []struct {
 						Image string

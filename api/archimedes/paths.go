@@ -10,37 +10,37 @@ const (
 
 	PrefixPath = "/archimedes"
 
-	ServicesPath                = "/services"
-	ServicePath                 = "/services/%s"
-	ServiceInstancePath         = "/services/%s/%s"
-	InstancePath                = "/instances/%s"
-	DiscoverPath                = "/discover"
-	WhoAreYouPath               = "/who"
-	TablePath                   = "/table"
-	ResolvePath                 = "/resolve"
-	ResolveLocallyPath          = "/resolve/local"
-	RedirectPath                = "/services/%s/redirect"
-	RedirectedPath              = "/services/%s/redirected"
-	SetResolvingAnswerPath      = "/services/asnwer"
-	LoadPath                    = "/services/%s/load"
-	AvgClientLocationPath       = "/services/%s/avg_cli_loc"
-	ExploringClientLocationPath = "/services/%s/exploring_loc"
+	DeploymentsPath        = "/deployments"
+	DeploymentPath         = "/deployments/%s"
+	DeploymentInstancePath = "/deployments/%s/%s"
+	InstancePath           = "/instances/%s"
+	DiscoverPath           = "/discover"
+	WhoAreYouPath          = "/who"
+	TablePath              = "/table"
+	ResolvePath            = "/resolve"
+	ResolveLocallyPath     = "/resolve/local"
+	RedirectPath           = "/deployments/%s/redirect"
+	RedirectedPath         = "/deployments/%s/redirected"
+	SetResolvingAnswerPath = "/deployments/asnwer"
+	LoadPath               = "/deployments/%s/load"
+	AvgClientLocationPath       = "/deployments/%s/avg_cli_loc"
+	ExploringClientLocationPath = "/deployments/%s/exploring_loc"
 )
 
-func GetServicesPath() string {
-	return PrefixPath + ServicesPath
+func GetDeploymentsPath() string {
+	return PrefixPath + DeploymentsPath
 }
 
-func GetServicePath(serviceId string) string {
-	return PrefixPath + fmt.Sprintf(ServicePath, serviceId)
+func GetDeploymentPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentPath, deploymentId)
 }
 
 func GetInstancePath(instanceId string) string {
 	return PrefixPath + fmt.Sprintf(InstancePath, instanceId)
 }
 
-func GetServiceInstancePath(serviceId, instanceId string) string {
-	return PrefixPath + fmt.Sprintf(ServiceInstancePath, serviceId, instanceId)
+func GetDeploymentInstancePath(deploymentId, instanceId string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentInstancePath, deploymentId, instanceId)
 }
 
 func GetResolvePath() string {
@@ -51,22 +51,22 @@ func GetResolveLocallyPath() string {
 	return PrefixPath + ResolveLocallyPath
 }
 
-func GetRedirectPath(serviceId string) string {
-	return PrefixPath + fmt.Sprintf(RedirectPath, serviceId)
+func GetRedirectPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(RedirectPath, deploymentId)
 }
 
-func GetRedirectedPath(serviceId string) string {
-	return PrefixPath + fmt.Sprintf(RedirectedPath, serviceId)
+func GetRedirectedPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(RedirectedPath, deploymentId)
 }
 
-func GetLoadPath(serviceId string) string {
-	return PrefixPath + fmt.Sprintf(LoadPath, serviceId)
+func GetLoadPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(LoadPath, deploymentId)
 }
 
-func GetAvgClientLocationPath(serviceId string) string {
-	return PrefixPath + fmt.Sprintf(AvgClientLocationPath, serviceId)
+func GetAvgClientLocationPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(AvgClientLocationPath, deploymentId)
 }
 
-func GetSetExploringClientLocationPath(serviceId string) string {
-	return PrefixPath + fmt.Sprintf(ExploringClientLocationPath, serviceId)
+func GetSetExploringClientLocationPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(ExploringClientLocationPath, deploymentId)
 }

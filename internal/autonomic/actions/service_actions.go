@@ -12,12 +12,12 @@ const (
 )
 
 type RedirectAction struct {
-	*actionWithServiceOriginTarget
+	*actionWithDeploymentOriginTarget
 }
 
-func NewRedirectAction(serviceId, from, to string, amount int) *RedirectAction {
+func NewRedirectAction(deploymentId, from, to string, amount int) *RedirectAction {
 	return &RedirectAction{
-		actionWithServiceOriginTarget: newActionWithServiceOriginTarget(RedirectClientsId, serviceId, from, to,
+		actionWithDeploymentOriginTarget: newActionWithDeploymentOriginTarget(RedirectClientsId, deploymentId, from, to,
 			amount),
 	}
 }
@@ -29,5 +29,5 @@ func (r *RedirectAction) GetAmount() int {
 func (r *RedirectAction) Execute(client utils.Client) {
 	assertedClient := client.(*archimedes.Client)
 	assertedClient.SetHostPort(r.GetOrigin() + ":" + strconv.Itoa(archimedes.Port))
-	assertedClient.Redirect(r.GetServiceId(), r.GetTarget(), r.GetAmount())
+	assertedClient.Redirect(r.GetDeploymentId(), r.GetTarget(), r.GetAmount())
 }

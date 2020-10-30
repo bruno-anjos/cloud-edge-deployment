@@ -308,9 +308,9 @@ def graph_deployer():
         layout = []
         for node in g.vs["name"]:
             loc = get_location(node, locations)
-            layout.append((loc["X"], loc["Y"]))
+            layout.append((loc["lng"], loc["lat"]))
 
-        visual_style["bbox"] = (4000, 4000)
+        visual_style["bbox"] = (180, 360)
         visual_style["margin"] = 200
         visual_style["layout"] = layout
         igraph.plot(g, f"/home/b.anjos/deployer_pngs/deployer_plot_{deploymentId}.png", **visual_style, autocurve=True)
@@ -334,7 +334,7 @@ def graph_deployer():
         layout = []
         for node in combinedGraph.vs["name"]:
             loc = get_location(node, locations)
-            layout.append((loc["X"], loc["Y"]))
+            layout.append((loc["lng"], loc["lat"]))
         visual_style["layout"] = layout
         visual_style["bbox"] = (4000, 4000)
         visual_style["margin"] = 200

@@ -12,7 +12,7 @@ import (
 
 type (
 	typeHeartbeatsMapKey   = string
-	typeHeartbeatsMapValue = *PairServiceIdStatus
+	typeHeartbeatsMapValue = *PairDeploymentIdStatus
 
 	typeInitChansMapValue = chan struct{}
 )
@@ -33,22 +33,22 @@ func init() {
 	go instanceHeartbeatChecker()
 }
 
-func cleanUnresponsiveInstance(serviceId, instanceId string, instanceDTO *archimedes2.InstanceDTO,
+func cleanUnresponsiveInstance(deploymentId, instanceId string, instanceDTO *archimedes2.InstanceDTO,
 	alive <-chan struct{}) {
 	unresponsiveTimer := time.NewTimer(initInstanceTimeout)
 
 	select {
 	case <-alive:
 		log.Debugf("instance %s is up", instanceId)
-		status := archimedesClient.RegisterServiceInstance(serviceId, instanceId, instanceDTO.Static,
+		status := archimedesClient.RegisterDeploymentInstance(deploymentId, instanceId, instanceDTO.Static,
 			instanceDTO.PortTranslation, instanceDTO.Local)
 		if status != http.StatusOK {
-			log.Errorf("got status %d while registering service %s instance %s", status, serviceId, instanceId)
+			log.Errorf("got status %d while registering deployment %s instance %s", status, deploymentId, instanceId)
 		}
 
 		return
 	case <-unresponsiveTimer.C:
-		removeInstance(serviceId, instanceId)
+		removeInstance(deploymentId, instanceId)
 	}
 }
 
@@ -62,19 +62,19 @@ func instanceHeartbeatChecker() {
 		log.Debug("checking heartbeats")
 		heartbeatsMap.Range(func(key, value interface{}) bool {
 			instanceId := key.(typeHeartbeatsMapKey)
-			pairServiceStatus := value.(typeHeartbeatsMapValue)
-			pairServiceStatus.Mutex.Lock()
+			pairDeploymentStatus := value.(typeHeartbeatsMapValue)
+			pairDeploymentStatus.Mutex.Lock()
 
 			// case where instance didnt set online status since last status reset, so it has to be removed
-			if !pairServiceStatus.IsUp {
-				pairServiceStatus.Mutex.Unlock()
-				removeInstance(pairServiceStatus.ServiceId, instanceId)
+			if !pairDeploymentStatus.IsUp {
+				pairDeploymentStatus.Mutex.Unlock()
+				removeInstance(pairDeploymentStatus.DeploymentId, instanceId)
 
 				toDelete = append(toDelete, instanceId)
 				log.Debugf("removing instance %s", instanceId)
 			} else {
-				pairServiceStatus.IsUp = false
-				pairServiceStatus.Mutex.Unlock()
+				pairDeploymentStatus.IsUp = false
+				pairDeploymentStatus.Mutex.Unlock()
 			}
 
 			return true
@@ -88,14 +88,14 @@ func instanceHeartbeatChecker() {
 	}
 }
 
-func removeInstance(serviceId, instanceId string) {
+func removeInstance(deploymentId, instanceId string) {
 	status := schedulerClient.StopInstance(instanceId)
 	if status != http.StatusOK {
 		log.Warnf("while trying to remove instance %s after timeout, scheduler returned status %d",
 			instanceId, status)
 	}
 
-	status = archimedesClient.DeleteServiceInstance(serviceId, instanceId)
+	status = archimedesClient.DeleteDeploymentInstance(deploymentId, instanceId)
 	if status != http.StatusOK {
 		log.Warnf("while trying to remove instance %s after timeout, archimedes returned status %d",
 			instanceId, status)

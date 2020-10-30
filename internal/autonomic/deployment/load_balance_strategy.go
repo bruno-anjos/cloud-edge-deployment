@@ -1,4 +1,4 @@
-package service
+package deployment
 
 import (
 	public "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
@@ -8,10 +8,10 @@ type loadBalanceStrategy struct {
 	*basicStrategy
 }
 
-func newDefaultLoadBalanceStrategy(service *Service) *loadBalanceStrategy {
+func newDefaultLoadBalanceStrategy(deployment *Deployment) *loadBalanceStrategy {
 	defaultGoals := []Goal{
-		newLoadBalanceGoal(service),
-		newIdealLatencyGoal(service),
+		newLoadBalanceGoal(deployment),
+		newIdealLatencyGoal(deployment),
 	}
 	return &loadBalanceStrategy{
 		basicStrategy: newBasicStrategy(public.StrategyLoadBalanceId, defaultGoals),

@@ -1,4 +1,4 @@
-package service
+package deployment
 
 import (
 	"net/http"
@@ -7,9 +7,11 @@ import (
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	"github.com/golang/geo/s1"
+	"github.com/golang/geo/s2"
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
@@ -37,8 +39,8 @@ const (
 )
 
 type (
-	serviceChildrenMapKey   = string
-	serviceChildrenMapValue = *nodeWithLocation
+	deploymentChildrenMapKey   = string
+	deploymentChildrenMapValue = *nodeWithLocation
 
 	nodeWithDistance struct {
 		NodeId             string
@@ -49,23 +51,23 @@ type (
 )
 
 type idealLatency struct {
-	service      *Service
+	deployment   *Deployment
 	dependencies []string
 }
 
-func newIdealLatencyGoal(service *Service) *idealLatency {
+func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
 
 	dependencies := []string{
-		metrics.GetProcessingTimePerServiceMetricId(service.ServiceId),
-		metrics.GetClientLatencyPerServiceMetricId(service.ServiceId),
+		metrics.GetProcessingTimePerDeploymentMetricId(deployment.DeploymentId),
+		metrics.GetClientLatencyPerDeploymentMetricId(deployment.DeploymentId),
 		metrics.MetricLocation,
-		metrics.GetAverageClientLocationPerServiceMetricId(service.ServiceId),
+		metrics.GetAverageClientLocationPerDeploymentMetricId(deployment.DeploymentId),
 		metrics.MetricLocationInVicinity,
-		metrics.GetNumInstancesMetricId(service.ServiceId),
+		metrics.GetNumInstancesMetricId(deployment.DeploymentId),
 	}
 
 	goal := &idealLatency{
-		service:      service,
+		deployment:   deployment,
 		dependencies: dependencies,
 	}
 
@@ -89,12 +91,12 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 	}
 
 	archClient := archimedes.NewArchimedesClient("localhost:" + strconv.Itoa(archimedes.Port))
-	avgClientLocation, status := archClient.GetAvgClientLocation(i.service.ServiceId)
+	avgClientLocation, status := archClient.GetAvgClientLocation(i.deployment.DeploymentId)
 	if status == http.StatusNoContent {
 		return
 	} else if status != http.StatusOK {
-		log.Errorf("got status code %d while attempting to get avg client location for service %s", status,
-			i.service.ServiceId)
+		log.Errorf("got status code %d while attempting to get avg client location for deployment %s", status,
+			i.deployment.DeploymentId)
 		return
 	}
 
@@ -127,7 +129,7 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 		optRange, isAlreadyMax = i.filterBlacklisted(optRange)
 		if !isAlreadyMax {
 			actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
-			actionArgs[ilActionTypeArgIndex] = actions.ExtendServiceId
+			actionArgs[ilActionTypeArgIndex] = actions.ExtendDeploymentId
 			exploreNodes := map[string]interface{}{}
 			for _, nodeId := range optRange {
 				if sortingCriteria[nodeId].(sortingCriteriaType).DistancePercentage > 1. {
@@ -143,7 +145,7 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 }
 
 func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[string]interface{}, success bool) {
-	value, ok := i.service.Environment.GetMetric(metrics.MetricLocationInVicinity)
+	value, ok := i.deployment.Environment.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		log.Debugf("no value for metric %s", metrics.MetricLocationInVicinity)
 		return nil, nil, false
@@ -153,56 +155,46 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 	candidates := map[string]interface{}{}
 	var candidateIds []string
 
-	var avgClientLocation publicUtils.Location
-	err := mapstructure.Decode(arg, &avgClientLocation)
-	if err != nil {
-		panic(err)
-	}
+	avgClientLocation := arg.(s2.CellID)
 
-	value, ok = i.service.Environment.GetMetric(metrics.MetricLocation)
+	value, ok = i.deployment.Environment.GetMetric(metrics.MetricLocation)
 	if !ok {
 		log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
 	}
 
-	var location publicUtils.Location
-	err = mapstructure.Decode(value, &location)
-	if err != nil {
-		panic(err)
-	}
+	location := s2.CellIDFromToken(value.(string))
 
-	myDist := avgClientLocation.CalcDist(&location)
+	avgClientCell := s2.CellFromCellID(avgClientLocation)
+	myDist := avgClientCell.DistanceToCell(s2.CellFromCellID(location))
 
-	value, ok = i.service.Environment.GetMetric(metrics.MetricNodeAddr)
+	value, ok = i.deployment.Environment.GetMetric(metrics.MetricNodeAddr)
 	if !ok {
 		log.Debugf("no value for metric %s", metrics.MetricNodeAddr)
 		return nil, nil, false
 	}
 
 	log.Debugf("nodes in vicinity: %+v", locationsInVicinity)
-	for nodeId, locationValue := range locationsInVicinity {
-		_, okC := i.service.Children.Load(nodeId)
-		_, okS := i.service.Suspected.Load(nodeId)
+	for nodeId, cellValue := range locationsInVicinity {
+		_, okC := i.deployment.Children.Load(nodeId)
+		_, okS := i.deployment.Suspected.Load(nodeId)
 		if okC || okS || nodeId == myself.Id {
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}
 
-		err = mapstructure.Decode(locationValue, &location)
-		if err != nil {
-			panic(err)
-		}
+		location = s2.CellIDFromToken(cellValue.(string))
 
-		delta := location.CalcDist(&avgClientLocation)
+		delta := s2.CellFromCellID(location).DistanceToCell(avgClientCell)
 
-		if nodeId == i.service.ParentId {
+		if nodeId == i.deployment.ParentId {
 			candidates[hiddenParentId] = &nodeWithDistance{
 				NodeId:             nodeId,
-				DistancePercentage: delta / myDist,
+				DistancePercentage: float64(delta) / float64(myDist),
 			}
 		} else {
 			candidates[nodeId] = &nodeWithDistance{
 				NodeId:             nodeId,
-				DistancePercentage: delta / myDist,
+				DistancePercentage: float64(delta) / float64(myDist),
 			}
 			candidateIds = append(candidateIds, nodeId)
 		}
@@ -230,29 +222,15 @@ func (i *idealLatency) Cutoff(candidates Domain, candidatesCriteria map[string]i
 	maxed bool) {
 	maxed = true
 
-	avgClientLocMetric := metrics.GetAverageClientLocationPerServiceMetricId(i.service.ServiceId)
-	value, ok := i.service.Environment.GetMetric(avgClientLocMetric)
-	if !ok {
-		log.Debugf("no value for metric %s", avgClientLocMetric)
-		return
-	}
-
-	// TODO change this for actual location
-	var avgClientLocation publicUtils.Location
-	err := mapstructure.Decode(value, &avgClientLocation)
-	if err != nil {
-		panic(err)
-	}
-
 	candidateClient := deployer.NewDeployerClient("")
 	for _, candidate := range candidates {
 		percentage := candidatesCriteria[candidate].(sortingCriteriaType).DistancePercentage
 		log.Debugf("candidate %s distance percentage (me) %f", candidate, percentage)
 		if percentage < maximumDistancePercentage {
 			candidateClient.SetHostPort(candidate + ":" + strconv.Itoa(deployer.Port))
-			has, _ := candidateClient.HasService(i.service.ServiceId)
+			has, _ := candidateClient.HasDeployment(i.deployment.DeploymentId)
 			if has {
-				log.Debugf("candidate %s already has service %s", candidate, i.service.ServiceId)
+				log.Debugf("candidate %s already has deployment %s", candidate, i.deployment.DeploymentId)
 				continue
 			}
 			cutoff = append(cutoff, candidate)
@@ -269,21 +247,21 @@ func (i *idealLatency) GenerateAction(target string, args ...interface{}) action
 	log.Debugf("generating action %s", (args[ilActionTypeArgIndex]).(string))
 
 	switch args[ilActionTypeArgIndex].(string) {
-	case actions.ExtendServiceId:
+	case actions.ExtendDeploymentId:
 		_, exploring := args[ilExploreNodesIndex].(map[string]interface{})[target]
-		return actions.NewExtendServiceAction(i.service.ServiceId, target, exploring, myself, nil,
-			args[ilExploreLocationIndex].(*publicUtils.Location))
-	case actions.MigrateServiceId:
+		return actions.NewExtendDeploymentAction(i.deployment.DeploymentId, target, exploring, myself, nil,
+			args[ilExploreLocationIndex].(s2.CellID))
+	case actions.MigrateDeploymentId:
 		from := args[ilFromIndex].(string)
-		return actions.NewMigrateAction(i.service.ServiceId, from, target)
+		return actions.NewMigrateAction(i.deployment.DeploymentId, from, target)
 	}
 
 	return nil
 }
 
 func (i *idealLatency) TestDryRun() (valid bool) {
-	envCopy := i.service.Environment.Copy()
-	numInstancesMetric := metrics.GetNumInstancesMetricId(i.service.ServiceId)
+	envCopy := i.deployment.Environment.Copy()
+	numInstancesMetric := metrics.GetNumInstancesMetricId(i.deployment.DeploymentId)
 	value, ok := envCopy.GetMetric(numInstancesMetric)
 	if !ok {
 		log.Debugf("no value for metric %s", numInstancesMetric)
@@ -300,14 +278,14 @@ func (i *idealLatency) GetDependencies() (metrics []string) {
 	return i.dependencies
 }
 
-func (i *idealLatency) calcFurthestChildDistance(avgLocation *publicUtils.Location) (furthestChild string,
-	furthestChildDistance float64) {
+func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthestChild string,
+	furthestChildDistance s1.ChordAngle) {
 	furthestChildDistance = -1.0
 
-	i.service.Children.Range(func(key, value interface{}) bool {
-		childId := key.(serviceChildrenMapKey)
-		child := value.(serviceChildrenMapValue)
-		delta := child.Location.CalcDist(avgLocation)
+	i.deployment.Children.Range(func(key, value interface{}) bool {
+		childId := key.(deploymentChildrenMapKey)
+		child := value.(deploymentChildrenMapValue)
+		delta := s2.CellFromCellID(child.Location).DistanceToCell(s2.CellFromCellID(avgLocation))
 
 		if delta > furthestChildDistance {
 			furthestChildDistance = delta
@@ -320,23 +298,23 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation *publicUtils.Locati
 	})
 
 	if furthestChildDistance == -1.0 {
-		value, ok := i.service.Environment.GetMetric(metrics.MetricNodeAddr)
+		value, ok := i.deployment.Environment.GetMetric(metrics.MetricNodeAddr)
 		if !ok {
 			log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
 		}
 
-		value, ok = i.service.Environment.GetMetric(metrics.MetricLocation)
+		value, ok = i.deployment.Environment.GetMetric(metrics.MetricLocation)
 		if !ok {
 			log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
 		}
 
-		var location publicUtils.Location
+		var location s2.CellID
 		err := mapstructure.Decode(value, &location)
 		if err != nil {
 			panic(err)
 		}
 
-		furthestChildDistance = location.CalcDist(avgLocation)
+		furthestChildDistance = s2.CellFromCellID(location).DistanceToCell(s2.CellFromCellID(avgLocation))
 	}
 
 	return
@@ -347,15 +325,15 @@ func (i *idealLatency) GetId() string {
 }
 
 func (i *idealLatency) checkProcessingTime() bool {
-	processintTimeMetric := metrics.GetProcessingTimePerServiceMetricId(i.service.ServiceId)
-	value, ok := i.service.Environment.GetMetric(processintTimeMetric)
+	processintTimeMetric := metrics.GetProcessingTimePerDeploymentMetricId(i.deployment.DeploymentId)
+	value, ok := i.deployment.Environment.GetMetric(processintTimeMetric)
 	if !ok {
 		log.Debugf("no value for metric %s", processintTimeMetric)
 	} else {
 		processingTime := value.(float64)
 
-		clientLatencyMetric := metrics.GetClientLatencyPerServiceMetricId(i.service.ServiceId)
-		value, ok = i.service.Environment.GetMetric(clientLatencyMetric)
+		clientLatencyMetric := metrics.GetClientLatencyPerDeploymentMetricId(i.deployment.DeploymentId)
+		value, ok = i.deployment.Environment.GetMetric(clientLatencyMetric)
 		if !ok {
 			log.Debugf("no value for metric %s", clientLatencyMetric)
 			return true
@@ -373,25 +351,25 @@ func (i *idealLatency) checkProcessingTime() bool {
 	return false
 }
 
-func (i *idealLatency) checkShouldBranch(avgClientLocation *publicUtils.Location) bool {
+func (i *idealLatency) checkShouldBranch(avgClientLocation s2.CellID) bool {
 	numChildren := 0
-	i.service.Children.Range(func(key, value interface{}) bool {
+	i.deployment.Children.Range(func(key, value interface{}) bool {
 		numChildren++
 		return true
 	})
 
-	value, ok := i.service.Environment.GetMetric(metrics.MetricLocation)
+	value, ok := i.deployment.Environment.GetMetric(metrics.MetricLocation)
 	if !ok {
 		log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
 	}
 
-	var location publicUtils.Location
+	var location s2.CellID
 	err := mapstructure.Decode(value, &location)
 	if err != nil {
 		panic(err)
 	}
 
-	currDistance := location.CalcDist(avgClientLocation)
+	currDistance := utils.ChordAngleToKM(s2.CellFromCellID(location).DistanceToCell(s2.CellFromCellID(avgClientLocation)))
 	if currDistance <= satisfiedDistance {
 		return false
 	}
@@ -410,7 +388,7 @@ func (i *idealLatency) checkShouldBranch(avgClientLocation *publicUtils.Location
 func (i *idealLatency) filterBlacklisted(o Range) (Range, bool) {
 	var newRange []string
 	for _, node := range o {
-		if _, ok := i.service.Blacklist.Load(node); !ok {
+		if _, ok := i.deployment.Blacklist.Load(node); !ok {
 			newRange = append(newRange, node)
 		}
 	}

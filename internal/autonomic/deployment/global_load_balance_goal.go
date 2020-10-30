@@ -1,4 +1,4 @@
-package service
+package deployment
 
 import (
 	"net/http"
@@ -8,8 +8,6 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
-	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -31,13 +29,13 @@ type (
 )
 
 type nodeLoadBalanceGoal struct {
-	service      *Service
+	deployment   *Deployment
 	dependencies []string
 }
 
-func newNodeLoadBalanceGoal(service *Service) *nodeLoadBalanceGoal {
+func newNodeLoadBalanceGoal(deployment *Deployment) *nodeLoadBalanceGoal {
 	return &nodeLoadBalanceGoal{
-		service: service,
+		deployment: deployment,
 	}
 }
 
@@ -72,31 +70,20 @@ func (nl *nodeLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, inf
 	info = nil
 	success = false
 
-	value, ok := nl.service.Environment.GetMetric(metrics.MetricLocationInVicinity)
+	value, ok := nl.deployment.Environment.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		log.Debugf("no value for metric %s", metrics.MetricLocationInVicinity)
 		return nil, nil, false
 	}
 
-	var locationsInVicinity map[string]publicUtils.Location
-	err := mapstructure.Decode(value, &locationsInVicinity)
-	if err != nil {
-		panic(err)
-	}
+	locationsInVicinity := value.(map[string]interface{})
 
-	value, ok = nl.service.Environment.GetMetric(metrics.MetricNodeAddr)
-	if !ok {
-		log.Debugf("no value for metric %s", metrics.MetricNodeAddr)
-		return nil, nil, false
-	}
-
-	myself := value.(string)
 	info = map[string]interface{}{}
 	deplClient := deployer.NewDeployerClient("")
 
 	for nodeId := range locationsInVicinity {
-		_, okS := nl.service.Suspected.Load(nodeId)
-		if okS || nodeId == myself || nodeId == nl.service.ParentId {
+		_, okS := nl.deployment.Suspected.Load(nodeId)
+		if okS || nodeId == myself.Id || nodeId == nl.deployment.ParentId {
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}
@@ -146,10 +133,10 @@ func (nl *nodeLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria map[
 	}
 
 	leastBusy := candidates[0]
-	leastAmountOfServices := len(candidatesCriteria[leastBusy].(*nodeCriteria).Deployments)
+	leastAmountOfDeployments := len(candidatesCriteria[leastBusy].(*nodeCriteria).Deployments)
 
 	for _, candidate := range candidates {
-		if len(candidatesCriteria[candidate].(*nodeCriteria).Deployments) < (leastAmountOfServices+1)*2 {
+		if len(candidatesCriteria[candidate].(*nodeCriteria).Deployments) < (leastAmountOfDeployments+1)*2 {
 			cutoff = append(cutoff, candidate)
 		} else {
 			maxed = false

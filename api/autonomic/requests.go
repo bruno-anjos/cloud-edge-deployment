@@ -1,13 +1,13 @@
 package autonomic
 
 import (
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	"github.com/golang/geo/s2"
 )
 
 type (
-	AddServiceRequestBody  = serviceConfig
-	ClosestNodeRequestBody = struct {
-		Location  *publicUtils.Location
+	AddDeploymentRequestBody = deploymentConfig
+	ClosestNodeRequestBody   = struct {
+		Location  s2.CellID
 		ToExclude map[string]interface{}
 	}
 )

@@ -24,8 +24,8 @@ const (
 	ParentAlivePath            = "/parent/%s/up"
 	DeploymentChildPath        = "/deployments/%s/child/%s"
 	MigrateDeploymentPath      = "/deployments/%s/migrate"
-	ExtendServiceToPath        = "/deployments/%s/extend/%s"
-	ShortenServiceFromPath     = "/deployments/%s/shorten/%s"
+	ExtendDeploymentToPath     = "/deployments/%s/extend/%s"
+	ShortenDeploymentFromPath  = "/deployments/%s/shorten/%s"
 	SetGrandparentPath         = "/deployments/%s/grandparent"
 	FallbackPath               = "/deployments/%s/fallback"
 	ResolveUpTheTreePath       = "/deployments/%s/resolve_up"
@@ -44,12 +44,12 @@ func GetDeploymentsPath() string {
 	return PrefixPath + DeploymentsPath
 }
 
-func GetServicePath(serviceId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentPath, serviceId)
+func GetDeploymentPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentPath, deploymentId)
 }
 
-func GetImYourParentPath(serviceId string) string {
-	return PrefixPath + fmt.Sprintf(IAmYourParentPath, serviceId)
+func GetImYourParentPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(IAmYourParentPath, deploymentId)
 }
 
 func GetAddNodePath() string {
@@ -60,12 +60,12 @@ func GetParentAlivePath(parentId string) string {
 	return PrefixPath + fmt.Sprintf(ParentAlivePath, parentId)
 }
 
-func GetDeadChildPath(serviceId, deadChildId string) string {
-	return PrefixPath + fmt.Sprintf(DeadChildPath, serviceId, deadChildId)
+func GetDeadChildPath(deploymentId, deadChildId string) string {
+	return PrefixPath + fmt.Sprintf(DeadChildPath, deploymentId, deadChildId)
 }
 
-func GetServiceInstancePath(serviceId, instanceId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentInstancePath, serviceId, instanceId)
+func GetDeploymentInstancePath(deploymentId, instanceId string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentInstancePath, deploymentId, instanceId)
 }
 
 func GetHierarchyTablePath() string {
@@ -76,8 +76,8 @@ func GetSetAlternativesPath(nodeId string) string {
 	return PrefixPath + fmt.Sprintf(SetAlternativesPath, nodeId)
 }
 
-func GetServiceInstanceAlivePath(serviceId, instanceId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentInstanceAlivePath, serviceId, instanceId)
+func GetDeploymentInstanceAlivePath(deploymentId, instanceId string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentInstanceAlivePath, deploymentId, instanceId)
 }
 
 func GetDeploymentChildPath(deploymentId, childId string) string {
@@ -88,12 +88,12 @@ func GetMigrateDeploymentPath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(MigrateDeploymentPath, deploymentId)
 }
 
-func GetExtendServicePath(serviceId, targetId string) string {
-	return PrefixPath + fmt.Sprintf(ExtendServiceToPath, serviceId, targetId)
+func GetExtendDeploymentPath(deploymentId, targetId string) string {
+	return PrefixPath + fmt.Sprintf(ExtendDeploymentToPath, deploymentId, targetId)
 }
 
-func GetShortenServicePath(serviceId, targetId string) string {
-	return PrefixPath + fmt.Sprintf(ShortenServiceFromPath, serviceId, targetId)
+func GetShortenDeploymentPath(deploymentId, targetId string) string {
+	return PrefixPath + fmt.Sprintf(ShortenDeploymentFromPath, deploymentId, targetId)
 }
 
 func GetSetGrandparentPath(deploymentId string) string {

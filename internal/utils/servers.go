@@ -17,7 +17,7 @@ const (
 
 // StartServer seeds the random generator and starts a server on the
 // specified host and port serving the routes passed with a specified prefix.
-func StartServer(serviceName, hostPort string, port int, prefixPath string, routes []Route) {
+func StartServer(deploymentName, hostPort string, port int, prefixPath string, routes []Route) {
 	rand.Seed(time.Now().UnixNano())
 
 	debug := flag.Bool("d", false, "add debug logs")
@@ -38,11 +38,11 @@ func StartServer(serviceName, hostPort string, port int, prefixPath string, rout
 		listenAddrPort = hostPort
 	}
 
-	log.Infof("%s server listening at %s...\n", serviceName, listenAddrPort)
+	log.Infof("%s server listening at %s...\n", deploymentName, listenAddrPort)
 	log.Fatal(http.ListenAndServe(listenAddrPort, r))
 }
 
-func StartServerWithoutDefaultFlags(serviceName, hostPort string, port int, prefixPath string, routes []Route,
+func StartServerWithoutDefaultFlags(deploymentName, hostPort string, port int, prefixPath string, routes []Route,
 	debug *bool, listenAddr *string) {
 	rand.Seed(time.Now().UnixNano())
 
@@ -60,6 +60,6 @@ func StartServerWithoutDefaultFlags(serviceName, hostPort string, port int, pref
 		listenAddrPort = hostPort
 	}
 
-	log.Infof("%s server listening at %s...\n", serviceName, listenAddrPort)
+	log.Infof("%s server listening at %s...\n", deploymentName, listenAddrPort)
 	log.Fatal(http.ListenAndServe(listenAddrPort, r))
 }

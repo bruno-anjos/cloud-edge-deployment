@@ -6,16 +6,10 @@ import (
 	"sync"
 	"time"
 
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/golang/geo/s2"
 )
 
 type (
-	LocationsEntry struct {
-		Location *publicUtils.Location
-		Number   int
-	}
-
 	cellsByDeploymentKey = string
 	cellsByDeployment    struct {
 		topCells *Collection
@@ -23,7 +17,6 @@ type (
 	}
 
 	cellsByDeploymentValue = *cellsByDeployment
-
 
 	activeCellsKey               = s2.CellID
 	activeCellsByDeploymentValue = *sync.Map
@@ -57,7 +50,7 @@ func NewManager() *Manager {
 	return cm
 }
 
-func (cm *Manager) GetDeploymentCentroids(deploymentId string) (centroids []*publicUtils.Location, ok bool) {
+func (cm *Manager) GetDeploymentCentroids(deploymentId string) (centroids []s2.CellID, ok bool) {
 	value, ok := cm.activeCells.Load(deploymentId)
 	if !ok {
 		return
@@ -66,22 +59,19 @@ func (cm *Manager) GetDeploymentCentroids(deploymentId string) (centroids []*pub
 	deploymentActiveCells := value.(activeCellsByDeploymentValue)
 	deploymentActiveCells.Range(func(key, _ interface{}) bool {
 		id := key.(activeCellsKey)
-		cellCenter := s2.LatLngFromPoint(s2.CellFromCellID(id).Center())
-		centroids = append(centroids, publicUtils.FromLatLngToLocation(&cellCenter))
+		centroids = append(centroids, id)
 		return true
 	})
 
 	return
 }
 
-func (cm *Manager) AddClientToDownmostCell(deploymentId string, location *publicUtils.Location) {
-	clientCellId := s2.CellIDFromLatLng(location.ToLatLng())
-
+func (cm *Manager) AddClientToDownmostCell(deploymentId string, clientCellId s2.CellID) {
 	deployment := cm.getDeploymentCells(deploymentId)
 	topCellId, topCell := cm.getTopCell(deploymentId, deployment, clientCellId)
 
 	downmostId, downmost := cm.findDownmostCellAndRLock(topCellId, topCell, clientCellId, deployment.cells)
-	numClients := downmost.AddClientAndReturnCurrent(location)
+	numClients := downmost.AddClientAndReturnCurrent(clientCellId)
 	deployment.cells.RUnlock()
 
 	if numClients > maxCellLevel {
@@ -89,22 +79,20 @@ func (cm *Manager) AddClientToDownmostCell(deploymentId string, location *public
 	}
 }
 
-func (cm *Manager) RemoveClientsFromCells(deploymentId string, locations map[string]*LocationsEntry) {
+func (cm *Manager) RemoveClientsFromCells(deploymentId string, locations map[s2.CellID]int) {
 	deploymentCells := cm.getDeploymentCells(deploymentId)
 
 	var (
 		topCellId s2.CellID
 		topCell   *Cell
 	)
-	for _, locEntry := range locations {
-		clientCellId := s2.CellIDFromLatLng(locEntry.Location.ToLatLng())
+	for cellId, amount := range locations {
+		topCellId, topCell = cm.getTopCell(deploymentId, deploymentCells, cellId)
 
-		topCellId, topCell = cm.getTopCell(deploymentId, deploymentCells, clientCellId)
-
-		_, downmostCell := cm.findDownmostCellAndRLock(topCellId, topCell, clientCellId,
+		_, downmostCell := cm.findDownmostCellAndRLock(topCellId, topCell, cellId,
 			deploymentCells.cells)
 
-		downmostCell.RemoveClients(locEntry.Location, locEntry.Number)
+		downmostCell.RemoveClients(cellId, amount)
 	}
 }
 
@@ -187,14 +175,14 @@ func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collecti
 
 		newCells := map[s2.CellID]*Cell{}
 
-		splittingCell.IterateLocationsNoLock(func(locId string, loc *ClientLocation) bool {
-			newCellId := s2.CellIDFromLatLng(loc.Location.ToLatLng()).Parent(splittingCellId.Level() + 1)
-			tempCell, ok := newCells[newCellId]
-			if !ok {
-				newTempCell := NewCell(loc.Count, map[string]*ClientLocation{locId: loc}, splittingCellId, true)
+		splittingCell.IterateLocationsNoLock(func(locId s2.CellID, amount int) bool {
+			newCellId := locId.Parent(splittingCellId.Level() + 1)
+			tempCell, tempOk := newCells[newCellId]
+			if !tempOk {
+				newTempCell := NewCell(amount, map[s2.CellID]int{locId: amount}, splittingCellId, true)
 				newCells[newCellId] = newTempCell
 			} else {
-				tempCell.AddClientNoLock(loc.Location)
+				tempCell.AddClientNoLock(locId)
 			}
 			return true
 		})
@@ -202,7 +190,7 @@ func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collecti
 		var activeCells *sync.Map
 		activeCells, ok = cm.getActiveCellsForDeployment(deploymentId)
 		if !ok {
-			log.Fatalf("should have active cells for deployment %s", deploymentId)
+			panic(fmt.Sprintf("should have active cells for deployment %s", deploymentId))
 		}
 		for tempCellId, tempCell := range newCells {
 			if tempCell.GetNumClientsNoLock() > maxClientsToSplit {
@@ -241,7 +229,7 @@ func (cm *Manager) getTopCell(deploymentId string, deploymentCells cellsByDeploy
 
 	if topCell == nil {
 		cellId := clientCellId.Parent(minCellLevel)
-		cell := NewCell(0, map[string]*ClientLocation{}, 0, false)
+		cell := NewCell(0, map[s2.CellID]int{}, 0, false)
 
 		var loaded bool
 		topCell, loaded = deploymentCells.topCells.LoadOrStoreCell(cellId, cell)
@@ -249,7 +237,7 @@ func (cm *Manager) getTopCell(deploymentId string, deploymentCells cellsByDeploy
 		if !loaded {
 			activeCells, ok := cm.getActiveCellsForDeployment(deploymentId)
 			if !ok {
-				log.Fatalf("should have active cells for deployment %s", deploymentId)
+				panic(fmt.Sprintf("should have active cells for deployment %s", deploymentId))
 			}
 			activeCells.Store(cellId, cell)
 		}
@@ -317,7 +305,7 @@ func (cm *Manager) mergeFromTopCell(deploymentId string, deploymentCells *Collec
 		if totalChildClients < minClientsToMerge {
 			activeCells, ok := cm.getActiveCellsForDeployment(deploymentId)
 			if !ok {
-				log.Fatalf("should have active cells for deployment %s", deploymentId)
+				panic(fmt.Sprintf("should have active cells for deployment %s", deploymentId))
 			}
 
 			var child *Cell
@@ -327,8 +315,8 @@ func (cm *Manager) mergeFromTopCell(deploymentId string, deploymentCells *Collec
 					panic(fmt.Sprintf("has child %s, but child is not in deploymentCells", childId))
 				}
 
-				child.IterateLocationsNoLock(func(locId string, loc *ClientLocation) bool {
-					mergingCell.AddClientsNoLock(loc.Location, loc.Count)
+				child.IterateLocationsNoLock(func(locId s2.CellID, amount int) bool {
+					mergingCell.AddClientsNoLock(locId, amount)
 					return true
 				})
 

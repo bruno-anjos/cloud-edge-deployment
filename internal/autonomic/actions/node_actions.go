@@ -7,77 +7,77 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	ExtendServiceId  = "ACTION_EXTEND_SERVICE"
-	RemoveServiceId  = "ACTION_REMOVE_SERVICE"
-	MigrateServiceId = "ACTION_MIGRATE_SERVICE"
+	ExtendDeploymentId  = "ACTION_EXTEND_DEPLOYMENT"
+	RemoveDeploymentId  = "ACTION_REMOVE_DEPLOYMENT"
+	MigrateDeploymentId = "ACTION_MIGRATE_DEPLOYMENT"
 )
 
-type RemoveServiceAction struct {
-	*actionWithServiceTarget
+type RemoveDeploymentAction struct {
+	*actionWithDeploymentTarget
 }
 
-func NewRemoveServiceAction(serviceId, target string) *RemoveServiceAction {
-	return &RemoveServiceAction{
-		actionWithServiceTarget: newActionWithServiceTarget(RemoveServiceId, serviceId, target),
+func NewRemoveDeploymentAction(deploymentId, target string) *RemoveDeploymentAction {
+	return &RemoveDeploymentAction{
+		actionWithDeploymentTarget: newActionWithDeploymentTarget(RemoveDeploymentId, deploymentId, target),
 	}
 }
 
-func (m *RemoveServiceAction) Execute(client utils.Client) {
+func (m *RemoveDeploymentAction) Execute(client utils.Client) {
 	deployerClient := client.(deployer.Client)
-	deployerClient.ShortenDeploymentFrom(m.GetServiceId(), m.GetTarget())
+	deployerClient.ShortenDeploymentFrom(m.GetDeploymentId(), m.GetTarget())
 }
 
-type ExtendServiceAction struct {
-	*actionWithServiceTarget
+type ExtendDeploymentAction struct {
+	*actionWithDeploymentTarget
 }
 
-func NewExtendServiceAction(serviceId, target string, exploring bool, parent *utils.Node,
-	children []*utils.Node, location *publicUtils.Location) *ExtendServiceAction {
-	return &ExtendServiceAction{
-		actionWithServiceTarget: newActionWithServiceTarget(ExtendServiceId, serviceId, target, exploring, parent,
+func NewExtendDeploymentAction(deploymentId, target string, exploring bool, parent *utils.Node,
+	children []*utils.Node, location s2.CellID) *ExtendDeploymentAction {
+	return &ExtendDeploymentAction{
+		actionWithDeploymentTarget: newActionWithDeploymentTarget(ExtendDeploymentId, deploymentId, target, exploring, parent,
 			children, location),
 	}
 }
 
-func (m *ExtendServiceAction) IsExploring() bool {
+func (m *ExtendDeploymentAction) IsExploring() bool {
 	return m.Args[2].(bool)
 }
 
-func (m *ExtendServiceAction) GetParent() *utils.Node {
+func (m *ExtendDeploymentAction) GetParent() *utils.Node {
 	return m.Args[3].(*utils.Node)
 }
 
-func (m *ExtendServiceAction) GetChildren() []*utils.Node {
+func (m *ExtendDeploymentAction) GetChildren() []*utils.Node {
 	return m.Args[4].([]*utils.Node)
 }
 
-func (m *ExtendServiceAction) GetLocation() *publicUtils.Location {
-	return m.Args[5].(*publicUtils.Location)
+func (m *ExtendDeploymentAction) GetLocation() s2.CellID {
+	return m.Args[5].(s2.CellID)
 }
 
-func (m *ExtendServiceAction) Execute(client utils.Client) {
+func (m *ExtendDeploymentAction) Execute(client utils.Client) {
 	log.Debugf("executing %s to %s", m.ActionId, m.GetTarget())
 	deployerClient := client.(*deployer.Client)
 
 	targetClient := deployer.NewDeployerClient(m.GetTarget() + ":" + strconv.Itoa(deployer.Port))
-	has, _ := targetClient.HasService(m.GetServiceId())
+	has, _ := targetClient.HasDeployment(m.GetDeploymentId())
 	if has {
-		log.Debugf("%s already has service %s", m.GetTarget(), m.GetServiceId())
+		log.Debugf("%s already has deployment %s", m.GetTarget(), m.GetDeploymentId())
 		return
 	}
 
 	if m.IsExploring() {
 		archClient := archimedes.NewArchimedesClient(m.GetTarget() + ":" + strconv.Itoa(archimedes.Port))
-		archClient.SetExploringClientLocation(m.GetServiceId(), m.GetLocation())
+		archClient.SetExploringCells(m.GetDeploymentId(), m.GetLocation())
 	}
 
-	status := deployerClient.ExtendDeploymentTo(m.GetServiceId(), m.GetTarget(), m.GetParent(), m.GetChildren(),
-		m.IsExploring())
+	status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), m.GetTarget(), m.GetParent(), m.GetLocation(),
+		m.GetChildren(), m.IsExploring())
 	if status != http.StatusOK {
 		log.Errorf("got status code %d while extending deployment", status)
 		return
@@ -85,19 +85,19 @@ func (m *ExtendServiceAction) Execute(client utils.Client) {
 }
 
 type MigrateAction struct {
-	*actionWithServiceOriginTarget
+	*actionWithDeploymentOriginTarget
 }
 
-func NewMigrateAction(serviceId, from, to string) *MigrateAction {
+func NewMigrateAction(deploymentId, from, to string) *MigrateAction {
 	return &MigrateAction{
-		actionWithServiceOriginTarget: newActionWithServiceOriginTarget(MigrateServiceId, serviceId, from, to),
+		actionWithDeploymentOriginTarget: newActionWithDeploymentOriginTarget(MigrateDeploymentId, deploymentId, from, to),
 	}
 }
 
 func (m *MigrateAction) Execute(client utils.Client) {
-	log.Debugf("executing %s from %s to %s", MigrateServiceId, m.GetOrigin(), m.GetTarget())
+	log.Debugf("executing %s from %s to %s", MigrateDeploymentId, m.GetOrigin(), m.GetTarget())
 	deployerClient := client.(*deployer.Client)
-	status := deployerClient.MigrateDeployment(m.GetServiceId(), m.GetOrigin(), m.GetTarget())
+	status := deployerClient.MigrateDeployment(m.GetDeploymentId(), m.GetOrigin(), m.GetTarget())
 	if status == http.StatusOK {
 		log.Errorf("got status code %d while extending deployment", status)
 	}

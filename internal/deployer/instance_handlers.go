@@ -10,8 +10,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("handling request in registerServiceInstance handler")
+func registerDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("handling request in registerDeploymentInstance handler")
 
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
@@ -35,28 +35,28 @@ func registerServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		initChansMap.Store(instanceId, initChan)
 		go cleanUnresponsiveInstance(deploymentId, instanceId, &instanceDTO, initChan)
 	} else {
-		status := archimedesClient.RegisterServiceInstance(deploymentId, instanceId, instanceDTO.Static,
+		status := archimedesClient.RegisterDeploymentInstance(deploymentId, instanceId, instanceDTO.Static,
 			instanceDTO.PortTranslation, instanceDTO.Local)
 		if status != http.StatusOK {
 			log.Debugf("got status %d while adding instance %s to archimedes", status, instanceId)
 			w.WriteHeader(status)
 			return
 		}
-		log.Debugf("warned archimedes that instance %s from service %s exists", instanceId, deploymentId)
+		log.Debugf("warned archimedes that instance %s from deployment %s exists", instanceId, deploymentId)
 	}
 }
 
-func registerHeartbeatServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
-	serviceId := utils.ExtractPathVar(r, deploymentIdPathVar)
+func registerHeartbeatDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
 
-	pairServiceStatus := &PairServiceIdStatus{
-		ServiceId: serviceId,
-		IsUp:      true,
-		Mutex:     &sync.Mutex{},
+	pairDeploymentStatus := &PairDeploymentIdStatus{
+		DeploymentId: deploymentId,
+		IsUp:         true,
+		Mutex:        &sync.Mutex{},
 	}
 
-	_, loaded := heartbeatsMap.LoadOrStore(instanceId, pairServiceStatus)
+	_, loaded := heartbeatsMap.LoadOrStore(instanceId, pairDeploymentStatus)
 	if loaded {
 		w.WriteHeader(http.StatusConflict)
 		return
@@ -72,11 +72,11 @@ func registerHeartbeatServiceInstanceHandler(w http.ResponseWriter, r *http.Requ
 	initChan := value.(typeInitChansMapValue)
 	close(initChan)
 
-	log.Debugf("registered service %s instance %s first heartbeat", serviceId, instanceId)
+	log.Debugf("registered deployment %s instance %s first heartbeat", deploymentId, instanceId)
 }
 
-func heartbeatServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("handling request in heartbeatService handler")
+func heartbeatDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("handling request in heartbeatDeployment handler")
 
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
@@ -90,10 +90,10 @@ func heartbeatServiceInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pairServiceStatus := value.(typeHeartbeatsMapValue)
-	pairServiceStatus.Mutex.Lock()
-	pairServiceStatus.IsUp = true
-	pairServiceStatus.Mutex.Unlock()
+	pairDeploymentStatus := value.(typeHeartbeatsMapValue)
+	pairDeploymentStatus.Mutex.Lock()
+	pairDeploymentStatus.IsUp = true
+	pairDeploymentStatus.Mutex.Unlock()
 
 	log.Debugf("got heartbeat from instance %s", instanceId)
 }
