@@ -215,9 +215,11 @@ func (cm *Manager) getActiveCellsForDeployment(deploymentId string) (*sync.Map, 
 	return value.(activeCellsByDeploymentValue), ok
 }
 
+// Get one of the 4 top cells for a given deployment
 func (cm *Manager) getTopCell(deploymentId string, deploymentCells cellsByDeploymentValue,
 	clientCellId s2.CellID) (topCellId s2.CellID, topCell *Cell) {
 
+	// search for the top cell that contains the client cell
 	deploymentCells.topCells.IterateCells(func(id s2.CellID, cell *Cell) bool {
 		if id.Contains(clientCellId) {
 			topCellId = id
@@ -228,18 +230,20 @@ func (cm *Manager) getTopCell(deploymentId string, deploymentCells cellsByDeploy
 	})
 
 	if topCell == nil {
+		// top cell didn't exist yet create it
 		cellId := clientCellId.Parent(minCellLevel)
 		cell := NewCell(0, map[s2.CellID]int{}, 0, false)
 
 		var loaded bool
 		topCell, loaded = deploymentCells.topCells.LoadOrStoreCell(cellId, cell)
 
+		// loadOrStore to sync map, so if it doens't load this thread is the one that created the cell
 		if !loaded {
-			activeCells, ok := cm.getActiveCellsForDeployment(deploymentId)
-			if !ok {
-				panic(fmt.Sprintf("should have active cells for deployment %s", deploymentId))
-			}
-			activeCells.Store(cellId, cell)
+			// add the cell to activeCells
+			var value activeCellsByDeploymentValue
+			value = &sync.Map{}
+			value.Store(cellId, cell)
+			cm.activeCells.Store(deploymentId, value)
 		}
 	}
 
