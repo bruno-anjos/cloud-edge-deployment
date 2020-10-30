@@ -15,10 +15,7 @@ import (
 
 const (
 	maximumLoad            = 300
-	equivalentLoadDiff     = 2.0
 	staleCyclesNumToRemove = 5
-
-	defaultGroupSize = 0.10
 
 	loadBalanceGoalId = "GOAL_LOAD_BALANCE"
 )
@@ -209,10 +206,6 @@ func (l *deploymentLoadBalanceGoal) GenerateAction(target string, args ...interf
 	}
 
 	return nil
-}
-
-func (l *deploymentLoadBalanceGoal) TestDryRun() bool {
-	return true
 }
 
 func (l *deploymentLoadBalanceGoal) GetDependencies() (metrics []string) {

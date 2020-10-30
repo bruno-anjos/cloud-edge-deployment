@@ -101,8 +101,8 @@ def generateDictsForServiceTree():
 def generateNodeMetrics(nodeId, loc, visibleNodes, children, nodesLocations, services, serviceLatencies,
                         processingTimes, clientLocations, lastNode):
     visibleNodesLocation = ",\n".join([
-                                          f""""{nodeId}": "{s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(nodesLocations[nodeId]["lat"], nodesLocations[nodeId]["lng"])).to_token()}" """
-                                          for nodeId in visibleNodes])
+        f""""{nodeId}": "{s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(nodesLocations[nodeId]["lat"], nodesLocations[nodeId]["lng"])).to_token()}" """
+        for nodeId in visibleNodes])
 
     other = []
     for s in services:
@@ -122,7 +122,7 @@ def generateNodeMetrics(nodeId, loc, visibleNodes, children, nodesLocations, ser
 
     m = f"""{{
         "METRIC_NODE_ADDR": "{nodeId}",
-        "METRIC_LOCATION": "{s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(loc["lat"], loc["lng"]))}",
+        "METRIC_LOCATION": "{s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(loc["lat"], loc["lng"])).to_token()}",
         "METRIC_LOCATION_VICINITY": {{
             {visibleNodesLocation}
         }},

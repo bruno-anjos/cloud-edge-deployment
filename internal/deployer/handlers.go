@@ -754,24 +754,6 @@ func getParentAlternatives(parentId string) (alternatives map[string]*utils.Node
 	return
 }
 
-func getDeploymentTerminalLocations(deploymentId string) []s2.CellID {
-	value, ok := deploymentLocations.Load(deploymentId)
-	if !ok {
-		log.Debugf("no terminal locations for deployment %s", deploymentId)
-		return nil
-	}
-
-	deploymentLocations := value.(typeDeploymentsLocationsValue)
-	var locations []s2.CellID
-	deploymentLocations.Range(func(key, value interface{}) bool {
-		childLocation := value.(typeTerminalLocationValue)
-		locations = append(locations, childLocation)
-		return true
-	})
-
-	return locations
-}
-
 func removeTerminalLocsForChild(deploymentId, childId string) {
 	value, ok := deploymentLocations.Load(deploymentId)
 	if !ok {

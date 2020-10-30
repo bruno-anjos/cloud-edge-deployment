@@ -154,10 +154,6 @@ func (nl *nodeLoadBalanceGoal) GetId() string {
 	return nodeLoadBalanceId
 }
 
-func (nl *nodeLoadBalanceGoal) TestDryRun() bool {
-	return true
-}
-
 func (nl *nodeLoadBalanceGoal) GetDependencies() (metrics []string) {
 	return nil
 }

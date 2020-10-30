@@ -6,14 +6,12 @@ import (
 	"os"
 	"sync"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/constraints"
 	log "github.com/sirupsen/logrus"
 )
 
 type Environment struct {
 	trackedMetrics *sync.Map
 	metrics        *sync.Map
-	constraints    []constraints.Constraint
 }
 
 const (
@@ -25,7 +23,6 @@ func NewEnvironment() *Environment {
 	env := &Environment{
 		trackedMetrics: &sync.Map{},
 		metrics:        &sync.Map{},
-		constraints:    []constraints.Constraint{},
 	}
 
 	env.loadSimFile()
@@ -78,10 +75,6 @@ func (e *Environment) DeleteMetric(metricId string) {
 	e.metrics.Delete(metricId)
 }
 
-func (e *Environment) AddConstraint(constraint constraints.Constraint) {
-	e.constraints = append(e.constraints, constraint)
-}
-
 func (e *Environment) Copy() (copy *Environment) {
 	newMap := &sync.Map{}
 	copy = &Environment{metrics: newMap}
@@ -90,24 +83,6 @@ func (e *Environment) Copy() (copy *Environment) {
 		newMap.Store(key, value)
 		return true
 	})
-
-	return
-}
-
-func (e *Environment) CheckConstraints() (invalidConstraints []constraints.Constraint) {
-	for _, constraint := range e.constraints {
-		metricId := constraint.MetricId()
-		value, ok := e.GetMetric(metricId)
-		if !ok {
-			log.Debugf("metric %s is empty", metricId)
-			continue
-		}
-
-		valid := constraint.Validate(value)
-		if !valid {
-			invalidConstraints = append(invalidConstraints, constraint)
-		}
-	}
 
 	return
 }

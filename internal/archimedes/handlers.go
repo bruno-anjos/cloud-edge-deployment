@@ -296,7 +296,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deplClient := deployer.NewDeployerClient(publicUtils.DeployerDeploymentName + ":" + strconv.Itoa(deployer.Port))
+	deplClient := deployer.NewDeployerClient(publicUtils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
 	redirectTo, status := deplClient.RedirectDownTheTree(reqBody.DeploymentId, reqBody.Location)
 	switch status {
 	case http.StatusNoContent:

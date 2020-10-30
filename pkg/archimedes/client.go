@@ -201,7 +201,7 @@ func (c *Client) GetLoad(deploymentId string) (load int, status int) {
 	return
 }
 
-func (c *Client) GetAvgClientLocation(deploymentId string) (loc s2.CellID, status int) {
+func (c *Client) GetClientCentroids(deploymentId string) (centroids []s2.CellID, status int) {
 	path := api.GetAvgClientLocationPath(deploymentId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
@@ -209,7 +209,7 @@ func (c *Client) GetAvgClientLocation(deploymentId string) (loc s2.CellID, statu
 	status, resp = utils.DoRequest(c.Client, req, nil)
 
 	if status == http.StatusOK {
-		err := json.NewDecoder(resp.Body).Decode(&loc)
+		err := json.NewDecoder(resp.Body).Decode(&centroids)
 		if err != nil {
 			panic(err)
 		}

@@ -34,7 +34,6 @@ const (
 	GetFallbackIdPath          = "/deployments/fallback"
 	HasDeploymentPath          = "/deployments/%s/has"
 	PropagateLocationToHorizon = "/deployments/%s/propagate_location"
-	SetExploringPath           = "/deployments/%s/exploring/%s"
 
 	DeploymentInstanceAlivePath = "/deployments/%s/%s/alive"
 	DeploymentInstancePath      = "/deployments/%s/%s"
@@ -126,10 +125,6 @@ func GetHasDeploymentPath(deploymentId string) string {
 
 func GetPropagateLocationToHorizonPath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(PropagateLocationToHorizon, deploymentId)
-}
-
-func GetSetExploringPath(deploymentId, childId string) string {
-	return PrefixPath + fmt.Sprintf(SetExploringPath, deploymentId, childId)
 }
 
 func GetIAmYourChildPath(deploymentId string) string {

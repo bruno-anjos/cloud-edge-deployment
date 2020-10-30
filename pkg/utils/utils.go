@@ -1,8 +1,8 @@
 package utils
 
 const (
-	ArchimedesServiceName  = "archimedes"
-	DeployerDeploymentName = "deployer"
-	SchedulerServiceName   = "scheduler"
-	AutonomicServiceName   = "autonomic"
+	ArchimedesServiceName = "archimedes"
+	DeployerServiceName   = "deployer"
+	SchedulerServiceName  = "scheduler"
+	AutonomicServiceName  = "autonomic"
 )

@@ -33,7 +33,6 @@ const (
 	getFallbackIdName              = "GET_FALLBACK"
 	hasDeploymentName              = "HAS_DEPLOYMENT"
 	propagateLocationToHorizonName = "PROPAGATE_LOCATION_TO_HORIZON"
-	exploringName                  = "EXPLORING"
 	iAmYourChildName               = "I_AM_YOUR_CHILD"
 
 	// scheduler
