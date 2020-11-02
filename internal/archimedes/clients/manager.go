@@ -7,6 +7,7 @@ import (
 	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/cell"
 	"github.com/golang/geo/s2"
+	log "github.com/sirupsen/logrus"
 )
 
 type (
@@ -45,7 +46,9 @@ func NewManager() *Manager {
 }
 
 func (r *Manager) UpdateNumRequests(deploymentId string, location s2.CellID) {
+	log.Debug("will lock numreqsLock")
 	r.numReqsLock.Lock()
+	log.Debug("locked")
 	defer r.numReqsLock.Unlock()
 
 	entry, ok := r.numReqsLastMinute[deploymentId]
@@ -63,6 +66,8 @@ func (r *Manager) UpdateNumRequests(deploymentId string, location s2.CellID) {
 	}
 
 	r.cellManager.AddClientToDownmostCell(deploymentId, location)
+
+	log.Debug("unlocked numreqslock")
 }
 
 func (r *Manager) addNewEntry(deploymentId string, locId s2.CellID) {

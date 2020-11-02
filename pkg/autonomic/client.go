@@ -92,9 +92,9 @@ func (c *Client) IsNodeInVicinity(nodeId string) (isInVicinity bool) {
 	return
 }
 
-func (c *Client) GetClosestNode(location s2.CellID, toExclude map[string]interface{}) (closest string) {
+func (c *Client) GetClosestNode(locations []s2.CellID, toExclude map[string]interface{}) (closest string) {
 	reqBody := api.ClosestNodeRequestBody{
-		Location:  location,
+		Locations: locations,
 		ToExclude: toExclude,
 	}
 	path := api.GetClosestNodePath()

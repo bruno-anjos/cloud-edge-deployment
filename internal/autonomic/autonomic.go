@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/pkg/errors"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"
@@ -143,7 +144,7 @@ func (a *system) isNodeInVicinity(nodeId string) bool {
 	return ok
 }
 
-func (a *system) closestNodeTo(location s2.CellID, toExclude map[string]interface{}) (nodeId string) {
+func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]interface{}) (nodeId string) {
 	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		return ""
@@ -159,7 +160,11 @@ func (a *system) closestNodeTo(location s2.CellID, toExclude map[string]interfac
 		ordered = append(ordered, node)
 	}
 
-	locationCell := s2.CellFromCellID(location)
+	var locationCells []s2.Cell
+	for _, location := range locations {
+		locationCells = append(locationCells, s2.CellFromCellID(location))
+	}
+
 	sort.Slice(ordered, func(i, j int) bool {
 		iId := s2.CellIDFromToken(vicinity[ordered[i]].(string))
 		jId := s2.CellIDFromToken(vicinity[ordered[j]].(string))
@@ -167,7 +172,14 @@ func (a *system) closestNodeTo(location s2.CellID, toExclude map[string]interfac
 		iCell := s2.CellFromCellID(iId)
 		jCell := s2.CellFromCellID(jId)
 
-		return iCell.DistanceToCell(locationCell) < jCell.DistanceToCell(locationCell)
+		iDistSum := 0.
+		jDistSum := 0.
+		for _, locationCell := range locationCells {
+			iDistSum += utils.ChordAngleToKM(iCell.DistanceToCell(locationCell))
+			jDistSum += utils.ChordAngleToKM(jCell.DistanceToCell(locationCell))
+		}
+
+		return iDistSum < jDistSum
 	})
 
 	if len(ordered) < 1 {
@@ -234,6 +246,8 @@ func (a *system) performAction(action actions.Action) {
 		}
 		assertedAction.Execute(a.deployerClient)
 	case *actions.MigrateAction:
+		assertedAction.Execute(a.deployerClient)
+	case *actions.MultipleExtendDeploymentAction:
 		assertedAction.Execute(a.deployerClient)
 	default:
 		log.Errorf("could not execute action of type %s", action.GetActionId())

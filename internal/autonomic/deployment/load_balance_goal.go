@@ -188,21 +188,22 @@ func (l *deploymentLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria
 	return
 }
 
-func (l *deploymentLoadBalanceGoal) GenerateAction(target string, args ...interface{}) actions.Action {
+func (l *deploymentLoadBalanceGoal) GenerateAction(targets []string, args ...interface{}) actions.Action {
 	log.Debugf("generating action %s", (args[lbActionTypeArgIndex]).(string))
 
 	switch args[lbActionTypeArgIndex].(string) {
 	case actions.ExtendDeploymentId:
-		autoClient := autonomic.NewAutonomicClient(target + ":" + strconv.Itoa(autonomic.Port))
+		autoClient := autonomic.NewAutonomicClient(targets[0] + ":" + strconv.Itoa(autonomic.Port))
 		location, status := autoClient.GetLocation()
 		if status != http.StatusOK {
-			log.Errorf("got status %d while getting %s location", status, target)
+			log.Errorf("got status %d while getting %s location", status, targets[0])
 			return nil
 		}
-		return actions.NewExtendDeploymentAction(l.deployment.DeploymentId, target, false, myself,
+		return actions.NewExtendDeploymentAction(l.deployment.DeploymentId, targets[0], false, myself,
 			nil, location)
 	case actions.RedirectClientsId:
-		return actions.NewRedirectAction(l.deployment.DeploymentId, args[lbFromIndex].(string), target, args[lbAmountIndex].(int))
+		return actions.NewRedirectAction(l.deployment.DeploymentId, args[lbFromIndex].(string), targets[0],
+			args[lbAmountIndex].(int))
 	}
 
 	return nil

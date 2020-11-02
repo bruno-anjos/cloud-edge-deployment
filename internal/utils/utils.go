@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"math"
 	"math/rand"
 
 	"github.com/golang/geo/s1"
@@ -18,9 +17,9 @@ func RandomString(n int) string {
 }
 
 const (
-	earthDiameter = 6_378 * 2
+	earthRadius = 6_378
 )
 
 func ChordAngleToKM(angle s1.ChordAngle) float64 {
-	return math.Sqrt(float64(angle)) * earthDiameter
+	return angle.Angle().Radians() * earthRadius
 }

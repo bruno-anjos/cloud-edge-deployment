@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	ExtendDeploymentId  = "ACTION_EXTEND_DEPLOYMENT"
-	RemoveDeploymentId  = "ACTION_REMOVE_DEPLOYMENT"
-	MigrateDeploymentId = "ACTION_MIGRATE_DEPLOYMENT"
+	ExtendDeploymentId         = "ACTION_EXTEND_DEPLOYMENT"
+	RemoveDeploymentId         = "ACTION_REMOVE_DEPLOYMENT"
+	MigrateDeploymentId        = "ACTION_MIGRATE_DEPLOYMENT"
+	MultipleExtendDeploymentId = "ACTION_MULTIPLE_EXTEND_DEPLOYMENT"
 )
 
 type RemoveDeploymentAction struct {
@@ -76,12 +77,55 @@ func (m *ExtendDeploymentAction) Execute(client utils.Client) {
 		archClient.SetExploringCells(m.GetDeploymentId(), m.GetLocation())
 	}
 
-	status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), m.GetTarget(), m.GetParent(), m.GetLocation(),
-		m.GetChildren(), m.IsExploring())
+	status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), m.GetTarget(), m.GetParent(),
+		[]s2.CellID{m.GetLocation()}, m.GetChildren(), m.IsExploring())
 	if status != http.StatusOK {
 		log.Errorf("got status code %d while extending deployment", status)
 		return
 	}
+}
+
+type MultipleExtendDeploymentAction struct {
+	*actionWithDeploymentTargets
+}
+
+func NewMultipleExtendDeploymentAction(deploymentId string, targets []string, parent *utils.Node,
+	locations map[string][]s2.CellID) *MultipleExtendDeploymentAction {
+	return &MultipleExtendDeploymentAction{
+		actionWithDeploymentTargets: newActionWithDeploymentTargets(MultipleExtendDeploymentId, deploymentId,
+			targets, parent, locations),
+	}
+}
+
+func (m *MultipleExtendDeploymentAction) GetParent() *utils.Node {
+	return m.Args[2].(*utils.Node)
+}
+
+func (m *MultipleExtendDeploymentAction) GetLocations() map[string][]s2.CellID {
+	return m.Args[3].(map[string][]s2.CellID)
+}
+
+func (m *MultipleExtendDeploymentAction) Execute(client utils.Client) {
+	log.Debugf("executing %s to %+v", m.ActionId, m.GetTargets())
+	deployerClient := client.(*deployer.Client)
+	locations := m.GetLocations()
+
+	for _, target := range m.GetTargets() {
+		targetClient := deployer.NewDeployerClient(target + ":" + strconv.Itoa(deployer.Port))
+		has, _ := targetClient.HasDeployment(m.GetDeploymentId())
+		if has {
+			log.Debugf("%s already has deployment %s", target, m.GetDeploymentId())
+			continue
+		}
+
+		status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), target, m.GetParent(), locations[target],
+			nil, false)
+		if status != http.StatusOK {
+			log.Errorf("got status code %d while extending deployment", status)
+			return
+		}
+	}
+
 }
 
 type MigrateAction struct {

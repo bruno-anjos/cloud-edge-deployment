@@ -3,20 +3,10 @@
         {
             "request_timeout": 10,
             "max_requests": 1000,
-            "number_of_clients": 200,
+            "number_of_clients": 100,
             "location": {
-                "X": 9444,
-                "Y": 5045
-            },
-            "port": 8001
-        },
-        {
-            "request_timeout": 10,
-            "max_requests": 1000,
-            "number_of_clients": 400,
-            "location": {
-                "X": 9444,
-                "Y": 5045
+                "lat": -45,
+                "lng": 91
             },
             "port": 8001
         }

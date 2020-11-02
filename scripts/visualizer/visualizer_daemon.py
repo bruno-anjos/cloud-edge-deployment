@@ -51,10 +51,10 @@ with open(f"{os.path.dirname(os.path.realpath(__file__))}/neighborhoods.json", '
     neighborhoods = json.load(neighsFp)
 
 
-def check_resp_and_get_json(resp):
+def check_resp_and_get_json(resp, url):
     status = resp.status_code
     if status != 200:
-        print("ERROR: got status %d" % status)
+        print("ERROR: got status %d for url %s" % (status, url))
         exit(1)
     table_resp = resp.json()
     return table_resp
@@ -74,7 +74,7 @@ def get_services_table(node_arg, number):
     print(f"requesting services table on {url}")
 
     try:
-        table_resp = check_resp_and_get_json(requests.get(url))
+        table_resp = check_resp_and_get_json(requests.get(url), url)
         return table_resp
     except requests.ConnectionError:
         return {}
@@ -94,7 +94,7 @@ def get_hierarchy_table(node_arg, number):
     print(f"requesting hierarchy table on {url}")
 
     try:
-        table_resp = check_resp_and_get_json(requests.get(url))
+        table_resp = check_resp_and_get_json(requests.get(url), url)
         return table_resp
     except requests.ConnectionError:
         return {"dead": True}
@@ -119,7 +119,7 @@ def get_all_services_tables():
 
 def get_load(deploymentId, node_arg, number):
     autonomicURLf = "http://%s:50000/archimedes"
-    loadPath = "/services/%s/load"
+    loadPath = "/deployments/%s/load"
 
     if dummy:
         nodeNum = number % 255
@@ -129,7 +129,7 @@ def get_load(deploymentId, node_arg, number):
         url = (autonomicURLf % node_arg) + (loadPath % deploymentId)
 
     try:
-        table_resp = check_resp_and_get_json(requests.get(url))
+        table_resp = check_resp_and_get_json(requests.get(url), url)
         return table_resp
     except requests.ConnectionError:
         return 0.
@@ -265,7 +265,7 @@ def graph_deployer():
                 add_if_missing(g, tables[parentId], parentId)
                 g.add_edge(node, parentId, relation=attr_parent,
                            deploymentId=deploymentId)
-            if entry[grandparent_field_id] is not None :
+            if entry[grandparent_field_id] is not None:
                 grandparent = entry[grandparent_field_id]
                 grandparentId = grandparent[node_id_field_id]
                 if grandparentId != "":
@@ -292,11 +292,11 @@ def graph_deployer():
         g.vs["label"] = [name + f"\n(orphan): " + ",".join(orphan_dict[name])
                          if name in orphan_dict
                          else name + f"\n{', '.join(loads[name])}" if name in loads else name for name in g.vs["name"]]
-        visual_style["vertex_size"] = 30
+        visual_style["vertex_size"] = 10
         visual_style["vertex_color"] = [color for color in g.vs["color"]]
         visual_style["vertex_label"] = g.vs["label"]
-        visual_style["vertex_label_dist"] = 3
-        visual_style["vertex_label_size"] = 16
+        visual_style["vertex_label_dist"] = 2
+        visual_style["vertex_label_size"] = 10
         visual_style["vertex_shape"] = ["triangle-up" if service else "circle" for service in
                                         g.vs["service"]]
         if len(g.es) > 0:
@@ -310,7 +310,7 @@ def graph_deployer():
             loc = get_location(node, locations)
             layout.append((loc["lng"], loc["lat"]))
 
-        visual_style["bbox"] = (180, 360)
+        visual_style["bbox"] = (4000, 4000)
         visual_style["margin"] = 200
         visual_style["layout"] = layout
         igraph.plot(g, f"/home/b.anjos/deployer_pngs/deployer_plot_{deploymentId}.png", **visual_style, autocurve=True)
@@ -319,11 +319,11 @@ def graph_deployer():
         visual_style = {}
         combinedGraph.vs["label"] = [name + f"\n{', '.join(loads[name])}" if name in loads else name for name in
                                      combinedGraph.vs["name"]]
-        visual_style["vertex_size"] = 30
+        visual_style["vertex_size"] = 10
         visual_style["vertex_color"] = [color for color in combinedGraph.vs["color"]]
         visual_style["vertex_label"] = combinedGraph.vs["label"]
-        visual_style["vertex_label_dist"] = 3
-        visual_style["vertex_label_size"] = 16
+        visual_style["vertex_label_dist"] = 2
+        visual_style["vertex_label_size"] = 10
         visual_style["vertex_shape"] = ["triangle-up" if service else "circle" for service in
                                         combinedGraph.vs["service"]]
         if len(combinedGraph.es) > 0:
@@ -354,9 +354,9 @@ def graph_deployer():
 
 def get_location(name, locations):
     if name in locations["services"]:
-        return locations["services"][name]
+        return transformLocToRange(locations["services"][name])
     elif name in locations["nodes"]:
-        return locations["nodes"][name]
+        return transformLocToRange(locations["nodes"][name])
     else:
         print(f"{name} has no location in {locations}")
 
@@ -405,6 +405,11 @@ def graph_archimedes():
     latex_file.write("\n\\end{document}")
     latex_file.close()
     print("wrote archimedes latex file")
+
+
+def transformLocToRange(loc):
+    newLoc = {"lat": (((loc["lat"] + 90) * 4000) / 180), "lng": (((loc["lng"] + 180) * 4000) / 360)}
+    return newLoc
 
 
 while True:

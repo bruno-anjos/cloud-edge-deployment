@@ -43,7 +43,7 @@ func (b *basicStrategy) Optimize() actions.Action {
 		return nil
 	}
 
-	return goalToChooseActionFrom.GenerateAction(nextDomain[0], goalActionArgs)
+	return goalToChooseActionFrom.GenerateAction(nextDomain, goalActionArgs)
 }
 
 func (b *basicStrategy) GetDependencies() (metricIds []string) {

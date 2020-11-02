@@ -59,13 +59,13 @@ func (c *Client) RegisterDeployment(deploymentId string, static bool,
 	return
 }
 
-func (c *Client) ExtendDeploymentTo(deploymentId, targetId string, parent *utils.Node, location s2.CellID,
+func (c *Client) ExtendDeploymentTo(deploymentId, targetId string, parent *utils.Node, locations []s2.CellID,
 	children []*utils.Node, exploring bool) (status int) {
 	reqBody := api.ExtendDeploymentRequestBody{
 		Parent:    parent,
 		Children:  children,
 		Exploring: exploring,
-		Location: location,
+		Locations: locations,
 	}
 
 	path := api.GetExtendDeploymentPath(deploymentId, targetId)
@@ -128,11 +128,11 @@ func (c *Client) SendHearbeatDeploymentInstance(deploymentId, instanceId string)
 }
 
 func (c *Client) WarnOfDeadChild(deploymentId, deadChildId string, grandChild *utils.Node,
-	alternatives map[string]*utils.Node, location s2.CellID) (status int) {
+	alternatives map[string]*utils.Node, locations []s2.CellID) (status int) {
 	var reqBody api.DeadChildRequestBody
 	reqBody.Grandchild = grandChild
 	reqBody.Alternatives = alternatives
-	reqBody.Location = location
+	reqBody.Locations = locations
 
 	path := api.GetDeadChildPath(deploymentId, deadChildId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)

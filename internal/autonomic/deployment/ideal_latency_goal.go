@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -10,7 +11,6 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
-	"github.com/golang/geo/s1"
 	"github.com/golang/geo/s2"
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
@@ -32,9 +32,7 @@ const (
 
 const (
 	ilActionTypeArgIndex = iota
-	ilFromIndex
-	ilExploreNodesIndex
-	ilExploreLocationIndex
+	ilCentroidDistancesToNodesIndex
 	ilArgsNum
 )
 
@@ -48,11 +46,6 @@ type (
 	}
 
 	sortingCriteriaType = map[s2.CellID]*nodeWithDistance
-
-	generateDomainArg struct {
-		CentroidCells map[s2.CellID]s2.Cell
-		MyDists       map[s2.CellID]s1.ChordAngle
-	}
 )
 
 type idealLatency struct {
@@ -80,7 +73,7 @@ func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
 	goal := &idealLatency{
 		deployment:   deployment,
 		dependencies: dependencies,
-		myLocation:   value.(s2.CellID),
+		myLocation:   s2.CellIDFromToken(value.(string)),
 	}
 
 	return goal
@@ -120,12 +113,10 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 	for _, node := range filtered {
 		var (
 			minPercentage = -1.
-			minCellId     s2.CellID
 		)
-		for cellId, criteria := range sortingCriteria[node].(sortingCriteriaType) {
+		for _, criteria := range sortingCriteria[node].(sortingCriteriaType) {
 			if criteria.DistancePercentage < minPercentage || minPercentage == -1 {
 				minPercentage = criteria.DistancePercentage
-				minCellId = cellId
 			}
 		}
 
@@ -153,16 +144,29 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 	if !isAlreadyMax {
 		optRange, isAlreadyMax = i.filterBlacklisted(optRange)
 		if !isAlreadyMax {
-			actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
-			actionArgs[ilActionTypeArgIndex] = actions.ExtendDeploymentId
-			exploreNodes := map[string]interface{}{}
-			for _, nodeId := range optRange {
-				if sortingCriteria[nodeId].(sortingCriteriaType).DistancePercentage > 1. {
-					exploreNodes[nodeId] = nil
+			centroidsToNodes := map[s2.CellID][]string{}
+
+			for _, node := range ordered {
+				for _, cellId := range centroids {
+					centroidsToNodes[cellId] = append(centroidsToNodes[cellId], node)
 				}
 			}
-			actionArgs[ilExploreNodesIndex] = exploreNodes
-			actionArgs[ilExploreLocationIndex] = avgClientLocation
+
+			for _, cellId := range centroids {
+				sort.Slice(centroidsToNodes[cellId], func(i, j int) bool {
+					nodeI := centroidsToNodes[cellId][i]
+					nodeJ := centroidsToNodes[cellId][j]
+
+					distIToCell := sortingCriteria[nodeI].(sortingCriteriaType)[cellId].DistancePercentage
+					distJToCell := sortingCriteria[nodeJ].(sortingCriteriaType)[cellId].DistancePercentage
+
+					return distIToCell < distJToCell
+				})
+			}
+
+			actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
+			actionArgs[ilActionTypeArgIndex] = actions.MultipleExtendDeploymentId
+			actionArgs[ilCentroidDistancesToNodesIndex] = centroidsToNodes
 		}
 	}
 
@@ -181,12 +185,13 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 	centroids := arg.([]s2.CellID)
 
 	var (
-		myDists       = map[s2.CellID]s1.ChordAngle{}
+		myDists       = map[s2.CellID]float64{}
 		centroidCells = map[s2.CellID]s2.Cell{}
 	)
 	for _, centroid := range centroids {
 		centroidCell := s2.CellFromCellID(centroid)
-		myDists[centroid] = centroidCell.DistanceToCell(s2.CellFromCellID(i.myLocation))
+		myDists[centroid] = utils.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(centroidCell))
+		log.Debugf("mydist from %s to %s, %f", i.myLocation.ToToken(), centroid.ToToken(), myDists[centroid])
 		centroidCells[centroid] = centroidCell
 	}
 
@@ -214,7 +219,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 			nodeCentroidsMap sortingCriteriaType
 		)
 		for _, centroidId := range centroids {
-			delta := s2.CellFromCellID(location).DistanceToCell(centroidCells[centroidId])
+			delta := utils.ChordAngleToKM(s2.CellFromCellID(location).DistanceToCell(centroidCells[centroidId]))
 
 			if nodeId == i.deployment.ParentId {
 				nodeCentroidsMap = info[hiddenParentId].(sortingCriteriaType)
@@ -223,8 +228,9 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 			}
 			nodeCentroidsMap[centroidId] = &nodeWithDistance{
 				NodeId:             nodeId,
-				DistancePercentage: float64(delta) / float64(myDists[centroidId]),
+				DistancePercentage: delta / myDists[centroidId],
 			}
+			log.Debugf("distance from %s(%s) to %s, %f", nodeId, location.ToToken(), centroidId.ToToken(), delta)
 		}
 	}
 
@@ -270,17 +276,47 @@ func (i *idealLatency) Cutoff(candidates Domain, candidatesCriteria map[string]i
 	return
 }
 
-func (i *idealLatency) GenerateAction(target string, args ...interface{}) actions.Action {
+func (i *idealLatency) GenerateAction(targets []string, args ...interface{}) actions.Action {
 	log.Debugf("generating action %s", (args[ilActionTypeArgIndex]).(string))
 
 	switch args[ilActionTypeArgIndex].(string) {
-	case actions.ExtendDeploymentId:
-		_, exploring := args[ilExploreNodesIndex].(map[string]interface{})[target]
-		return actions.NewExtendDeploymentAction(i.deployment.DeploymentId, target, exploring, myself, nil,
-			args[ilExploreLocationIndex].(s2.CellID))
-	case actions.MigrateDeploymentId:
-		from := args[ilFromIndex].(string)
-		return actions.NewMigrateAction(i.deployment.DeploymentId, from, target)
+	case actions.MultipleExtendDeploymentId:
+		centroidsToNodes := args[ilCentroidDistancesToNodesIndex].(map[s2.CellID][]string)
+		nodeCells := map[string][]s2.CellID{}
+		var nodesToExtendTo []string
+
+		for cellId, nodesOrdered := range centroidsToNodes {
+			var selectedNode string
+			for _, node := range nodesOrdered {
+				for _, target := range targets {
+					if target == node {
+						selectedNode = target
+						break
+					}
+				}
+
+				if selectedNode != "" {
+					break
+				}
+			}
+
+			if selectedNode == "" {
+				panic(fmt.Sprintf("could not find a suitable node for cell %d, had %+v %+v", cellId,
+					nodesOrdered, targets))
+			}
+
+			cells, ok := nodeCells[selectedNode]
+			if !ok {
+				cells = []s2.CellID{cellId}
+				nodeCells[selectedNode] = cells
+				nodesToExtendTo = append(nodesToExtendTo, selectedNode)
+			} else {
+				nodeCells[selectedNode] = append(nodeCells[selectedNode], cellId)
+			}
+		}
+
+		return actions.NewMultipleExtendDeploymentAction(i.deployment.DeploymentId, nodesToExtendTo, myself,
+			nodeCells)
 	}
 
 	return nil
@@ -291,13 +327,13 @@ func (i *idealLatency) GetDependencies() (metrics []string) {
 }
 
 func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthestChild string,
-	furthestChildDistance s1.ChordAngle) {
+	furthestChildDistance float64) {
 	furthestChildDistance = -1.0
 
 	i.deployment.Children.Range(func(key, value interface{}) bool {
 		childId := key.(deploymentChildrenMapKey)
 		child := value.(deploymentChildrenMapValue)
-		delta := s2.CellFromCellID(child.Location).DistanceToCell(s2.CellFromCellID(avgLocation))
+		delta := utils.ChordAngleToKM(s2.CellFromCellID(child.Location).DistanceToCell(s2.CellFromCellID(avgLocation)))
 
 		if delta > furthestChildDistance {
 			furthestChildDistance = delta
@@ -326,7 +362,8 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthes
 			panic(err)
 		}
 
-		furthestChildDistance = s2.CellFromCellID(location).DistanceToCell(s2.CellFromCellID(avgLocation))
+		furthestChildDistance = utils.ChordAngleToKM(s2.CellFromCellID(location).
+			DistanceToCell(s2.CellFromCellID(avgLocation)))
 	}
 
 	return
@@ -363,40 +400,40 @@ func (i *idealLatency) checkProcessingTime() bool {
 	return false
 }
 
-func (i *idealLatency) checkShouldBranch(centroids []) bool {
-	numChildren := 0
-	i.deployment.Children.Range(func(key, value interface{}) bool {
-		numChildren++
-		return true
-	})
-
-	value, ok := i.deployment.Environment.GetMetric(metrics.MetricLocation)
-	if !ok {
-		log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
-	}
-
-	var location s2.CellID
-	err := mapstructure.Decode(value, &location)
-	if err != nil {
-		panic(err)
-	}
-
-	currDistance := utils.ChordAngleToKM(s2.CellFromCellID(location).
-		DistanceToCell(s2.CellFromCellID(avgClientLocation)))
-	if currDistance <= satisfiedDistance {
-		return false
-	}
-
-	distanceFactor := maxDistance / (maxDistance - (currDistance - satisfiedDistance))
-	childrenFactor := (((maxChildren + 1.) / (float64(numChildren) + 1.)) - 1.) / maxChildren
-	branchingFactor := childrenFactor * distanceFactor
-	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
-
-	validBranch := branchingFactor > branchingCutoff
-	log.Debugf("should branch: %t", validBranch)
-
-	return validBranch
-}
+// func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
+// 	numChildren := 0
+// 	i.deployment.Children.Range(func(key, value interface{}) bool {
+// 		numChildren++
+// 		return true
+// 	})
+//
+// 	value, ok := i.deployment.Environment.GetMetric(metrics.MetricLocation)
+// 	if !ok {
+// 		log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
+// 	}
+//
+// 	var location s2.CellID
+// 	err := mapstructure.Decode(value, &location)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+//
+// 	currDistance := utils.ChordAngleToKM(s2.CellFromCellID(location).
+// 		DistanceToCell(s2.CellFromCellID(avgClientLocation)))
+// 	if currDistance <= satisfiedDistance {
+// 		return false
+// 	}
+//
+// 	distanceFactor := maxDistance / (maxDistance - (currDistance - satisfiedDistance))
+// 	childrenFactor := (((maxChildren + 1.) / (float64(numChildren) + 1.)) - 1.) / maxChildren
+// 	branchingFactor := childrenFactor * distanceFactor
+// 	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
+//
+// 	validBranch := branchingFactor > branchingCutoff
+// 	log.Debugf("should branch: %t", validBranch)
+//
+// 	return validBranch
+// }
 
 func (i *idealLatency) filterBlacklisted(o Range) (Range, bool) {
 	var newRange []string

@@ -6,6 +6,7 @@ import (
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -36,8 +37,8 @@ func deadChildHandler(_ http.ResponseWriter, r *http.Request) {
 		hTable.removeChild(deploymentId, deadChildId)
 	}
 
-	go attemptToExtend(deploymentId, "", body.Location, []*utils.Node{body.Grandchild}, myself, 0, body.Alternatives,
-	false)
+	go attemptToExtend(deploymentId, "", body.Locations, []*utils.Node{body.Grandchild}, myself, 0, body.Alternatives,
+		false)
 }
 
 func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
@@ -52,7 +53,8 @@ func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
 	log.Debugf("node %s is falling back from %f with deployment %s", reqBody.OrphanId, reqBody.OrphanLocation,
 		deploymentId)
 
-	go attemptToExtend(deploymentId, reqBody.OrphanId, reqBody.OrphanLocation, nil, myself, maxHopsToLookFor, nil,
+	go attemptToExtend(deploymentId, reqBody.OrphanId, []s2.CellID{reqBody.OrphanLocation}, nil, myself,
+	maxHopsToLookFor, nil,
 		false)
 }
 

@@ -17,7 +17,7 @@ type (
 	DeadChildRequestBody          = struct {
 		Grandchild   *utils.Node
 		Alternatives map[string]*utils.Node
-		Location     s2.CellID
+		Locations    []s2.CellID
 	}
 	IAmYourParentRequestBody = []*utils.Node
 	IAmYourChildRequestBody  = struct {
@@ -40,7 +40,7 @@ type (
 		Parent    *utils.Node
 		Children  []*utils.Node
 		Exploring bool
-		Location  s2.CellID
+		Locations []s2.CellID
 	}
 	PropagateLocationToHorizonRequestBody = struct {
 		TTL      int8

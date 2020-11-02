@@ -449,8 +449,13 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 
 		newParentChan := hTable.setDeploymentAsOrphan(deploymentId)
 
+		locations, status := archimedesClient.GetClientCentroids(deploymentId)
+		if status != http.StatusOK {
+			log.Errorf("got status %d while trying to get centroids for deployment %s", status, deploymentId)
+		}
+
 		deplClient := deployer.NewDeployerClient(grandparent.Addr + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.WarnOfDeadChild(deploymentId, deadParent.Id, myself, alternatives, location.ID())
+		status = deplClient.WarnOfDeadChild(deploymentId, deadParent.Id, myself, alternatives, locations)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while renegotiating parent %s with %s for deployment %s", status,
 				deadParent, grandparent.Id, deploymentId)
@@ -482,7 +487,7 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 	}
 }
 
-func attemptToExtend(deploymentId, target string, targetLocation s2.CellID, children []*utils.Node,
+func attemptToExtend(deploymentId, target string, targetLocations []s2.CellID, children []*utils.Node,
 	parent *utils.Node, maxHops int, alternatives map[string]*utils.Node, isExploring bool) {
 	var extendTimer *time.Timer
 
@@ -507,7 +512,7 @@ func attemptToExtend(deploymentId, target string, targetLocation s2.CellID, chil
 	for !success {
 		hasTarget := target != ""
 		if !hasTarget {
-			target = getAlternative(alternatives, targetLocation, maxHops, toExclude)
+			target = getAlternative(alternatives, targetLocations, maxHops, toExclude)
 			hasTarget = target != ""
 		}
 
@@ -576,7 +581,7 @@ func loadFallbackHostname(filename string) string {
 	return string(fileBytes)
 }
 
-func getAlternative(alternatives map[string]*utils.Node, targetLocation s2.CellID, maxHops int,
+func getAlternative(alternatives map[string]*utils.Node, targetLocations []s2.CellID, maxHops int,
 	toExclude map[string]interface{}) (result string) {
 	if len(alternatives) > 0 {
 		for alternative := range alternatives {
@@ -588,7 +593,7 @@ func getAlternative(alternatives map[string]*utils.Node, targetLocation s2.CellI
 	}
 
 	var found bool
-	result, found = getNodeCloserTo(targetLocation, maxHops, toExclude)
+	result, found = getNodeCloserTo(targetLocations, maxHops, toExclude)
 	if found {
 		log.Debugf("trying %s", result)
 	}

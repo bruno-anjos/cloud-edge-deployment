@@ -173,11 +173,11 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 	}
 	nodeLocations.Store(reqBody.ChildId, reqBody.Location)
 
-	if reqBody.TTL+1 > maxHopslocationHorizon {
+	parent := hTable.getParent(deploymentId)
+	if reqBody.TTL+1 > maxHopslocationHorizon || parent == nil {
 		return
 	}
 
-	parent := hTable.getParent(deploymentId)
 	deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
 	log.Debugf("propagating %s location for deployments %+v to %s", reqBody.ChildId, deploymentId, parent.Id)
 	deplClient.PropagateLocationToHorizon(deploymentId, reqBody.ChildId, reqBody.Location, reqBody.TTL+1)
@@ -245,7 +245,8 @@ func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	go attemptToExtend(deploymentId, targetAddr, reqBody.Location, reqBody.Children, reqBody.Parent, 0, nil, reqBody.Exploring)
+	go attemptToExtend(deploymentId, targetAddr, reqBody.Locations, reqBody.Children, reqBody.Parent, 0, nil,
+		reqBody.Exploring)
 }
 
 func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
@@ -493,7 +494,7 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		bestDiff      = location.DistanceToCell(s2.CellFromCellID(clientLocation))
+		bestDiff      = utils.ChordAngleToKM(location.DistanceToCell(s2.CellFromCellID(clientLocation)))
 		bestNode      = myself.Id
 		autoClient    *autonomic.Client
 		auxLocationId s2.CellID
@@ -519,7 +520,7 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		auxLocation := s2.CellFromCellID(auxLocationId)
-		currDiff := auxLocation.DistanceToCell(s2.CellFromCellID(clientLocation))
+		currDiff := utils.ChordAngleToKM(auxLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
 		if currDiff < bestDiff {
 			bestDiff = currDiff
 			bestNode = id
@@ -535,7 +536,7 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 			nodeId := key.(typeTerminalLocationKey)
 			nodeLocId := value.(typeTerminalLocationValue)
 			nodeLoc := s2.CellFromCellID(nodeLocId)
-			diff := nodeLoc.DistanceToCell(s2.CellFromCellID(clientLocation))
+			diff := utils.ChordAngleToKM(nodeLoc.DistanceToCell(s2.CellFromCellID(clientLocation)))
 			if diff < bestDiff {
 				bestNode = nodeId
 				bestDiff = diff
@@ -586,9 +587,9 @@ func hasDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // TODO function simulating lower API
-func getNodeCloserTo(location s2.CellID, maxHopsToLookFor int,
+func getNodeCloserTo(locations []s2.CellID, maxHopsToLookFor int,
 	excludeNodes map[string]interface{}) (closest string, found bool) {
-	closest = hTable.autonomicClient.GetClosestNode(location, excludeNodes)
+	closest = hTable.autonomicClient.GetClosestNode(locations, excludeNodes)
 	found = closest != ""
 	return
 }

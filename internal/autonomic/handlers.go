@@ -87,7 +87,7 @@ func closestNodeToHandler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	closest := autonomicSystem.closestNodeTo(reqBody.Location, reqBody.ToExclude)
+	closest := autonomicSystem.closestNodeTo(reqBody.Locations, reqBody.ToExclude)
 	if closest == "" {
 		w.WriteHeader(http.StatusNotFound)
 		return

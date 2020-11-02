@@ -2,11 +2,11 @@ package cell
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/golang/geo/s2"
+	log "github.com/sirupsen/logrus"
 )
 
 type (
@@ -72,7 +72,9 @@ func (cm *Manager) AddClientToDownmostCell(deploymentId string, clientCellId s2.
 
 	downmostId, downmost := cm.findDownmostCellAndRLock(topCellId, topCell, clientCellId, deployment.cells)
 	numClients := downmost.AddClientAndReturnCurrent(clientCellId)
+	log.Debug("will runlock deploymentcells")
 	deployment.cells.RUnlock()
+	log.Debug("runlocked")
 
 	if numClients > maxCellLevel {
 		go cm.splitMaxedCell(deploymentId, deployment.cells, downmostId, downmost)
@@ -93,6 +95,7 @@ func (cm *Manager) RemoveClientsFromCells(deploymentId string, locations map[s2.
 			deploymentCells.cells)
 
 		downmostCell.RemoveClients(cellId, amount)
+		deploymentCells.cells.RUnlock()
 	}
 }
 
@@ -102,7 +105,9 @@ func (cm *Manager) findDownmostCellAndRLock(topCellId s2.CellID, topCell *Cell, 
 	downmostCellId = topCellId
 	downmostCell = topCell
 
+	log.Debug("will rlock deployment cells")
 	deploymentCells.RLock()
+	log.Debug("rlocked")
 
 	for {
 		if level == maxCellLevel {
@@ -157,7 +162,9 @@ func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collecti
 	toSplitIds := []s2.CellID{cellId}
 	toSplitCells := []*Cell{cell}
 
+	log.Debug("will lock deployments cell in split")
 	deploymentCells.Lock()
+	log.Debug("locked in split")
 	defer deploymentCells.Unlock()
 
 	var ok bool
@@ -205,6 +212,7 @@ func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collecti
 		activeCells.Delete(splittingCellId)
 	}
 
+	log.Debug("unlocked deployment cells")
 }
 
 func (cm *Manager) getActiveCellsForDeployment(deploymentId string) (*sync.Map, bool) {

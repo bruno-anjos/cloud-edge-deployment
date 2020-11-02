@@ -57,6 +57,28 @@ func (a *actionWithDeploymentTarget) GetTarget() string {
 	return a.Args[1].(string)
 }
 
+type actionWithDeploymentTargets struct {
+	*actionWithArgs
+}
+
+func newActionWithDeploymentTargets(actionId, deploymentId string, targets []string,
+	args ...interface{}) *actionWithDeploymentTargets {
+	newArgs := []interface{}{deploymentId, targets}
+	newArgs = append(newArgs, args...)
+
+	return &actionWithDeploymentTargets{
+		actionWithArgs: newActionWithArgs(actionId, newArgs...),
+	}
+}
+
+func (a *actionWithDeploymentTargets) GetDeploymentId() string {
+	return a.Args[0].(string)
+}
+
+func (a *actionWithDeploymentTargets) GetTargets() []string {
+	return a.Args[1].([]string)
+}
+
 type actionWithDeploymentOriginTarget struct {
 	*actionWithDeploymentTarget
 }

@@ -11,7 +11,7 @@ type (
 
 type Goal interface {
 	Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range, actionArgs []interface{})
-	GenerateAction(target string, args ...interface{}) actions.Action
+	GenerateAction(targets []string, args ...interface{}) actions.Action
 	GenerateDomain(arg interface{}) (domain Domain, info map[string]interface{}, success bool)
 	Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range)
 	Filter(candidates, domain Domain) (filtered Range)
