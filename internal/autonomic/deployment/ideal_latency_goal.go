@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -21,7 +22,7 @@ const (
 
 	maximumDistancePercentage = 1.2
 	satisfiedDistance         = 20.
-	maxDistance               = 5000.
+	maxDistance               = utils.EarthRadius * math.Pi
 	maxChildren               = 4.
 	branchingCutoff           = 1
 
@@ -134,12 +135,12 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 		return
 	}
 
-	// var (
-	// 	shouldBranch bool
-	// )
-	//
-	// shouldBranch = i.checkShouldBranch(avgClientLocation)
-	// isAlreadyMax = !shouldBranch
+	var (
+		shouldBranch bool
+	)
+
+	shouldBranch = i.checkShouldBranch(centroids)
+	isAlreadyMax = !shouldBranch
 
 	if !isAlreadyMax {
 		optRange, isAlreadyMax = i.filterBlacklisted(optRange)
@@ -169,6 +170,8 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 			actionArgs[ilCentroidDistancesToNodesIndex] = centroidsToNodes
 		}
 	}
+
+
 
 	return
 }
@@ -400,40 +403,42 @@ func (i *idealLatency) checkProcessingTime() bool {
 	return false
 }
 
-// func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
-// 	numChildren := 0
-// 	i.deployment.Children.Range(func(key, value interface{}) bool {
-// 		numChildren++
-// 		return true
-// 	})
-//
-// 	value, ok := i.deployment.Environment.GetMetric(metrics.MetricLocation)
-// 	if !ok {
-// 		log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
-// 	}
-//
-// 	var location s2.CellID
-// 	err := mapstructure.Decode(value, &location)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-//
-// 	currDistance := utils.ChordAngleToKM(s2.CellFromCellID(location).
-// 		DistanceToCell(s2.CellFromCellID(avgClientLocation)))
-// 	if currDistance <= satisfiedDistance {
-// 		return false
-// 	}
-//
-// 	distanceFactor := maxDistance / (maxDistance - (currDistance - satisfiedDistance))
-// 	childrenFactor := (((maxChildren + 1.) / (float64(numChildren) + 1.)) - 1.) / maxChildren
-// 	branchingFactor := childrenFactor * distanceFactor
-// 	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
-//
-// 	validBranch := branchingFactor > branchingCutoff
-// 	log.Debugf("should branch: %t", validBranch)
-//
-// 	return validBranch
-// }
+func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
+	numChildren := 0
+	i.deployment.Children.Range(func(key, value interface{}) bool {
+		numChildren++
+		return true
+	})
+
+	centroidDistSum := 0.
+	for _, centroid := range centroids {
+		centroidDistSum += utils.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(s2.CellFromCellID(centroid)))
+	}
+	avgDistanceToCentroids := centroidDistSum / float64(len(centroids))
+
+	distanceFactor := maxDistance / (maxDistance - (avgDistanceToCentroids - satisfiedDistance))
+	childrenFactor := (((maxChildren + 1.) / (float64(numChildren) + 1.)) - 1.) / maxChildren
+	cosDelta := 0.
+	sinDelta := 0.
+	for _, centroid := range centroids {
+		latDelta := centroid.LatLng().Lat.Degrees() - i.myLocation.LatLng().Lat.Degrees()
+		lngDelta := centroid.LatLng().Lng.Degrees() - i.myLocation.LatLng().Lng.Degrees()
+		angle := math.Atan2(lngDelta, latDelta)
+		cosDelta += math.Cos(angle)
+		sinDelta += math.Sin(angle)
+	}
+	accumulatedDiff := cosDelta + sinDelta
+	heterogeneity := (2. / (accumulatedDiff + 1.)) - 1.
+
+	heterogeneityFactor := float64(numChildren) + 2. - (heterogeneity * float64(numChildren))
+	branchingFactor := childrenFactor * distanceFactor * heterogeneityFactor
+	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
+
+	validBranch := branchingFactor > branchingCutoff
+	log.Debugf("should branch: %t", validBranch)
+
+	return validBranch
+}
 
 func (i *idealLatency) filterBlacklisted(o Range) (Range, bool) {
 	var newRange []string

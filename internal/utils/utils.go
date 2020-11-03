@@ -17,9 +17,9 @@ func RandomString(n int) string {
 }
 
 const (
-	earthRadius = 6_378
+	EarthRadius = 6_378
 )
 
 func ChordAngleToKM(angle s1.ChordAngle) float64 {
-	return angle.Angle().Radians() * earthRadius
+	return angle.Angle().Radians() * EarthRadius
 }

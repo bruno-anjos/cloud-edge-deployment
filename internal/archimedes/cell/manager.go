@@ -71,6 +71,7 @@ func (cm *Manager) AddClientToDownmostCell(deploymentId string, clientCellId s2.
 	topCellId, topCell := cm.getTopCell(deploymentId, deployment, clientCellId)
 
 	downmostId, downmost := cm.findDownmostCellAndRLock(topCellId, topCell, clientCellId, deployment.cells)
+	log.Debugf("will add client to cell downmostId %s", downmostId.ToToken())
 	numClients := downmost.AddClientAndReturnCurrent(clientCellId)
 	log.Debug("will runlock deploymentcells")
 	deployment.cells.RUnlock()

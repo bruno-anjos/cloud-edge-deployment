@@ -22,13 +22,16 @@ const (
 )
 
 type config struct {
-	Deployment      string    `json:"service"`
-	RequestTimeout  int       `json:"request_timeout"`
-	MaxRequests     int       `json:"max_requests"`
-	NumberOfClients int       `json:"number_of_clients"`
-	Fallback        string    `json:"fallback"`
-	Location        s2.LatLng `json:"location"`
-	Port            int       `json:"port"`
+	Deployment      string `json:"service"`
+	RequestTimeout  int    `json:"request_timeout"`
+	MaxRequests     int    `json:"max_requests"`
+	NumberOfClients int    `json:"number_of_clients"`
+	Fallback        string `json:"fallback"`
+	Location        struct {
+		Lat float64
+		Lng float64
+	} `json:"location"`
+	Port int `json:"port"`
 }
 
 func main() {
@@ -59,28 +62,30 @@ func main() {
 		log.Fatalf("port is zero")
 	}
 
+	location := s2.LatLngFromDegrees(conf.Location.Lat, conf.Location.Lng)
+
 	deploymentUrl := url.URL{
 		Scheme: "http",
 		Host:   conf.Deployment + ":" + strconv.Itoa(conf.Port),
 	}
 
 	wg := &sync.WaitGroup{}
-	log.Debugf("Launching %d clients...", conf.NumberOfClients)
+	log.Debugf("Launching %d clients with config %+v", conf.NumberOfClients, conf)
 	for i := 1; i <= conf.NumberOfClients; i++ {
 		wg.Add(1)
-		go runClient(wg, i, deploymentUrl, &conf)
+		go runClient(wg, i, deploymentUrl, &conf, location)
 	}
 
 	wg.Wait()
 }
 
-func runClient(wg *sync.WaitGroup, clientNum int, deploymentUrl url.URL, config *config) {
+func runClient(wg *sync.WaitGroup, clientNum int, deploymentUrl url.URL, config *config, location s2.LatLng) {
 	defer wg.Done()
 
 	log.Debugf("[%d] Starting client", clientNum)
 
 	client := &http.Client{}
-	client.InitArchimedesClient(config.Fallback, archimedes.Port, config.Location)
+	client.InitArchimedesClient(config.Fallback, archimedes.Port, location)
 	r, err := http.NewRequest(defaultHttp.MethodGet, deploymentUrl.String(), nil)
 	if err != nil {
 		panic(err)

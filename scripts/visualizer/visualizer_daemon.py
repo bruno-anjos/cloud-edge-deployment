@@ -408,7 +408,7 @@ def graph_archimedes():
 
 
 def transformLocToRange(loc):
-    newLoc = {"lat": (((loc["lat"] + 90) * 4000) / 180), "lng": (((loc["lng"] + 180) * 4000) / 360)}
+    newLoc = {"lat": 4000-(((loc["lat"] + 90) * 4000) / 180), "lng": (((loc["lng"] + 180) * 4000) / 360)}
     return newLoc
 
 

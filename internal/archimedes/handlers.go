@@ -288,6 +288,8 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		log.Debugf("took %f to answer request %s", time.Since(start).Seconds(), reqBody.Id)
 	}()
 
+	log.Debugf("got request from %s", reqBody.Location.LatLng().String())
+
 	redirect, targetUrl := checkForRedirections(reqBody.ToResolve.Host)
 	if redirect {
 		log.Debugf("redirecting %s to %s to achieve load balancing", reqBody.ToResolve.Host, targetUrl.Host)

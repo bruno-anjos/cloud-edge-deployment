@@ -5,8 +5,8 @@
             "max_requests": 1000,
             "number_of_clients": 100,
             "location": {
-                "lat": -45,
-                "lng": 91
+                "lat": -36,
+                "lng": -39
             },
             "port": 8001
         }

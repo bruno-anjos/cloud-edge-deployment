@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
 import json
-import math
 import os
 import random
 import sys
@@ -33,14 +32,8 @@ services_config_name = "DEPLOYMENTS_CONFIG"
 fallback_config_name = "FALLBACK_CONFIG"
 
 
-def calcDist(l1, l2):
-    dLat = l2["lat"] - l1["lat"]
-    dLng = l2["lng"] - l1["lng"]
-    return math.sqrt(dLat ** 2 + dLng ** 2)
-
-
 def sortChildren(n, sortingService, nodesLocations, clientLocations):
-    return calcDist(nodesLocations[n], clientLocations[sortingService])
+    return calcDistInLatLng(nodesLocations[n], clientLocations[sortingService])
 
 
 def generateServiceTree(startNode, sName, nodesChildren, nodesLocations, clientLocations):
@@ -135,8 +128,15 @@ def generateNodeMetrics(nodeId, loc, visibleNodes, children, nodesLocations, ser
 sortingLocation = {"lat": 0, "lng": 0}
 
 
+def calcDistInLatLng(loc1, loc2):
+    l1LatLng = s2sphere.LatLng.from_degrees(loc1["lat"], loc1["lng"])
+    l2LatLng = s2sphere.LatLng.from_degrees(loc2["lat"], loc2["lng"])
+
+    return l1LatLng.get_distance(l2LatLng)
+
+
 def sortByDistance(n, nodesLocations):
-    return calcDist(nodesLocations[n], sortingLocation)
+    return calcDistInLatLng(nodesLocations[n], sortingLocation)
 
 
 def get_neighborhood(node, nodesLocations, neighSize):
@@ -182,7 +182,7 @@ def calcMidNode(nodesLocations):
     midPoint = {"lat": 0, "lng": 0}
 
     for node, location in nodesLocations.items():
-        dist = calcDist(location, midPoint)
+        dist = calcDistInLatLng(location, midPoint)
         if minDistToMid == -1 or dist < minDistToMid:
             midNode = node
             minDistToMid = dist
@@ -199,7 +199,7 @@ def generateLocations():
     for node in nodes:
         location = {"lat": random.randint(minLat, maxLat), "lng": random.randint(minLong, maxLong)}
         nodesLocations[node] = location
-        dist = calcDist(location, midPoint)
+        dist = calcDistInLatLng(location, midPoint)
         if minDistToMid == -1 or dist < minDistToMid:
             midNode = node
             minDistToMid = dist
