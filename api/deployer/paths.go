@@ -25,7 +25,6 @@ const (
 	DeploymentChildPath        = "/deployments/%s/child/%s"
 	MigrateDeploymentPath      = "/deployments/%s/migrate"
 	ExtendDeploymentToPath     = "/deployments/%s/extend/%s"
-	ShortenDeploymentFromPath  = "/deployments/%s/shorten/%s"
 	SetGrandparentPath         = "/deployments/%s/grandparent"
 	FallbackPath               = "/deployments/%s/fallback"
 	ResolveUpTheTreePath       = "/deployments/%s/resolve_up"
@@ -89,10 +88,6 @@ func GetMigrateDeploymentPath(deploymentId string) string {
 
 func GetExtendDeploymentPath(deploymentId, targetId string) string {
 	return PrefixPath + fmt.Sprintf(ExtendDeploymentToPath, deploymentId, targetId)
-}
-
-func GetShortenDeploymentPath(deploymentId, targetId string) string {
-	return PrefixPath + fmt.Sprintf(ShortenDeploymentFromPath, deploymentId, targetId)
 }
 
 func GetSetGrandparentPath(deploymentId string) string {

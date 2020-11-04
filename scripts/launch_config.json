@@ -4,10 +4,6 @@
             "request_timeout": 10,
             "max_requests": 1000,
             "number_of_clients": 100,
-            "location": {
-                "lat": -36,
-                "lng": -39
-            },
             "port": 8001
         }
     ]

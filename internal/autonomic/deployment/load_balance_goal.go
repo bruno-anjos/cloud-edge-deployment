@@ -89,14 +89,14 @@ func (l *deploymentLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax boo
 				actionArgs[lbAmountIndex], origin, optRange[0])
 		}
 
+	} else if l.deployment.ParentId != "" {
+		remove := l.checkIfShouldBeRemoved()
+		if remove {
+			isAlreadyMax = false
+			actionArgs = make([]interface{}, lbNumArgs)
+			actionArgs[lbActionTypeArgIndex] = actions.RemoveDeploymentId
+		}
 	}
-	// else {
-	// 	remove := l.checkIfShouldBeRemoved()
-	// 	if remove {
-	// 		actionArgs = make([]interface{}, lbNumArgs)
-	// 		actionArgs[lbActionTypeArgIndex] = actions.RemoveServiceId
-	// 	}
-	// }
 
 	return
 }
@@ -204,6 +204,9 @@ func (l *deploymentLoadBalanceGoal) GenerateAction(targets []string, args ...int
 	case actions.RedirectClientsId:
 		return actions.NewRedirectAction(l.deployment.DeploymentId, args[lbFromIndex].(string), targets[0],
 			args[lbAmountIndex].(int))
+	case actions.RemoveDeploymentId:
+		// TODO CHECK IF IT SHOULD BE MYSELF
+		return actions.NewRemoveDeploymentAction(l.deployment.DeploymentId)
 	}
 
 	return nil
@@ -264,6 +267,7 @@ func (l *deploymentLoadBalanceGoal) handleOverload(candidates Range) (
 }
 
 func (l *deploymentLoadBalanceGoal) checkIfShouldBeRemoved() bool {
+
 	hasChildren := false
 	l.deployment.Children.Range(func(key, value interface{}) bool {
 		hasChildren = true
@@ -271,6 +275,8 @@ func (l *deploymentLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 	})
 
 	if hasChildren {
+		l.staleCycles = 0
+		log.Debugf("%s should NOT be removed, because it has children", l.deployment.DeploymentId)
 		return false
 	}
 
@@ -282,10 +288,13 @@ func (l *deploymentLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 	}
 
 	if load > 0 {
+		l.staleCycles = 0
+		log.Debugf("%s should NOT be removed, because it has load %d", l.deployment.DeploymentId, load)
 		return false
 	}
 
 	l.staleCycles++
+	log.Debugf("increased stale cycles to %d(%d)", l.staleCycles, staleCyclesNumToRemove)
 
 	return l.staleCycles == staleCyclesNumToRemove
 }

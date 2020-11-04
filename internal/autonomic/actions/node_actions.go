@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
@@ -19,18 +18,21 @@ const (
 )
 
 type RemoveDeploymentAction struct {
-	*actionWithDeploymentTarget
+	*actionWithDeployment
 }
 
-func NewRemoveDeploymentAction(deploymentId, target string) *RemoveDeploymentAction {
+func NewRemoveDeploymentAction(deploymentId string) *RemoveDeploymentAction {
 	return &RemoveDeploymentAction{
-		actionWithDeploymentTarget: newActionWithDeploymentTarget(RemoveDeploymentId, deploymentId, target),
+		actionWithDeployment: newActionWithDeployment(RemoveDeploymentId, deploymentId),
 	}
 }
 
 func (m *RemoveDeploymentAction) Execute(client utils.Client) {
-	deployerClient := client.(deployer.Client)
-	deployerClient.ShortenDeploymentFrom(m.GetDeploymentId(), m.GetTarget())
+	deployerClient := client.(*deployer.Client)
+	status := deployerClient.DeleteDeployment(m.GetDeploymentId())
+	if status != http.StatusOK{
+		log.Errorf("got status %d while attempting to delete deployment %s", status, m.GetDeploymentId())
+	}
 }
 
 type ExtendDeploymentAction struct {
@@ -72,11 +74,6 @@ func (m *ExtendDeploymentAction) Execute(client utils.Client) {
 		return
 	}
 
-	if m.IsExploring() {
-		archClient := archimedes.NewArchimedesClient(m.GetTarget() + ":" + strconv.Itoa(archimedes.Port))
-		archClient.SetExploringCells(m.GetDeploymentId(), m.GetLocation())
-	}
-
 	status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), m.GetTarget(), m.GetParent(),
 		[]s2.CellID{m.GetLocation()}, m.GetChildren(), m.IsExploring())
 	if status != http.StatusOK {
@@ -90,10 +87,11 @@ type MultipleExtendDeploymentAction struct {
 }
 
 func NewMultipleExtendDeploymentAction(deploymentId string, targets []string, parent *utils.Node,
-	locations map[string][]s2.CellID) *MultipleExtendDeploymentAction {
+	locations map[string][]s2.CellID, targetsExploring map[string]bool,
+	centroidsExtendedCallback func(centroid s2.CellID)) *MultipleExtendDeploymentAction {
 	return &MultipleExtendDeploymentAction{
 		actionWithDeploymentTargets: newActionWithDeploymentTargets(MultipleExtendDeploymentId, deploymentId,
-			targets, parent, locations),
+			targets, parent, locations, targetsExploring, centroidsExtendedCallback),
 	}
 }
 
@@ -105,10 +103,20 @@ func (m *MultipleExtendDeploymentAction) GetLocations() map[string][]s2.CellID {
 	return m.Args[3].(map[string][]s2.CellID)
 }
 
+func (m *MultipleExtendDeploymentAction) GetTargetsExploring() map[string]bool {
+	return m.Args[4].(map[string]bool)
+}
+
+func (m *MultipleExtendDeploymentAction) GetCentroidCallback() func(centroid s2.CellID) {
+	return m.Args[5].(func(centroid s2.CellID))
+}
+
 func (m *MultipleExtendDeploymentAction) Execute(client utils.Client) {
 	log.Debugf("executing %s to %+v", m.ActionId, m.GetTargets())
 	deployerClient := client.(*deployer.Client)
 	locations := m.GetLocations()
+	extendedCentroidCallback := m.GetCentroidCallback()
+	targetsExploring := m.GetTargetsExploring()
 
 	for _, target := range m.GetTargets() {
 		targetClient := deployer.NewDeployerClient(target + ":" + strconv.Itoa(deployer.Port))
@@ -119,10 +127,14 @@ func (m *MultipleExtendDeploymentAction) Execute(client utils.Client) {
 		}
 
 		status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), target, m.GetParent(), locations[target],
-			nil, false)
+			nil, targetsExploring[target])
 		if status != http.StatusOK {
 			log.Errorf("got status code %d while extending deployment", status)
 			return
+		}
+
+		for _, centroid := range locations[target] {
+			extendedCentroidCallback(centroid)
 		}
 	}
 

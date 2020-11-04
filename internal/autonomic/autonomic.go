@@ -33,6 +33,7 @@ const (
 type (
 	system struct {
 		deployments *sync.Map
+		exitChans   *sync.Map
 		env         *environment.Environment
 		suspected   *sync.Map
 
@@ -47,6 +48,7 @@ type (
 func newSystem() *system {
 	return &system{
 		deployments:      &sync.Map{},
+		exitChans:        &sync.Map{},
 		env:              environment.NewEnvironment(),
 		suspected:        &sync.Map{},
 		deployerClient:   deployer.NewDeployerClient(deployer.DefaultHostPort),
@@ -66,12 +68,22 @@ func (a *system) addDeployment(deploymentId, strategyId string) {
 	}
 
 	a.deployments.Store(deploymentId, s)
-	go a.handleDeployments(s)
+	exitChan := make(chan interface{})
+	a.exitChans.Store(deploymentId, exitChan)
+	go a.handleDeployment(s, exitChan)
 
 	return
 }
 
 func (a *system) removeDeployment(deploymentId string) {
+	value, ok := a.exitChans.Load(deploymentId)
+	if !ok {
+		return
+	}
+
+	exitChan := value.(chan interface{})
+	close(exitChan)
+
 	a.deployments.Delete(deploymentId)
 }
 
@@ -213,13 +225,17 @@ func (a *system) getMyLocation() (s2.CellID, error) {
 	return s2.CellIDFromToken(value.(string)), nil
 }
 
-func (a *system) handleDeployments(deployment *deployment.Deployment) {
+func (a *system) handleDeployment(deployment *deployment.Deployment, exit <-chan interface{}) {
 	time.Sleep(initialDeploymentDelay)
 
 	timer := time.NewTimer(defaultInterval)
 
 	for {
-		<-timer.C
+		select {
+		case <-exit:
+			return
+		case <-timer.C:
+		}
 
 		log.Debugf("evaluating deployment %s", deployment.DeploymentId)
 
@@ -248,6 +264,8 @@ func (a *system) performAction(action actions.Action) {
 	case *actions.MigrateAction:
 		assertedAction.Execute(a.deployerClient)
 	case *actions.MultipleExtendDeploymentAction:
+		assertedAction.Execute(a.deployerClient)
+	case *actions.RemoveDeploymentAction:
 		assertedAction.Execute(a.deployerClient)
 	default:
 		log.Errorf("could not execute action of type %s", action.GetActionId())

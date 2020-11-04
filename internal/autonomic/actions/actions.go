@@ -35,22 +35,35 @@ func newActionWithArgs(actionId string, args ...interface{}) *actionWithArgs {
 	}
 }
 
-type actionWithDeploymentTarget struct {
+type actionWithDeployment struct {
 	*actionWithArgs
 }
 
-func newActionWithDeploymentTarget(actionId, deploymentId, target string,
-	args ...interface{}) *actionWithDeploymentTarget {
-	newArgs := []interface{}{deploymentId, target}
+func newActionWithDeployment(actionId, deploymentId string, args ...interface{}) *actionWithDeployment {
+	newArgs := []interface{}{deploymentId}
 	newArgs = append(newArgs, args...)
 
-	return &actionWithDeploymentTarget{
+	return &actionWithDeployment{
 		actionWithArgs: newActionWithArgs(actionId, newArgs...),
 	}
 }
 
-func (a *actionWithDeploymentTarget) GetDeploymentId() string {
+func (a *actionWithDeployment) GetDeploymentId() string {
 	return a.Args[0].(string)
+}
+
+type actionWithDeploymentTarget struct {
+	*actionWithDeployment
+}
+
+func newActionWithDeploymentTarget(actionId, deploymentId, target string,
+	args ...interface{}) *actionWithDeploymentTarget {
+	newArgs := []interface{}{target}
+	newArgs = append(newArgs, args...)
+
+	return &actionWithDeploymentTarget{
+		actionWithDeployment: newActionWithDeployment(actionId, deploymentId, newArgs...),
+	}
 }
 
 func (a *actionWithDeploymentTarget) GetTarget() string {
@@ -58,21 +71,17 @@ func (a *actionWithDeploymentTarget) GetTarget() string {
 }
 
 type actionWithDeploymentTargets struct {
-	*actionWithArgs
+	*actionWithDeployment
 }
 
 func newActionWithDeploymentTargets(actionId, deploymentId string, targets []string,
 	args ...interface{}) *actionWithDeploymentTargets {
-	newArgs := []interface{}{deploymentId, targets}
+	newArgs := []interface{}{targets}
 	newArgs = append(newArgs, args...)
 
 	return &actionWithDeploymentTargets{
-		actionWithArgs: newActionWithArgs(actionId, newArgs...),
+		actionWithDeployment: newActionWithDeployment(actionId, deploymentId, newArgs...),
 	}
-}
-
-func (a *actionWithDeploymentTargets) GetDeploymentId() string {
-	return a.Args[0].(string)
 }
 
 func (a *actionWithDeploymentTargets) GetTargets() []string {

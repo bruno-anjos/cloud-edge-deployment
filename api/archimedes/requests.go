@@ -20,5 +20,5 @@ type (
 		Resolved *ResolvedDTO
 		Id       string
 	}
-	SetExploringClientLocationRequestBody = s2.CellID
+	SetExploringClientLocationRequestBody = []s2.CellID
 )

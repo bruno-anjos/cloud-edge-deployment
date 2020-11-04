@@ -218,9 +218,9 @@ func (c *Client) GetClientCentroids(deploymentId string) (centroids []s2.CellID,
 	return
 }
 
-func (c *Client) SetExploringCells(deploymentId string, cell s2.CellID) (status int) {
+func (c *Client) SetExploringCells(deploymentId string, cells []s2.CellID) (status int) {
 	var reqBody api.SetExploringClientLocationRequestBody
-	reqBody = cell
+	reqBody = cells
 
 	path := api.GetSetExploringClientLocationPath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)

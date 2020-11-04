@@ -40,19 +40,19 @@ const (
 )
 
 var (
-	messagesReceived sync.Map
-	sTable           *deploymentsTable
-	redirectionsMap  sync.Map
-	archimedesId     string
-	hostname         string
-	clientsManager   *clients.Manager
+	messagesReceived    sync.Map
+	sTable              *deploymentsTable
+	redirectServicesMap sync.Map
+	archimedesId        string
+	hostname            string
+	clientsManager      *clients.Manager
 )
 
 func init() {
 	messagesReceived = sync.Map{}
 
 	sTable = newDeploymentsTable()
-	redirectionsMap = sync.Map{}
+	redirectServicesMap = sync.Map{}
 	clientsManager = clients.NewManager()
 
 	var err error
@@ -120,7 +120,7 @@ func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sTable.deleteDeployment(deploymentId)
-	redirectionsMap.Delete(deploymentId)
+	redirectServicesMap.Delete(deploymentId)
 
 	log.Debugf("deleted deployment %s", deploymentId)
 }
@@ -367,7 +367,7 @@ func resolveLocallyHandler(w http.ResponseWriter, r *http.Request) {
 func checkForRedirections(hostToResolve string) (redirect bool, targetUrl url.URL) {
 	redirect = false
 
-	value, ok := redirectionsMap.Load(hostToResolve)
+	value, ok := redirectServicesMap.Load(hostToResolve)
 	if ok {
 		redirectConfig := value.(redirectionsMapValue)
 		if !redirectConfig.Done {
@@ -465,7 +465,7 @@ func discoverHandler(w http.ResponseWriter, r *http.Request) {
 	broadcastMsgWithHorizon(&discoverMsg, maxHops)
 }
 
-func redirectHandler(w http.ResponseWriter, r *http.Request) {
+func redirectServiceHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
 	var req api.RedirectRequestBody
@@ -485,18 +485,18 @@ func redirectHandler(w http.ResponseWriter, r *http.Request) {
 		Done:    false,
 	}
 
-	redirectionsMap.Store(deploymentId, redirectConfig)
+	redirectServicesMap.Store(deploymentId, redirectConfig)
 }
 
 func removeRedirectionHandler(_ http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-	redirectionsMap.Delete(deploymentId)
+	redirectServicesMap.Delete(deploymentId)
 }
 
 func getRedirectedHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	value, ok := redirectionsMap.Load(deploymentId)
+	value, ok := redirectServicesMap.Load(deploymentId)
 	if !ok {
 		log.Debugf("deployment %s is not being redirected", deploymentId)
 		w.WriteHeader(http.StatusNotFound)
@@ -519,7 +519,7 @@ func setExploringClientLocationHandler(_ http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("set exploring location %v for deployment %s", reqBody, deploymentId)
 
-	clientsManager.AddToExploring(deploymentId, reqBody)
+	clientsManager.SetToExploring(deploymentId, reqBody)
 }
 
 // TODO simulating

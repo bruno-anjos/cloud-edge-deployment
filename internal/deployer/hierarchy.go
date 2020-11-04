@@ -10,32 +10,153 @@ import (
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	staticValue    = 1
+	notStaticValue = 0
+
+	orphanValue    = 1
+	notOrphanValue = 0
+)
+
 type (
 	hierarchyEntry struct {
-		DeploymentYAMLBytes []byte
-		Parent              *utils.Node
-		Grandparent         *utils.Node
-		Children            sync.Map
-		NumChildren         int32
-		Static              bool
-		IsOrphan            bool
-		NewParentChan       chan<- string
+		deploymentYAMLBytes []byte
+		parent              *utils.Node
+		grandparent         *utils.Node
+		children            sync.Map
+		numChildren         int32
+		static              int32
+		orphan              int32
+		newParentChan       chan<- string
+		sync.RWMutex
 	}
 )
 
-func (e *hierarchyEntry) getChildren() map[string]*utils.Node {
-	entryChildren := map[string]*utils.Node{}
+func (e *hierarchyEntry) getDeploymentYAMLBytes() []byte {
+	// no lock since this value never changes
+	return e.deploymentYAMLBytes
+}
 
-	e.Children.Range(func(key, value interface{}) bool {
+func (e *hierarchyEntry) hasParent() bool {
+	e.RLock()
+	e.RUnlock()
+	return e.parent != nil
+}
+
+func (e *hierarchyEntry) getParent() (parent utils.Node) {
+	e.RLock()
+	defer e.RUnlock()
+
+	return *e.parent
+}
+
+func (e *hierarchyEntry) setParent(node utils.Node) {
+	e.Lock()
+	defer e.Unlock()
+
+	e.parent = &node
+
+	if e.newParentChan != nil {
+		e.newParentChan <- e.parent.Id
+		close(e.newParentChan)
+		e.newParentChan = nil
+	}
+}
+
+func (e *hierarchyEntry) removeParent() {
+	e.Lock()
+	defer e.Unlock()
+
+	e.parent = nil
+}
+
+func (e *hierarchyEntry) hasGrandparent() bool {
+	e.RLock()
+	e.RUnlock()
+	return e.grandparent != nil
+}
+
+func (e *hierarchyEntry) getGrandparent() (grandparent utils.Node) {
+	e.RLock()
+	defer e.RUnlock()
+	grandparent = *e.grandparent
+
+	return
+}
+
+func (e *hierarchyEntry) setGrandparent(grandparent utils.Node) {
+	e.Lock()
+	defer e.Unlock()
+	e.grandparent = &grandparent
+}
+
+func (e *hierarchyEntry) removeGrandparent() {
+	e.Lock()
+	defer e.Unlock()
+	e.grandparent = nil
+}
+
+func (e *hierarchyEntry) addChild(child utils.Node) {
+	if _, ok := e.children.Load(child.Id); ok {
+		return
+	}
+	e.children.Store(child.Id, &child)
+	atomic.AddInt32(&e.numChildren, 1)
+}
+
+func (e *hierarchyEntry) removeChild(childId string) {
+	e.children.Delete(childId)
+	atomic.AddInt32(&e.numChildren, -1)
+}
+
+func (e *hierarchyEntry) isStatic() bool {
+	return atomic.LoadInt32(&e.static) == staticValue
+}
+
+func (e *hierarchyEntry) setStatic(static bool) {
+	if static {
+		atomic.StoreInt32(&e.static, staticValue)
+	} else {
+		atomic.StoreInt32(&e.static, notStaticValue)
+	}
+}
+
+func (e *hierarchyEntry) isOrphan() bool {
+	return atomic.LoadInt32(&e.orphan) == orphanValue
+}
+
+func (e *hierarchyEntry) setOrphan(isOrphan bool) chan string {
+	if isOrphan {
+		newParentChan := make(chan string)
+		e.Lock()
+		e.newParentChan = newParentChan
+		e.Unlock()
+		atomic.StoreInt32(&e.orphan, orphanValue)
+		return newParentChan
+	} else {
+		atomic.StoreInt32(&e.orphan, notOrphanValue)
+		return nil
+	}
+}
+
+func (e *hierarchyEntry) getNumChildren() int {
+	return int(atomic.LoadInt32(&e.numChildren))
+}
+
+func (e *hierarchyEntry) getChildren() map[string]utils.Node {
+	entryChildren := map[string]utils.Node{}
+
+	e.children.Range(func(key, value interface{}) bool {
 		childId := key.(typeChildMapKey)
 		child := value.(typeChildMapValue)
-		entryChildren[childId] = child
+		entryChildren[childId] = *child
 		return true
 	})
 
@@ -43,12 +164,15 @@ func (e *hierarchyEntry) getChildren() map[string]*utils.Node {
 }
 
 func (e *hierarchyEntry) toDTO() *api.HierarchyEntryDTO {
+	e.RLock()
+	defer e.RUnlock()
+
 	return &api.HierarchyEntryDTO{
-		Parent:      e.Parent,
-		Grandparent: e.Grandparent,
+		Parent:      e.parent,
+		Grandparent: e.grandparent,
 		Children:    e.getChildren(),
-		Static:      e.Static,
-		IsOrphan:    e.IsOrphan,
+		Static:      e.static == staticValue,
+		IsOrphan:    e.orphan == orphanValue,
 	}
 }
 
@@ -73,13 +197,22 @@ func newHierarchyTable() *hierarchyTable {
 }
 
 func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO) bool {
+	var (
+		static int32
+	)
+	if dto.Static {
+		static = staticValue
+	} else {
+		static = notStaticValue
+	}
+
 	entry := &hierarchyEntry{
-		DeploymentYAMLBytes: dto.DeploymentYAMLBytes,
-		Parent:              dto.Parent,
-		Children:            sync.Map{},
-		Static:              dto.Static,
-		IsOrphan:            false,
-		NewParentChan:       nil,
+		deploymentYAMLBytes: dto.DeploymentYAMLBytes,
+		parent:              dto.Parent,
+		children:            sync.Map{},
+		static:              static,
+		orphan:              notStaticValue,
+		newParentChan:       nil,
 	}
 
 	_, loaded := t.hierarchyEntries.LoadOrStore(dto.DeploymentId, entry)
@@ -109,7 +242,7 @@ func (t *hierarchyTable) removeDeployment(deploymentId string) {
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	if entry.NumChildren == 0 {
+	if entry.getNumChildren() != 0 {
 		log.Errorf("removing deployment that is still someones father")
 	} else {
 		archimedesClient.DeleteDeployment(deploymentId)
@@ -130,13 +263,7 @@ func (t *hierarchyTable) setDeploymentParent(deploymentId string, parent *utils.
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	entry.Parent = parent
-
-	if entry.NewParentChan != nil {
-		entry.NewParentChan <- parent.Id
-		close(entry.NewParentChan)
-		entry.NewParentChan = nil
-	}
+	entry.setParent(*parent)
 
 	auxChildren := t.getChildren(deploymentId)
 	if len(auxChildren) > 0 {
@@ -147,7 +274,7 @@ func (t *hierarchyTable) setDeploymentParent(deploymentId string, parent *utils.
 		}
 	}
 
-	entry.IsOrphan = false
+	entry.setOrphan(false)
 }
 
 func (t *hierarchyTable) setDeploymentGrandparent(deploymentId string, grandparent *utils.Node) {
@@ -157,7 +284,7 @@ func (t *hierarchyTable) setDeploymentGrandparent(deploymentId string, grandpare
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	entry.Grandparent = grandparent
+	entry.setGrandparent(*grandparent)
 }
 
 func (t *hierarchyTable) setDeploymentAsOrphan(deploymentId string) <-chan string {
@@ -167,11 +294,7 @@ func (t *hierarchyTable) setDeploymentAsOrphan(deploymentId string) <-chan strin
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	entry.IsOrphan = true
-	newParentChan := make(chan string)
-	entry.NewParentChan = newParentChan
-
-	return newParentChan
+	return entry.setOrphan(true)
 }
 
 func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node) {
@@ -181,15 +304,8 @@ func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node) {
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	if _, ok = entry.Children.Load(child.Id); ok {
-		return
-	}
-
-	entry.Children.Store(child.Id, child)
-	atomic.AddInt32(&entry.NumChildren, 1)
-
+	entry.addChild(*child)
 	t.autonomicClient.AddDeploymentChild(deploymentId, child.Id)
-
 	return
 }
 
@@ -200,16 +316,14 @@ func (t *hierarchyTable) removeChild(deploymentId, childId string) {
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	entry.Children.Delete(childId)
+	entry.removeChild(childId)
 	t.autonomicClient.RemoveDeploymentChild(deploymentId, childId)
 	removeTerminalLocsForChild(deploymentId, childId)
-
-	atomic.AddInt32(&entry.NumChildren, -1)
 
 	return
 }
 
-func (t *hierarchyTable) getChildren(deploymentId string) (children map[string]*utils.Node) {
+func (t *hierarchyTable) getChildren(deploymentId string) (children map[string]utils.Node) {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return nil
@@ -226,8 +340,12 @@ func (t *hierarchyTable) getParent(deploymentId string) *utils.Node {
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-
-	return entry.Parent
+	if entry.hasParent() {
+		parent := entry.getParent()
+		return &parent
+	} else {
+		return nil
+	}
 }
 
 func (t *hierarchyTable) deploymentToDTO(deploymentId string) (*api.DeploymentDTO, bool) {
@@ -237,12 +355,17 @@ func (t *hierarchyTable) deploymentToDTO(deploymentId string) (*api.DeploymentDT
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
+	var parent *utils.Node
+	if entry.hasParent() {
+		parentAux := entry.getParent()
+		parent = &parentAux
+	}
 
 	return &api.DeploymentDTO{
-		Parent:              entry.Parent,
+		Parent:              parent,
 		DeploymentId:        deploymentId,
-		Static:              entry.Static,
-		DeploymentYAMLBytes: entry.DeploymentYAMLBytes,
+		Static:              entry.isStatic(),
+		DeploymentYAMLBytes: entry.getDeploymentYAMLBytes(),
 	}, true
 }
 
@@ -253,7 +376,8 @@ func (t *hierarchyTable) isStatic(deploymentId string) bool {
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	return entry.Static
+
+	return entry.isStatic()
 }
 
 func (t *hierarchyTable) removeParent(deploymentId string) bool {
@@ -263,7 +387,7 @@ func (t *hierarchyTable) removeParent(deploymentId string) bool {
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	entry.Parent = nil
+	entry.removeParent()
 
 	return true
 }
@@ -275,8 +399,11 @@ func (t *hierarchyTable) getGrandparent(deploymentId string) *utils.Node {
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-
-	return entry.Grandparent
+	if entry.hasGrandparent() {
+		grandparent := entry.getGrandparent()
+		return &grandparent
+	}
+	return nil
 }
 
 func (t *hierarchyTable) removeGrandparent(deploymentId string) {
@@ -286,7 +413,7 @@ func (t *hierarchyTable) removeGrandparent(deploymentId string) {
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	entry.Grandparent = nil
+	entry.removeGrandparent()
 }
 
 func (t *hierarchyTable) getDeployments() []string {
@@ -308,7 +435,7 @@ func (t *hierarchyTable) getDeploymentConfig(deploymentId string) []byte {
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	return entry.DeploymentYAMLBytes
+	return entry.getDeploymentYAMLBytes()
 }
 
 func (t *hierarchyTable) getDeploymentsWithParent(parentId string) (deploymentIds []string) {
@@ -316,7 +443,7 @@ func (t *hierarchyTable) getDeploymentsWithParent(parentId string) (deploymentId
 		deploymentId := key.(typeHierarchyEntriesMapKey)
 		deployment := value.(typeHierarchyEntriesMapValue)
 
-		if deployment.Parent != nil && deployment.Parent.Id == parentId {
+		if deployment.hasParent() && deployment.getParent().Id == parentId {
 			deploymentIds = append(deploymentIds, deploymentId)
 		}
 
@@ -542,6 +669,9 @@ func attemptToExtend(deploymentId, target string, targetLocations []s2.CellID, c
 		id := deploymentId + "_" + nodeToExtendTo.Id
 		log.Debugf("setting extension ")
 		exploring.Store(id, &sync.Once{})
+
+		archClient := archimedes.NewArchimedesClient(nodeToExtendTo.Id + ":" + strconv.Itoa(archimedes.Port))
+		archClient.SetExploringCells(deploymentId, targetLocations)
 	}
 }
 

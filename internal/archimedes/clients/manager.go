@@ -16,6 +16,8 @@ type (
 		NumReqs   int
 	}
 
+	exploringCellsValueType = []s2.CellID
+
 	Manager struct {
 		numReqsLastMinute map[string]*batchValue
 		currBatch         map[string]*batchValue
@@ -109,16 +111,25 @@ func (r *Manager) GetLoad(deploymentId string) (load int) {
 	return
 }
 
-func (r *Manager) AddToExploring(deploymentId string, cell s2.CellID) {
-	r.exploringCells.Store(deploymentId, cell)
+func (r *Manager) SetToExploring(deploymentId string, cells []s2.CellID) {
+	r.exploringCells.Store(deploymentId, cells)
 }
 
 func (r *Manager) RemoveFromExploring(deploymentId string) {
 	r.exploringCells.Delete(deploymentId)
 }
 
-func (r *Manager) GetDeploymentClientsCentroids(deploymentId string) ([]s2.CellID, bool) {
-	return r.cellManager.GetDeploymentCentroids(deploymentId)
+func (r *Manager) GetDeploymentClientsCentroids(deploymentId string) (cells []s2.CellID, ok bool) {
+	cells, ok = r.cellManager.GetDeploymentCentroids(deploymentId)
+	if len(cells) == 0 || !ok {
+		value, eOk := r.exploringCells.Load(deploymentId)
+		if eOk {
+			cells = value.(exploringCellsValueType)
+		}
+		ok = eOk
+	}
+
+	return
 }
 
 func (r *Manager) manageLoadBatch() {

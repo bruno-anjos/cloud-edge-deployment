@@ -24,7 +24,6 @@ const (
 	parentAliveName                = "PARENT_ALIVE"
 	migrateDeploymentName          = "MIGRATE_DEPLOYMENT"
 	extendDeploymentToName         = "EXTEND_DEPLOYMENT_TO"
-	shortenDeploymentFromName      = "SHORTEN_DEPLOYMENT_FROM"
 	setGrandparentName             = "SET_GRANDPARENT"
 	fallbackName                   = "FALLBACK"
 	resolveUpTheTreeName           = "RESOLVE_UP_THE_TREE"
@@ -63,8 +62,6 @@ var (
 	hierarchyTableRoute        = deployer.HierarchyTablePath
 	migrateDeploymentRoute     = fmt.Sprintf(deployer.MigrateDeploymentPath, _deploymentIdPathVarFormatted)
 	extendDeploymentToRoute    = fmt.Sprintf(deployer.ExtendDeploymentToPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
-	shortenDeploymentFromRoute = fmt.Sprintf(deployer.ShortenDeploymentFromPath, _deploymentIdPathVarFormatted,
-		_deployerIdPathVarFormatted)
 	setGrandparentRoute             = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
 	fallbackRoute                   = fmt.Sprintf(deployer.FallbackPath, _deploymentIdPathVarFormatted)
 	resolveUpTheTreeRoute           = fmt.Sprintf(deployer.ResolveUpTheTreePath, _deploymentIdPathVarFormatted)
@@ -153,13 +150,6 @@ var Routes = []utils.Route{
 		Method:      http.MethodPost,
 		Pattern:     parentAliveRoute,
 		HandlerFunc: parentAliveHandler,
-	},
-
-	{
-		Name:        shortenDeploymentFromName,
-		Method:      http.MethodPost,
-		Pattern:     shortenDeploymentFromRoute,
-		HandlerFunc: shortenDeploymentFromHandler,
 	},
 
 	{

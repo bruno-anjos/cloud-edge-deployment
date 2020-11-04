@@ -34,6 +34,7 @@ const (
 const (
 	ilActionTypeArgIndex = iota
 	ilCentroidDistancesToNodesIndex
+	ilExploringCentroidsIndex
 	ilArgsNum
 )
 
@@ -50,9 +51,10 @@ type (
 )
 
 type idealLatency struct {
-	deployment   *Deployment
-	myLocation   s2.CellID
-	dependencies []string
+	deployment        *Deployment
+	myLocation        s2.CellID
+	dependencies      []string
+	centroidsExtended map[s2.CellID]interface{}
 }
 
 func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
@@ -72,16 +74,16 @@ func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
 	}
 
 	goal := &idealLatency{
-		deployment:   deployment,
-		dependencies: dependencies,
-		myLocation:   s2.CellIDFromToken(value.(string)),
+		deployment:        deployment,
+		dependencies:      dependencies,
+		myLocation:        s2.CellIDFromToken(value.(string)),
+		centroidsExtended: map[s2.CellID]interface{}{},
 	}
 
 	return goal
 }
 
-func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range,
-	actionArgs []interface{}) {
+func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range, actionArgs []interface{}) {
 	isAlreadyMax = true
 	optRange = optDomain
 	actionArgs = nil
@@ -153,6 +155,8 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 				}
 			}
 
+			exploredCentroids := map[s2.CellID]bool{}
+
 			for _, cellId := range centroids {
 				sort.Slice(centroidsToNodes[cellId], func(i, j int) bool {
 					nodeI := centroidsToNodes[cellId][i]
@@ -163,15 +167,15 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 
 					return distIToCell < distJToCell
 				})
+				_, exploredCentroids[cellId] = i.centroidsExtended[cellId]
 			}
 
 			actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
 			actionArgs[ilActionTypeArgIndex] = actions.MultipleExtendDeploymentId
 			actionArgs[ilCentroidDistancesToNodesIndex] = centroidsToNodes
+			actionArgs[ilExploringCentroidsIndex] = exploredCentroids
 		}
 	}
-
-
 
 	return
 }
@@ -286,7 +290,10 @@ func (i *idealLatency) GenerateAction(targets []string, args ...interface{}) act
 	case actions.MultipleExtendDeploymentId:
 		centroidsToNodes := args[ilCentroidDistancesToNodesIndex].(map[s2.CellID][]string)
 		nodeCells := map[string][]s2.CellID{}
-		var nodesToExtendTo []string
+		var (
+			nodesToExtendTo  []string
+			targetsExploring = map[string]bool{}
+		)
 
 		for cellId, nodesOrdered := range centroidsToNodes {
 			var selectedNode string
@@ -318,11 +325,25 @@ func (i *idealLatency) GenerateAction(targets []string, args ...interface{}) act
 			}
 		}
 
+		for node, cells := range nodeCells {
+			targetsExploring[node] = true
+			for _, cellId := range cells {
+				if _, ok := i.centroidsExtended[cellId]; !ok {
+					targetsExploring[node] = false
+					break
+				}
+			}
+		}
+
 		return actions.NewMultipleExtendDeploymentAction(i.deployment.DeploymentId, nodesToExtendTo, myself,
-			nodeCells)
+			nodeCells, targetsExploring, i.extendedCentroidCallback)
 	}
 
 	return nil
+}
+
+func (i *idealLatency) extendedCentroidCallback(centroid s2.CellID) {
+	i.centroidsExtended[centroid] = nil
 }
 
 func (i *idealLatency) GetDependencies() (metrics []string) {

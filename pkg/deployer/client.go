@@ -76,15 +76,6 @@ func (c *Client) ExtendDeploymentTo(deploymentId, targetId string, parent *utils
 	return
 }
 
-func (c *Client) ShortenDeploymentFrom(deploymentId, targetId string) (status int) {
-	path := api.GetShortenDeploymentPath(deploymentId, targetId)
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
-
-	status, _ = utils.DoRequest(c.Client, req, nil)
-
-	return
-}
-
 func (c *Client) DeleteDeployment(deploymentId string) (status int) {
 	path := api.GetDeploymentPath(deploymentId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)

@@ -249,31 +249,6 @@ func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 		reqBody.Exploring)
 }
 
-func shortenDeploymentFromHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-	targetId := utils.ExtractPathVar(r, nodeIdPathVar)
-
-	log.Debugf("handling shorten deployment %s from %s", deploymentId, targetId)
-
-	if !hTable.hasDeployment(deploymentId) {
-		log.Debugf("deployment %s does not exist, ignoring shortening request", deploymentId)
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	deploymentChildren := hTable.getChildren(deploymentId)
-	_, ok := deploymentChildren[targetId]
-	if !ok {
-		log.Debugf("deployment %s does not have %s as its child, ignoring shortening request", deploymentId,
-			targetId)
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	client := deployer.NewDeployerClient(targetId + ":" + strconv.Itoa(deployer.Port))
-	client.DeleteDeployment(deploymentId)
-}
-
 func childDeletedDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	log.Debugf("handling child deleted request")
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)

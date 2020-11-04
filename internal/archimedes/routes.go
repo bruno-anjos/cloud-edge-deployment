@@ -98,7 +98,7 @@ var Routes = []utils.Route{
 		Name:        redirectName,
 		Method:      http.MethodPost,
 		Pattern:     redirectRoute,
-		HandlerFunc: redirectHandler,
+		HandlerFunc: redirectServiceHandler,
 	},
 
 	{

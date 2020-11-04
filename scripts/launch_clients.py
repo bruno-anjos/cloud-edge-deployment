@@ -14,7 +14,7 @@ def build_binary():
                    check=True, cwd=f"{os.path.dirname(os.path.realpath(__file__))}/../")
 
 
-def build_and_run_config(config_id, service, client_config, top_output_dir):
+def build_and_run_config(config_id, service, client_config, top_output_dir, location):
     output_dir = os.path.join(top_output_dir, config_id)
     os.mkdir(output_dir)
 
@@ -32,7 +32,7 @@ def build_and_run_config(config_id, service, client_config, top_output_dir):
         max_reqs_key: client_config[max_reqs_key],
         num_clients_key: client_config[num_clients_key],
         fallback_key: fallback,
-        location_key: client_config[location_key],
+        location_key: location,
         port_key: client_config[port_key]
     }
     with open(f"{output_dir}/config.json", "w") as config_fp:
@@ -97,6 +97,9 @@ for item in os.listdir(top_output_dir):
             os.remove(sub_item_path)
         os.rmdir(item_path)
 
+with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/locations.json", "r") as locations_fp:
+    locations = json.load(locations_fp)["services"]
+
 processes = []
 pool = multiprocessing.Pool(processes=os.cpu_count())
 for service in launch_config:
@@ -104,7 +107,8 @@ for service in launch_config:
     for i, client_config in enumerate(launch_config[service]):
         config_id = service + '_' + str(i)
         print(f"handling {config_id}")
-        p = pool.apply_async(build_and_run_config, (config_id, service, client_config, top_output_dir))
+        p = pool.apply_async(build_and_run_config, (config_id, service, client_config, top_output_dir,
+                                                    locations[service]))
         processes.append(p)
 
 pool.close()
