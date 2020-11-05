@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	autonomicUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/pkg/errors"
 
@@ -24,12 +25,6 @@ type (
 	deploymentsMapValue = *deployment.Deployment
 )
 
-const (
-	defaultInterval        = 30 * time.Second
-	initialDeploymentDelay = 30 * time.Second
-	blacklistInterval      = (4 * 30) * time.Second
-)
-
 type (
 	system struct {
 		deployments *sync.Map
@@ -39,10 +34,7 @@ type (
 
 		deployerClient   *deployer.Client
 		archimedesClient *archimedes.Client
-		exploring        sync.Map
 	}
-
-	exploringMapValue = chan interface{}
 )
 
 func newSystem() *system {
@@ -53,18 +45,29 @@ func newSystem() *system {
 		suspected:        &sync.Map{},
 		deployerClient:   deployer.NewDeployerClient(deployer.DefaultHostPort),
 		archimedesClient: archimedes.NewArchimedesClient(archimedes.DefaultHostPort),
-		exploring:        sync.Map{},
 	}
 }
 
-func (a *system) addDeployment(deploymentId, strategyId string) {
-	if _, ok := a.deployments.Load(deploymentId); ok {
-		return
+func (a *system) addDeployment(deploymentId, strategyId string, exploring bool) {
+	if value, ok := a.deployments.Load(deploymentId); ok {
+		depl := value.(deploymentsMapValue)
+		if exploring {
+			depl.Exploring.Store(deployment.Myself.Id, nil)
+		} else {
+			depl.Exploring.Delete(deployment.Myself.Id)
+		}
+		exitChan := make(chan interface{})
+		a.exitChans.Store(deploymentId, exitChan)
+		go a.handleDeployment(depl, exitChan)
 	}
 
 	s, err := deployment.New(deploymentId, strategyId, a.suspected, a.env)
 	if err != nil {
 		panic(err)
+	}
+
+	if exploring {
+		s.Exploring.Store(deployment.Myself.Id, nil)
 	}
 
 	a.deployments.Store(deploymentId, s)
@@ -76,6 +79,11 @@ func (a *system) addDeployment(deploymentId, strategyId string) {
 }
 
 func (a *system) removeDeployment(deploymentId string) {
+	_, ok := a.deployments.Load(deploymentId)
+	if !ok {
+		return
+	}
+
 	value, ok := a.exitChans.Load(deploymentId)
 	if !ok {
 		return
@@ -114,10 +122,14 @@ func (a *system) addDeploymentChild(deploymentId, childId string) {
 }
 
 func (a *system) removeDeploymentChild(deploymentId, childId string) {
+	log.Debugf("removing child %s for deployment %s", childId, deploymentId)
+
 	value, ok := a.deployments.Load(deploymentId)
 	if !ok {
 		return
 	}
+
+	log.Debugf("removed")
 
 	s := value.(deploymentsMapValue)
 	s.AddSuspectedChild(childId)
@@ -226,9 +238,9 @@ func (a *system) getMyLocation() (s2.CellID, error) {
 }
 
 func (a *system) handleDeployment(deployment *deployment.Deployment, exit <-chan interface{}) {
-	time.Sleep(initialDeploymentDelay)
+	time.Sleep(autonomicUtils.InitialDeploymentDelay)
 
-	timer := time.NewTimer(defaultInterval)
+	timer := time.NewTimer(autonomicUtils.DefaultGoalCycleTimeout)
 
 	for {
 		select {
@@ -244,7 +256,8 @@ func (a *system) handleDeployment(deployment *deployment.Deployment, exit <-chan
 			log.Debugf("generated action of type %s for deployment %s", action.GetActionId(), deployment.DeploymentId)
 			a.performAction(action)
 		}
-		timer.Reset(defaultInterval)
+
+		timer.Reset(autonomicUtils.DefaultGoalCycleTimeout)
 	}
 }
 
@@ -253,15 +266,6 @@ func (a *system) performAction(action actions.Action) {
 	case *actions.RedirectAction:
 		assertedAction.Execute(a.archimedesClient)
 	case *actions.ExtendDeploymentAction:
-		if assertedAction.IsExploring() {
-			id := assertedAction.GetDeploymentId() + "_" + assertedAction.GetTarget()
-			exploreChan := make(exploringMapValue)
-			log.Debugf("exploring child %s", id)
-			a.exploring.Store(id, exploreChan)
-			go a.waitToBlacklist(assertedAction.GetDeploymentId(), assertedAction.GetTarget(), exploreChan)
-		}
-		assertedAction.Execute(a.deployerClient)
-	case *actions.MigrateAction:
 		assertedAction.Execute(a.deployerClient)
 	case *actions.MultipleExtendDeploymentAction:
 		assertedAction.Execute(a.deployerClient)
@@ -282,34 +286,10 @@ func (a *system) getLoad(deploymentId string) (float64, bool) {
 }
 
 func (a *system) setExploreSuccess(deploymentId, childId string) bool {
-	id := deploymentId + "_" + childId
-	value, ok := a.exploring.Load(id)
+	value, ok := a.deployments.Load(deploymentId)
 	if !ok {
-		log.Debugf("missing %s", id)
 		return false
 	}
 
-	a.exploring.Delete(id)
-
-	exploreChan := value.(exploringMapValue)
-	close(exploreChan)
-
-	return true
-}
-
-func (a *system) waitToBlacklist(deploymentId, childId string, exploredChan <-chan interface{}) {
-	value, ok := a.deployments.Load(deploymentId)
-	if !ok {
-		return
-	}
-
-	auxDeployment := value.(deploymentsMapValue)
-
-	timer := time.NewTimer(blacklistInterval)
-	select {
-	case <-exploredChan:
-		log.Debugf("exploring %s through %s was a success", deploymentId, childId)
-	case <-timer.C:
-		auxDeployment.BlacklistNode(childId)
-	}
+	return value.(deploymentsMapValue).SetExploreSuccess(childId)
 }

@@ -13,7 +13,9 @@ import (
 func sendHeartbeatsPeriodically() {
 	ticker := time.NewTicker(heartbeatTimeout * time.Second)
 
+	var childrenToRemove []string
 	for {
+		childrenToRemove = []string{}
 		children.Range(func(key, value interface{}) bool {
 			childId := key.(string)
 			log.Debugf("sending heartbeat to %s", childId)
@@ -22,10 +24,20 @@ func sendHeartbeatsPeriodically() {
 			status := childrenClient.SetParentAlive(myself.Id)
 			if status != http.StatusOK {
 				log.Errorf("got status %d while telling %s that i was alive", status, child.Id)
+				childrenToRemove = append(childrenToRemove, childId)
 			}
 
 			return true
 		})
+
+		for _, deploymentId := range hTable.getDeployments() {
+			depChildren := hTable.getChildren(deploymentId)
+			for _, childId := range childrenToRemove {
+				if _, ok := depChildren[childId]; ok {
+					hTable.removeChild(deploymentId, childId)
+				}
+			}
+		}
 
 		<-ticker.C
 	}

@@ -83,7 +83,7 @@ func (nl *nodeLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, inf
 
 	for nodeId := range locationsInVicinity {
 		_, okS := nl.deployment.Suspected.Load(nodeId)
-		if okS || nodeId == myself.Id || nodeId == nl.deployment.ParentId {
+		if okS || nodeId == Myself.Id || nodeId == nl.deployment.ParentId {
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}

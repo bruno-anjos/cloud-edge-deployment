@@ -7,10 +7,10 @@ BUILD_DIR="$REL_PATH/../build"
 CMD_DIR="$REL_PATH/../cmd"
 
 function build() {
-	echo "running env CGO_ENABLED=1 go-1.14 build -race -o \"${BUILD_DIR}/${SERVICE_NAME}/${SERVICE_NAME}\"\
+	echo "running env CGO_ENABLED=1 go build -race -o \"${BUILD_DIR}/${SERVICE_NAME}/${SERVICE_NAME}\"\
 	\"${CMD_DIR}/${SERVICE_NAME}/main.go\""
 
-	env CGO_ENABLED=1 go-1.14 build -race -o "${BUILD_DIR}/${SERVICE_NAME}/${SERVICE_NAME}" \
+	env CGO_ENABLED=1 go build -race -o "${BUILD_DIR}/${SERVICE_NAME}/${SERVICE_NAME}" \
 	"${CMD_DIR}/${SERVICE_NAME}/main.go"
 }
 

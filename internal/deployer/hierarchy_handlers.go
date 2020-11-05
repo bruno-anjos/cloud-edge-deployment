@@ -37,8 +37,14 @@ func deadChildHandler(_ http.ResponseWriter, r *http.Request) {
 		hTable.removeChild(deploymentId, deadChildId)
 	}
 
-	go attemptToExtend(deploymentId, "", body.Locations, []*utils.Node{body.Grandchild}, myself, 0, body.Alternatives,
-		false)
+	config := &api.ExtendDeploymentConfig{
+		Parent:    myself,
+		Children:  []*utils.Node{body.Grandchild},
+		Locations: body.Locations,
+		ToExclude: nil,
+	}
+
+	go attemptToExtend(deploymentId, "", config, 0, body.Alternatives, false)
 }
 
 func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
@@ -53,9 +59,14 @@ func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
 	log.Debugf("node %s is falling back from %f with deployment %s", reqBody.OrphanId, reqBody.OrphanLocation,
 		deploymentId)
 
-	go attemptToExtend(deploymentId, reqBody.OrphanId, []s2.CellID{reqBody.OrphanLocation}, nil, myself,
-	maxHopsToLookFor, nil,
-		false)
+	config := &api.ExtendDeploymentConfig{
+		Parent:    myself,
+		Children:  nil,
+		Locations: []s2.CellID{reqBody.OrphanLocation},
+		ToExclude: nil,
+	}
+
+	go attemptToExtend(deploymentId, reqBody.OrphanId, config, maxHopsToLookFor, nil, false)
 }
 
 func setGrandparentHandler(_ http.ResponseWriter, r *http.Request) {

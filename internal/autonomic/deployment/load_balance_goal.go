@@ -5,8 +5,10 @@ import (
 	"sort"
 	"strconv"
 
+	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -15,7 +17,8 @@ import (
 
 const (
 	maximumLoad            = 300
-	staleCyclesNumToRemove = 5
+	staleCyclesNumToRemove = int((float64(archimedesHTTPClient.ResetToFallbackTimeout) * (3. / 2.)) /
+		float64(utils.DefaultGoalCycleTimeout))
 
 	loadBalanceGoalId = "GOAL_LOAD_BALANCE"
 )
@@ -116,14 +119,14 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain
 	locationsInVicinity := value.(map[string]interface{})
 
 	info = map[string]interface{}{}
-	archClient := archimedes.NewArchimedesClient(myself.Id + ":" + strconv.Itoa(archimedes.Port))
+	archClient := archimedes.NewArchimedesClient(Myself.Id + ":" + strconv.Itoa(archimedes.Port))
 	load, status := archClient.GetLoad(l.deployment.DeploymentId)
 	if status != http.StatusOK {
 		load = 0
 	}
 
-	domain = append(domain, myself.Id)
-	info[myself.Id] = load
+	domain = append(domain, Myself.Id)
+	info[Myself.Id] = load
 
 	for nodeId := range locationsInVicinity {
 		_, okS := l.deployment.Suspected.Load(nodeId)
@@ -168,7 +171,7 @@ func (l *deploymentLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria
 	cutoff = nil
 	maxed = true
 
-	myLoad := candidatesCriteria[myself.Id].(loadType)
+	myLoad := candidatesCriteria[Myself.Id].(loadType)
 
 	if myLoad > maximumLoad {
 		log.Debugf("im overloaded (%d)", myLoad)
@@ -199,8 +202,21 @@ func (l *deploymentLoadBalanceGoal) GenerateAction(targets []string, args ...int
 			log.Errorf("got status %d while getting %s location", status, targets[0])
 			return nil
 		}
-		return actions.NewExtendDeploymentAction(l.deployment.DeploymentId, targets[0], false, myself,
-			nil, location)
+
+		toExclude := map[string]interface{}{}
+		l.deployment.Blacklist.Range(func(key, value interface{}) bool {
+			nodeId := key.(string)
+			toExclude[nodeId] = nil
+			return true
+		})
+		l.deployment.Exploring.Range(func(key, value interface{}) bool {
+			nodeId := key.(string)
+			toExclude[nodeId] = nil
+			return true
+		})
+
+		return actions.NewExtendDeploymentAction(l.deployment.DeploymentId, targets[0], false, Myself,
+			nil, location, toExclude, l.deployment.SetNodeAsExploring)
 	case actions.RedirectClientsId:
 		return actions.NewRedirectAction(l.deployment.DeploymentId, args[lbFromIndex].(string), targets[0],
 			args[lbAmountIndex].(int))
@@ -300,7 +316,7 @@ func (l *deploymentLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 }
 
 func (l *deploymentLoadBalanceGoal) checkIfHasAlternatives(sortingCriteria map[string]interface{}) (hasAlternatives bool) {
-	myLoad := sortingCriteria[myself.Id].(loadType)
+	myLoad := sortingCriteria[Myself.Id].(loadType)
 
 	var (
 		deplClient = deployer.NewDeployerClient("")

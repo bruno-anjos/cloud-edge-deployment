@@ -2,6 +2,7 @@ package autonomic
 
 type deploymentConfig struct {
 	StrategyId string
+	Exploring  bool
 }
 
 type DeploymentDTO struct {

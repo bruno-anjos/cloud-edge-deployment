@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -17,26 +18,31 @@ import (
 )
 
 const (
-	blacklistDuration = 5 * time.Minute
+	blacklistDuration = 10 * time.Minute
 )
 
-type nodeWithLocation struct {
-	NodeId   string
-	Location s2.CellID
-}
+type (
+	nodeWithLocation struct {
+		NodeId   string
+		Location s2.CellID
+	}
 
-type Deployment struct {
-	DeploymentId string
-	Strategy     strategy
-	Children     *sync.Map
-	ParentId     string
-	Suspected    *sync.Map
-	Environment  *environment.Environment
-	Blacklist    *sync.Map
-}
+	Deployment struct {
+		DeploymentId string
+		Strategy     strategy
+		Children     *sync.Map
+		ParentId     string
+		Suspected    *sync.Map
+		Environment  *environment.Environment
+		Blacklist    *sync.Map
+		Exploring    *sync.Map
+	}
+
+	exploringMapValue = chan interface{}
+)
 
 var (
-	myself *utils.Node
+	Myself *utils.Node
 )
 
 func init() {
@@ -45,7 +51,7 @@ func init() {
 		panic(err)
 	}
 
-	myself = &utils.Node{
+	Myself = &utils.Node{
 		Id:   hostname,
 		Addr: hostname,
 	}
@@ -60,6 +66,7 @@ func New(deploymentId, strategyId string, suspected *sync.Map,
 		Environment:  env,
 		DeploymentId: deploymentId,
 		Blacklist:    &sync.Map{},
+		Exploring:    &sync.Map{},
 	}
 
 	var strat strategy
@@ -94,6 +101,11 @@ func (a *Deployment) AddChild(childId string, location s2.CellID) {
 
 func (a *Deployment) RemoveChild(childId string) {
 	a.Children.Delete(childId)
+
+	_, ok := a.Exploring.Load(childId)
+	if ok {
+		a.BlacklistNode(childId)
+	}
 }
 
 func (a *Deployment) AddSuspectedChild(childId string) {
@@ -142,6 +154,19 @@ func (a *Deployment) GetLoad() float64 {
 func (a *Deployment) BlacklistNode(nodeId string) {
 	log.Debugf("blacklisting %s", nodeId)
 	a.Blacklist.Store(nodeId, nil)
+
+	autoClient := public.NewAutonomicClient("")
+	a.Children.Range(func(key, value interface{}) bool {
+		childId := key.(string)
+		if childId == nodeId {
+			return true
+		}
+		autoClient.SetHostPort(childId + ":" + strconv.Itoa(public.Port))
+		autoClient.BlacklistNode(a.DeploymentId, nodeId)
+		log.Debugf("telling %s to blacklist %s for %s", childId, nodeId, a.DeploymentId)
+		return true
+	})
+
 	go func() {
 		blacklistTimer := time.NewTimer(blacklistDuration)
 		<-blacklistTimer.C
@@ -152,4 +177,15 @@ func (a *Deployment) BlacklistNode(nodeId string) {
 
 func (a *Deployment) removeFromBlacklist(nodeId string) {
 	a.Blacklist.Delete(nodeId)
+}
+
+func (a *Deployment) SetExploreSuccess(childId string) bool {
+	a.Exploring.Delete(childId)
+	log.Debugf("explored %s successfully", childId)
+	return true
+}
+
+func (a *Deployment) SetNodeAsExploring(nodeId string) {
+	log.Debugf("exploring child %s", nodeId)
+	a.Exploring.Store(nodeId, nil)
 }

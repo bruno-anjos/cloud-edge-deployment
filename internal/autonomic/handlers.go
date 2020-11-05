@@ -29,7 +29,7 @@ func addDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	autonomicSystem.addDeployment(deploymentId, deploymentConfig.StrategyId)
+	autonomicSystem.addDeployment(deploymentId, deploymentConfig.StrategyId, deploymentConfig.Exploring)
 
 	return
 }

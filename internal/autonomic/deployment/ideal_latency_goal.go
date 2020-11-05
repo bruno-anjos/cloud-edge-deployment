@@ -207,7 +207,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 	for nodeId, cellValue := range locationsInVicinity {
 		_, okC := i.deployment.Children.Load(nodeId)
 		_, okS := i.deployment.Suspected.Load(nodeId)
-		if okC || okS || nodeId == myself.Id {
+		if okC || okS || nodeId == Myself.Id {
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}
@@ -328,15 +328,29 @@ func (i *idealLatency) GenerateAction(targets []string, args ...interface{}) act
 		for node, cells := range nodeCells {
 			targetsExploring[node] = true
 			for _, cellId := range cells {
-				if _, ok := i.centroidsExtended[cellId]; !ok {
+				_, centroidExtended := i.centroidsExtended[cellId]
+				_, iAmExploring := i.deployment.Exploring.Load(Myself)
+				if !centroidExtended && !iAmExploring{
 					targetsExploring[node] = false
 					break
 				}
 			}
 		}
 
-		return actions.NewMultipleExtendDeploymentAction(i.deployment.DeploymentId, nodesToExtendTo, myself,
-			nodeCells, targetsExploring, i.extendedCentroidCallback)
+		toExclude := map[string]interface{}{}
+		i.deployment.Blacklist.Range(func(key, value interface{}) bool {
+			nodeId := key.(string)
+			toExclude[nodeId] = nil
+			return true
+		})
+		i.deployment.Exploring.Range(func(key, value interface{}) bool {
+			nodeId := key.(string)
+			toExclude[nodeId] = nil
+			return true
+		})
+
+		return actions.NewMultipleExtendDeploymentAction(i.deployment.DeploymentId, nodesToExtendTo, Myself,
+			nodeCells, targetsExploring, i.extendedCentroidCallback, toExclude, i.deployment.SetNodeAsExploring)
 	}
 
 	return nil

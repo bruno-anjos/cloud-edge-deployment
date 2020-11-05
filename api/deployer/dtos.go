@@ -19,6 +19,7 @@ type (
 		DeploymentId        string
 		Static              bool
 		DeploymentYAMLBytes []byte
+
 	}
 
 	DeploymentYAML struct {

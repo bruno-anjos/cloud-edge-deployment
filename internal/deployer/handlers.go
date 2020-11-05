@@ -224,7 +224,7 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	client.SetHostPort(target.Addr)
 	config := hTable.getDeploymentConfig(deploymentId)
 	isStatic := hTable.isStatic(deploymentId)
-	client.RegisterDeployment(deploymentId, isStatic, config, myself, nil)
+	client.RegisterDeployment(deploymentId, isStatic, config, myself, nil, false)
 }
 
 func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
@@ -245,8 +245,7 @@ func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	go attemptToExtend(deploymentId, targetAddr, reqBody.Locations, reqBody.Children, reqBody.Parent, 0, nil,
-		reqBody.Exploring)
+	go attemptToExtend(deploymentId, targetAddr, reqBody.Config, 0, nil, reqBody.Exploring)
 }
 
 func childDeletedDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
@@ -265,11 +264,13 @@ func getDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
 func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling register deployment request")
 
-	var deploymentDTO api.DeploymentDTO
-	err := json.NewDecoder(r.Body).Decode(&deploymentDTO)
+	var registerBody api.RegisterDeploymentRequestBody
+	err := json.NewDecoder(r.Body).Decode(&registerBody)
 	if err != nil {
 		panic(err)
 	}
+
+	deploymentDTO := registerBody.DeploymentConfig
 
 	var deploymentYAML api.DeploymentYAML
 	err = yaml.Unmarshal(deploymentDTO.DeploymentYAMLBytes, &deploymentYAML)
@@ -312,7 +313,7 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	hTable.addDeployment(&deploymentDTO)
+	hTable.addDeployment(deploymentDTO, registerBody.Exploring)
 	if deploymentDTO.Parent != nil {
 		if !pTable.hasParent(deploymentDTO.Parent.Id) {
 			pTable.addParent(deploymentDTO.Parent)
@@ -596,25 +597,8 @@ func addDeploymentAsync(deployment *Deployment, deploymentId string) {
 }
 
 func deleteDeploymentAsync(deploymentId string) {
-	instances, status := archimedesClient.GetDeployment(deploymentId)
-	if status != http.StatusOK {
-		log.Errorf("got status %d while requesting deployment %s instances", status, deploymentId)
-		return
-	}
+	hTable.autonomicClient.DeleteDeployment(deploymentId)
 
-	status = archimedesClient.DeleteDeployment(deploymentId)
-	if status != http.StatusOK {
-		log.Warnf("got status code %d from archimedes", status)
-		return
-	}
-
-	for instanceId := range instances {
-		status = schedulerClient.StopInstance(instanceId)
-		if status != http.StatusOK {
-			log.Warnf("got status code %d from scheduler", status)
-			return
-		}
-	}
 }
 
 func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool) *Deployment {

@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
@@ -196,7 +197,7 @@ func newHierarchyTable() *hierarchyTable {
 	}
 }
 
-func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO) bool {
+func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, exploring bool) bool {
 	var (
 		static int32
 	)
@@ -220,7 +221,7 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO) bool {
 		return false
 	}
 
-	t.autonomicClient.RegisterDeployment(dto.DeploymentId, autonomic.StrategyIdealLatencyId)
+	t.autonomicClient.RegisterDeployment(dto.DeploymentId, autonomic.StrategyIdealLatencyId, exploring)
 	if dto.Parent != nil {
 		log.Debugf("will set my parent as %s", dto.Parent.Addr)
 		t.autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent.Addr)
@@ -245,9 +246,34 @@ func (t *hierarchyTable) removeDeployment(deploymentId string) {
 	if entry.getNumChildren() != 0 {
 		log.Errorf("removing deployment that is still someones father")
 	} else {
-		archimedesClient.DeleteDeployment(deploymentId)
+		status := t.autonomicClient.DeleteDeployment(deploymentId)
+		if status != http.StatusOK {
+			log.Errorf("got status code %d from autonomic while deleting %s", status, deploymentId)
+			return
+		}
+
+		var instances map[string]*archimedes2.Instance
+		instances, status = archimedesClient.GetDeployment(deploymentId)
+		if status != http.StatusOK {
+			log.Errorf("got status %d while requesting deployment %s instances", status, deploymentId)
+			return
+		}
+
+		status = archimedesClient.DeleteDeployment(deploymentId)
+		if status != http.StatusOK {
+			log.Errorf("got status code %d from archimedes", status)
+			return
+		}
+
+		for instanceId := range instances {
+			status = schedulerClient.StopInstance(instanceId)
+			if status != http.StatusOK {
+				log.Errorf("got status code %d from scheduler", status)
+				return
+			}
+		}
+
 		t.hierarchyEntries.Delete(deploymentId)
-		t.autonomicClient.DeleteDeployment(deploymentId)
 	}
 }
 
@@ -569,7 +595,7 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 			status := deplClient.Fallback(deploymentId, myself.Id, location.ID())
 			if status != http.StatusOK {
 				log.Debugf("tried to fallback to %s, got %d", fallback, status)
-				deleteDeploymentAsync(deploymentId)
+				hTable.removeDeployment(deploymentId)
 			}
 			continue
 		}
@@ -614,12 +640,13 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 	}
 }
 
-func attemptToExtend(deploymentId, target string, targetLocations []s2.CellID, children []*utils.Node,
-	parent *utils.Node, maxHops int, alternatives map[string]*utils.Node, isExploring bool) {
+func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentConfig, maxHops int,
+	alternatives map[string]*utils.Node, isExploring bool) {
 	var extendTimer *time.Timer
 
-	toExclude := map[string]interface{}{myself.Id: nil}
-	for _, child := range children {
+	toExclude := config.ToExclude
+	toExclude[myself.Id] = nil
+	for _, child := range config.Children {
 		toExclude[child.Id] = nil
 	}
 
@@ -639,13 +666,13 @@ func attemptToExtend(deploymentId, target string, targetLocations []s2.CellID, c
 	for !success {
 		hasTarget := target != ""
 		if !hasTarget {
-			target = getAlternative(alternatives, targetLocations, maxHops, toExclude)
+			target = getAlternative(alternatives, config.Locations, maxHops, toExclude)
 			hasTarget = target != ""
 		}
 
 		if hasTarget {
 			nodeToExtendTo = utils.NewNode(target, target)
-			success = extendDeployment(deploymentId, nodeToExtendTo, children, parent)
+			success = extendDeployment(deploymentId, nodeToExtendTo, config.Children, config.Parent, isExploring)
 			if success {
 				break
 			}
@@ -654,8 +681,8 @@ func attemptToExtend(deploymentId, target string, targetLocations []s2.CellID, c
 		if tries == 5 {
 			log.Debugf("failed to extend deployment %s", deploymentId)
 			target = myself.Id
-			for _, child := range children {
-				extendDeployment(deploymentId, child, nil, parent)
+			for _, child := range config.Children {
+				extendDeployment(deploymentId, child, nil, config.Parent, isExploring)
 			}
 			return
 		}
@@ -671,12 +698,12 @@ func attemptToExtend(deploymentId, target string, targetLocations []s2.CellID, c
 		exploring.Store(id, &sync.Once{})
 
 		archClient := archimedes.NewArchimedesClient(nodeToExtendTo.Id + ":" + strconv.Itoa(archimedes.Port))
-		archClient.SetExploringCells(deploymentId, targetLocations)
+		archClient.SetExploringCells(deploymentId, config.Locations)
 	}
 }
 
 func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children []*utils.Node,
-	parent *utils.Node) bool {
+	parent *utils.Node, exploring bool) bool {
 	dto, ok := hTable.deploymentToDTO(deploymentId)
 	if !ok {
 		log.Errorf("hierarchy table does not contain deployment %s", deploymentId)
@@ -688,7 +715,8 @@ func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children 
 	depClient := deployer.NewDeployerClient(nodeToExtendTo.Id + ":" + strconv.Itoa(deployer.Port))
 
 	log.Debugf("extending deployment %s to %s", deploymentId, nodeToExtendTo.Id)
-	status := depClient.RegisterDeployment(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Parent, dto.Children)
+	status := depClient.RegisterDeployment(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Parent,
+		dto.Children, exploring)
 	if status == http.StatusConflict {
 		log.Debugf("deployment %s is already present in %s", deploymentId, nodeToExtendTo.Id)
 	} else if status != http.StatusOK {

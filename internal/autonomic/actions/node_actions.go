@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/golang/geo/s2"
@@ -13,7 +14,6 @@ import (
 const (
 	ExtendDeploymentId         = "ACTION_EXTEND_DEPLOYMENT"
 	RemoveDeploymentId         = "ACTION_REMOVE_DEPLOYMENT"
-	MigrateDeploymentId        = "ACTION_MIGRATE_DEPLOYMENT"
 	MultipleExtendDeploymentId = "ACTION_MULTIPLE_EXTEND_DEPLOYMENT"
 )
 
@@ -30,7 +30,7 @@ func NewRemoveDeploymentAction(deploymentId string) *RemoveDeploymentAction {
 func (m *RemoveDeploymentAction) Execute(client utils.Client) {
 	deployerClient := client.(*deployer.Client)
 	status := deployerClient.DeleteDeployment(m.GetDeploymentId())
-	if status != http.StatusOK{
+	if status != http.StatusOK {
 		log.Errorf("got status %d while attempting to delete deployment %s", status, m.GetDeploymentId())
 	}
 }
@@ -40,27 +40,36 @@ type ExtendDeploymentAction struct {
 }
 
 func NewExtendDeploymentAction(deploymentId, target string, exploring bool, parent *utils.Node,
-	children []*utils.Node, location s2.CellID) *ExtendDeploymentAction {
+	children []*utils.Node, location s2.CellID, toExclude map[string]interface{},
+	setNodeExploringCallback func(nodeId string)) *ExtendDeploymentAction {
 	return &ExtendDeploymentAction{
 		actionWithDeploymentTarget: newActionWithDeploymentTarget(ExtendDeploymentId, deploymentId, target, exploring, parent,
-			children, location),
+			children, location, toExclude, setNodeExploringCallback),
 	}
 }
 
-func (m *ExtendDeploymentAction) IsExploring() bool {
+func (m *ExtendDeploymentAction) isExploring() bool {
 	return m.Args[2].(bool)
 }
 
-func (m *ExtendDeploymentAction) GetParent() *utils.Node {
+func (m *ExtendDeploymentAction) getParent() *utils.Node {
 	return m.Args[3].(*utils.Node)
 }
 
-func (m *ExtendDeploymentAction) GetChildren() []*utils.Node {
+func (m *ExtendDeploymentAction) getChildren() []*utils.Node {
 	return m.Args[4].([]*utils.Node)
 }
 
-func (m *ExtendDeploymentAction) GetLocation() s2.CellID {
+func (m *ExtendDeploymentAction) getLocation() s2.CellID {
 	return m.Args[5].(s2.CellID)
+}
+
+func (m *ExtendDeploymentAction) getToExclude() map[string]interface{} {
+	return m.Args[6].(map[string]interface{})
+}
+
+func (m *ExtendDeploymentAction) getSetNodeAsExploringCallback() func(nodeId string) {
+	return m.Args[7].(func(nodeId string))
 }
 
 func (m *ExtendDeploymentAction) Execute(client utils.Client) {
@@ -74,11 +83,20 @@ func (m *ExtendDeploymentAction) Execute(client utils.Client) {
 		return
 	}
 
-	status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), m.GetTarget(), m.GetParent(),
-		[]s2.CellID{m.GetLocation()}, m.GetChildren(), m.IsExploring())
+	config := &api.ExtendDeploymentConfig{
+		Parent:    m.getParent(),
+		Children:  m.getChildren(),
+		Locations: []s2.CellID{m.getLocation()},
+		ToExclude: m.getToExclude(),
+	}
+	status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), m.GetTarget(), m.isExploring(), config)
 	if status != http.StatusOK {
 		log.Errorf("got status code %d while extending deployment", status)
 		return
+	}
+
+	if m.isExploring() {
+		m.getSetNodeAsExploringCallback()(m.GetTarget())
 	}
 }
 
@@ -88,35 +106,45 @@ type MultipleExtendDeploymentAction struct {
 
 func NewMultipleExtendDeploymentAction(deploymentId string, targets []string, parent *utils.Node,
 	locations map[string][]s2.CellID, targetsExploring map[string]bool,
-	centroidsExtendedCallback func(centroid s2.CellID)) *MultipleExtendDeploymentAction {
+	centroidsExtendedCallback func(centroid s2.CellID), toExclude map[string]interface{},
+	setNodeExploringCallback func(nodeId string)) *MultipleExtendDeploymentAction {
 	return &MultipleExtendDeploymentAction{
 		actionWithDeploymentTargets: newActionWithDeploymentTargets(MultipleExtendDeploymentId, deploymentId,
-			targets, parent, locations, targetsExploring, centroidsExtendedCallback),
+			targets, parent, locations, targetsExploring, centroidsExtendedCallback, toExclude, setNodeExploringCallback),
 	}
 }
 
-func (m *MultipleExtendDeploymentAction) GetParent() *utils.Node {
+func (m *MultipleExtendDeploymentAction) getParent() *utils.Node {
 	return m.Args[2].(*utils.Node)
 }
 
-func (m *MultipleExtendDeploymentAction) GetLocations() map[string][]s2.CellID {
+func (m *MultipleExtendDeploymentAction) getLocations() map[string][]s2.CellID {
 	return m.Args[3].(map[string][]s2.CellID)
 }
 
-func (m *MultipleExtendDeploymentAction) GetTargetsExploring() map[string]bool {
+func (m *MultipleExtendDeploymentAction) getTargetsExploring() map[string]bool {
 	return m.Args[4].(map[string]bool)
 }
 
-func (m *MultipleExtendDeploymentAction) GetCentroidCallback() func(centroid s2.CellID) {
+func (m *MultipleExtendDeploymentAction) getCentroidCallback() func(centroid s2.CellID) {
 	return m.Args[5].(func(centroid s2.CellID))
+}
+
+func (m *MultipleExtendDeploymentAction) getToExclude() map[string]interface{} {
+	return m.Args[6].(map[string]interface{})
+}
+
+func (m *MultipleExtendDeploymentAction) getSetNodeAsExploringCallback() func(nodeId string) {
+	return m.Args[7].(func(nodeId string))
 }
 
 func (m *MultipleExtendDeploymentAction) Execute(client utils.Client) {
 	log.Debugf("executing %s to %+v", m.ActionId, m.GetTargets())
 	deployerClient := client.(*deployer.Client)
-	locations := m.GetLocations()
-	extendedCentroidCallback := m.GetCentroidCallback()
-	targetsExploring := m.GetTargetsExploring()
+	locations := m.getLocations()
+	extendedCentroidCallback := m.getCentroidCallback()
+	targetsExploring := m.getTargetsExploring()
+	toExclude := m.getToExclude()
 
 	for _, target := range m.GetTargets() {
 		targetClient := deployer.NewDeployerClient(target + ":" + strconv.Itoa(deployer.Port))
@@ -126,11 +154,21 @@ func (m *MultipleExtendDeploymentAction) Execute(client utils.Client) {
 			continue
 		}
 
-		status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), target, m.GetParent(), locations[target],
-			nil, targetsExploring[target])
+		config := &api.ExtendDeploymentConfig{
+			Parent:    m.getParent(),
+			Children:  nil,
+			Locations: locations[target],
+			ToExclude: toExclude,
+		}
+
+		status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), target, targetsExploring[target], config)
 		if status != http.StatusOK {
 			log.Errorf("got status code %d while extending deployment", status)
 			return
+		}
+
+		if targetsExploring[target] {
+			m.getSetNodeAsExploringCallback()(target)
 		}
 
 		for _, centroid := range locations[target] {
@@ -138,23 +176,4 @@ func (m *MultipleExtendDeploymentAction) Execute(client utils.Client) {
 		}
 	}
 
-}
-
-type MigrateAction struct {
-	*actionWithDeploymentOriginTarget
-}
-
-func NewMigrateAction(deploymentId, from, to string) *MigrateAction {
-	return &MigrateAction{
-		actionWithDeploymentOriginTarget: newActionWithDeploymentOriginTarget(MigrateDeploymentId, deploymentId, from, to),
-	}
-}
-
-func (m *MigrateAction) Execute(client utils.Client) {
-	log.Debugf("executing %s from %s to %s", MigrateDeploymentId, m.GetOrigin(), m.GetTarget())
-	deployerClient := client.(*deployer.Client)
-	status := deployerClient.MigrateDeployment(m.GetDeploymentId(), m.GetOrigin(), m.GetTarget())
-	if status == http.StatusOK {
-		log.Errorf("got status code %d while extending deployment", status)
-	}
 }

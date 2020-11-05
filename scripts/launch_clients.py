@@ -9,7 +9,7 @@ import sys
 def build_binary():
     main_path = f"{os.path.dirname(os.path.realpath(__file__))}/../cmd/dummy_client/main.go"
     out_binary_path = f"{os.path.dirname(os.path.realpath(__file__))}/../build/dummy_client/dummy_client"
-    subprocess.run(["env", "CGO_ENABLED=1", "go-1.14", "build", "-race", "-o", out_binary_path,
+    subprocess.run(["env", "CGO_ENABLED=1", "go", "build", "-race", "-o", out_binary_path,
                     main_path],
                    check=True, cwd=f"{os.path.dirname(os.path.realpath(__file__))}/../")
 
@@ -80,10 +80,6 @@ port_key = "port"
 
 with open(f"{os.path.dirname(os.path.realpath(__file__))}/../build/deployer/fallback.txt", "r") as fallback_fp:
     fallback = fallback_fp.readline()
-
-cmd = ["go", "get", "github.com/bruno-anjos/cloud-edge-deployment"]
-res = subprocess.run(cmd, capture_output=True, check=True)
-print(res)
 
 build_binary()
 

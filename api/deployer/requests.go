@@ -12,37 +12,44 @@ const (
 )
 
 type (
-	RegisterDeploymentRequestBody = DeploymentDTO
-	AddNodeRequestBody            = string
-	DeadChildRequestBody          = struct {
+	RegisterDeploymentRequestBody struct {
+		DeploymentConfig *DeploymentDTO
+		Exploring        bool
+	}
+	AddNodeRequestBody   = string
+	DeadChildRequestBody struct {
 		Grandchild   *utils.Node
 		Alternatives map[string]*utils.Node
 		Locations    []s2.CellID
 	}
 	IAmYourParentRequestBody = []*utils.Node
-	IAmYourChildRequestBody  = struct {
+	IAmYourChildRequestBody  struct {
 		Child *utils.Node
 	}
 	RegisterDeploymentInstanceRequestBody = archimedes.InstanceDTO
 	AlternativesRequestBody               = []*utils.Node
 	SetGrandparentRequestBody             = utils.Node
-	FallbackRequestBody                   = struct {
+	FallbackRequestBody                   struct {
 		OrphanId       string
 		OrphanLocation s2.CellID
 	}
 	StartResolveUpTheTreeRequestBody = archimedes.ToResolveDTO
-	ResolveUpTheTreeRequestBody      = struct {
+	ResolveUpTheTreeRequestBody      struct {
 		Origin    string
 		ToResolve *archimedes.ToResolveDTO
 	}
 	RedirectClientDownTheTreeRequestBody = s2.CellID
-	ExtendDeploymentRequestBody          = struct {
+	ExtendDeploymentConfig               struct {
 		Parent    *utils.Node
 		Children  []*utils.Node
-		Exploring bool
 		Locations []s2.CellID
+		ToExclude map[string]interface{}
 	}
-	PropagateLocationToHorizonRequestBody = struct {
+	ExtendDeploymentRequestBody struct {
+		Exploring bool
+		Config    *ExtendDeploymentConfig
+	}
+	PropagateLocationToHorizonRequestBody struct {
 		TTL      int8
 		ChildId  string
 		Location s2.CellID

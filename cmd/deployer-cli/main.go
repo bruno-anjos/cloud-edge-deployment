@@ -105,7 +105,7 @@ func addDeployment(deploymentId, filename string, static bool) {
 		log.Fatal("error reading file: ", err)
 	}
 
-	status := deployerClient.RegisterDeployment(deploymentId, static, fileBytes, nil, nil)
+	status := deployerClient.RegisterDeployment(deploymentId, static, fileBytes, nil, nil, false)
 	if status != http.StatusOK {
 		log.Fatalf("got status %d from deployer", status)
 	}

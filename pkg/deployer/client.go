@@ -42,14 +42,17 @@ func (c *Client) GetDeployments() (deploymentIds []string, status int) {
 	return
 }
 
-func (c *Client) RegisterDeployment(deploymentId string, static bool,
-	deploymentYamlBytes []byte, parent *utils.Node, children []*utils.Node) (status int) {
+func (c *Client) RegisterDeployment(deploymentId string, static bool, deploymentYamlBytes []byte, parent *utils.Node,
+	children []*utils.Node, exploring bool) (status int) {
 	reqBody := api.RegisterDeploymentRequestBody{
-		Children:            children,
-		Parent:              parent,
-		DeploymentId:        deploymentId,
-		Static:              static,
-		DeploymentYAMLBytes: deploymentYamlBytes,
+		DeploymentConfig: &api.DeploymentDTO{
+			Children:            children,
+			Parent:              parent,
+			DeploymentId:        deploymentId,
+			Static:              static,
+			DeploymentYAMLBytes: deploymentYamlBytes,
+		},
+		Exploring: exploring,
 	}
 	path := api.GetDeploymentsPath()
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
@@ -59,13 +62,11 @@ func (c *Client) RegisterDeployment(deploymentId string, static bool,
 	return
 }
 
-func (c *Client) ExtendDeploymentTo(deploymentId, targetId string, parent *utils.Node, locations []s2.CellID,
-	children []*utils.Node, exploring bool) (status int) {
+func (c *Client) ExtendDeploymentTo(deploymentId, targetId string, exploring bool,
+	config *api.ExtendDeploymentConfig) (status int) {
 	reqBody := api.ExtendDeploymentRequestBody{
-		Parent:    parent,
-		Children:  children,
 		Exploring: exploring,
-		Locations: locations,
+		Config:    config,
 	}
 
 	path := api.GetExtendDeploymentPath(deploymentId, targetId)
