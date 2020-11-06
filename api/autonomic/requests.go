@@ -10,4 +10,7 @@ type (
 		Locations []s2.CellID
 		ToExclude map[string]interface{}
 	}
+	BlacklistNodeRequestBody struct {
+		Origin string
+	}
 )

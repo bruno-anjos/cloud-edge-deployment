@@ -215,13 +215,12 @@ func (l *deploymentLoadBalanceGoal) GenerateAction(targets []string, args ...int
 			return true
 		})
 
-		return actions.NewExtendDeploymentAction(l.deployment.DeploymentId, targets[0], false, Myself,
+		return actions.NewExtendDeploymentAction(l.deployment.DeploymentId, targets[0], false,
 			nil, location, toExclude, l.deployment.SetNodeAsExploring)
 	case actions.RedirectClientsId:
 		return actions.NewRedirectAction(l.deployment.DeploymentId, args[lbFromIndex].(string), targets[0],
 			args[lbAmountIndex].(int))
 	case actions.RemoveDeploymentId:
-		// TODO CHECK IF IT SHOULD BE MYSELF
 		return actions.NewRemoveDeploymentAction(l.deployment.DeploymentId)
 	}
 

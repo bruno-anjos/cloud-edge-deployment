@@ -42,12 +42,13 @@ func (c *Client) GetDeployments() (deploymentIds []string, status int) {
 	return
 }
 
-func (c *Client) RegisterDeployment(deploymentId string, static bool, deploymentYamlBytes []byte, parent *utils.Node,
-	children []*utils.Node, exploring bool) (status int) {
+func (c *Client) RegisterDeployment(deploymentId string, static bool, deploymentYamlBytes []byte,
+	grandparent, parent *utils.Node, children []*utils.Node, exploring bool) (status int) {
 	reqBody := api.RegisterDeploymentRequestBody{
 		DeploymentConfig: &api.DeploymentDTO{
 			Children:            children,
 			Parent:              parent,
+			Grandparent:         grandparent,
 			DeploymentId:        deploymentId,
 			Static:              static,
 			DeploymentYAMLBytes: deploymentYamlBytes,

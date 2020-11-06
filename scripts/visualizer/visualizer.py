@@ -50,22 +50,22 @@ while True:
 
     rsync_folder_from_server(results_tree_filename,results_tree_local_path)
 
-    if get_scp_file(archimedes_tex_filename, archimedes_tex_local_path):
-        try:
-            subprocess.run(["pdflatex", "-interaction=nonstopmode", "-output-directory", archimedes_out_local_path,
-                            archimedes_tex_local_path], check=True)
-        except subprocess.CalledProcessError as e:
-            print("error running pdflatex: ", e.returncode)
-
-        try:
-            subprocess.run(["convert", "-density", "300", archimedes_pdf_local_path,
-                            "-quality", "90", "-strip", archimedes_png_local_path], check=True)
-        except subprocess.CalledProcessError as e:
-            print("error running convert: ", e.returncode)
-    else:
-        archimedes_failed = True
+    # if get_scp_file(archimedes_tex_filename, archimedes_tex_local_path):
+    #     try:
+    #         subprocess.run(["pdflatex", "-interaction=nonstopmode", "-output-directory", archimedes_out_local_path,
+    #                         archimedes_tex_local_path], check=True)
+    #     except subprocess.CalledProcessError as e:
+    #         print("error running pdflatex: ", e.returncode)
+    #
+    #     try:
+    #         subprocess.run(["convert", "-density", "300", archimedes_pdf_local_path,
+    #                         "-quality", "90", "-strip", archimedes_png_local_path], check=True)
+    #     except subprocess.CalledProcessError as e:
+    #         print("error running convert: ", e.returncode)
+    # else:
+    #     archimedes_failed = True
 
     if deployer_failed and archimedes_failed:
         time.sleep(wait)
 
-    time.sleep(8)
+    time.sleep(20)

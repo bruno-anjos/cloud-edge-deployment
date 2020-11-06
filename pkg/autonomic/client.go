@@ -22,7 +22,7 @@ func NewAutonomicClient(addr string) *Client {
 func (c *Client) RegisterDeployment(deploymentId, strategyId string, exploring bool) (status int) {
 	reqBody := api.AddDeploymentRequestBody{
 		StrategyId: strategyId,
-		Exploring: exploring,
+		Exploring:  exploring,
 	}
 
 	path := api.GetDeploymentPath(deploymentId)
@@ -169,10 +169,11 @@ func (c *Client) SetExploredSuccessfully(deploymentId, childId string) (status i
 	return
 }
 
-func (c *Client) BlacklistNode(deploymentId, nodeId string) (status int) {
+func (c *Client) BlacklistNode(deploymentId, nodeId, origin string) (status int) {
 	path := api.GetBlacklistPath(deploymentId, nodeId)
+	reqBody := api.BlacklistNodeRequestBody{Origin: origin}
 
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 	status, _ = utils.DoRequest(c.Client, req, nil)
 
 	return

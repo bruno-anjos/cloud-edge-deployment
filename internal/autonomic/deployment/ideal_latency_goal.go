@@ -325,12 +325,17 @@ func (i *idealLatency) GenerateAction(targets []string, args ...interface{}) act
 			}
 		}
 
+		_, imExplored := i.deployment.Exploring.Load(Myself.Id)
+		log.Debugf("im being explored %t", imExplored)
 		for node, cells := range nodeCells {
 			targetsExploring[node] = true
+			if imExplored {
+				continue
+			}
 			for _, cellId := range cells {
 				_, centroidExtended := i.centroidsExtended[cellId]
 				_, iAmExploring := i.deployment.Exploring.Load(Myself)
-				if !centroidExtended && !iAmExploring{
+				if !centroidExtended && !iAmExploring {
 					targetsExploring[node] = false
 					break
 				}
@@ -349,8 +354,8 @@ func (i *idealLatency) GenerateAction(targets []string, args ...interface{}) act
 			return true
 		})
 
-		return actions.NewMultipleExtendDeploymentAction(i.deployment.DeploymentId, nodesToExtendTo, Myself,
-			nodeCells, targetsExploring, i.extendedCentroidCallback, toExclude, i.deployment.SetNodeAsExploring)
+		return actions.NewMultipleExtendDeploymentAction(i.deployment.DeploymentId, nodesToExtendTo, nodeCells,
+			targetsExploring, i.extendedCentroidCallback, toExclude, i.deployment.SetNodeAsExploring)
 	}
 
 	return nil

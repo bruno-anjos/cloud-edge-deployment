@@ -160,12 +160,19 @@ func blacklistNodeHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	nodeId := utils.ExtractPathVar(r, nodeIdPathVar)
 
+	var reqBody api.BlacklistNodeRequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		panic(err)
+	}
+
 	value, ok := autonomicSystem.deployments.Load(deploymentId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	auxDeployment := value.(deploymentsMapValue)
-	auxDeployment.BlacklistNode(nodeId)
+	depl := value.(deploymentsMapValue)
+	depl.BlacklistNode(nodeId, reqBody.Origin)
+
 }

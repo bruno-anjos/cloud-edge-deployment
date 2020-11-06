@@ -38,7 +38,6 @@ func deadChildHandler(_ http.ResponseWriter, r *http.Request) {
 	}
 
 	config := &api.ExtendDeploymentConfig{
-		Parent:    myself,
 		Children:  []*utils.Node{body.Grandchild},
 		Locations: body.Locations,
 		ToExclude: nil,
@@ -60,7 +59,6 @@ func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
 		deploymentId)
 
 	config := &api.ExtendDeploymentConfig{
-		Parent:    myself,
 		Children:  nil,
 		Locations: []s2.CellID{reqBody.OrphanLocation},
 		ToExclude: nil,
@@ -144,7 +142,6 @@ func iAmYourChildHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("told to accept %s as child for deployment %s", reqBody.Child.Id, deploymentId)
 
 	hTable.addChild(deploymentId, reqBody.Child)
-	children.Store(reqBody.Child.Id, reqBody.Child)
 
 	var responseBody *api.IAmYourChildResponseBody
 	responseBody = hTable.getGrandparent(deploymentId)

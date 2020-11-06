@@ -115,6 +115,8 @@ func (a *system) addDeploymentChild(deploymentId, childId string) {
 		return
 	}
 
+	log.Debugf("adding child %s", childId)
+
 	location := s2.CellIDFromToken(cellValue.(string))
 
 	a.suspected.Delete(childId)
@@ -129,7 +131,7 @@ func (a *system) removeDeploymentChild(deploymentId, childId string) {
 		return
 	}
 
-	log.Debugf("removed")
+	log.Debug("removed")
 
 	s := value.(deploymentsMapValue)
 	s.AddSuspectedChild(childId)

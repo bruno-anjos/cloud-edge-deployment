@@ -184,6 +184,7 @@ type (
 	hierarchyTable struct {
 		hierarchyEntries sync.Map
 		autonomicClient  *autonomic.Client
+		sync.Mutex
 	}
 
 	typeHierarchyEntriesMapKey   = string
@@ -226,7 +227,7 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, exploring bool) b
 		log.Debugf("will set my parent as %s", dto.Parent.Addr)
 		t.autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent.Addr)
 		deplClient := deployer.NewDeployerClient(dto.Parent.Id + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself.Id, location.ID(), 1)
+		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself.Id, location.ID(), 0)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while trying to propagate location to %s for deployment %s", status,
 				dto.Parent.Id, dto.DeploymentId)
@@ -331,6 +332,7 @@ func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node) {
 
 	entry := value.(typeHierarchyEntriesMapValue)
 	entry.addChild(*child)
+	children.LoadOrStore(child.Id, child)
 	t.autonomicClient.AddDeploymentChild(deploymentId, child.Id)
 	return
 }
@@ -672,7 +674,7 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 
 		if hasTarget {
 			nodeToExtendTo = utils.NewNode(target, target)
-			success = extendDeployment(deploymentId, nodeToExtendTo, config.Children, config.Parent, isExploring)
+			success = extendDeployment(deploymentId, nodeToExtendTo, config.Children, isExploring)
 			if success {
 				break
 			}
@@ -682,7 +684,7 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 			log.Debugf("failed to extend deployment %s", deploymentId)
 			target = myself.Id
 			for _, child := range config.Children {
-				extendDeployment(deploymentId, child, nil, config.Parent, isExploring)
+				extendDeployment(deploymentId, child, nil, isExploring)
 			}
 			return
 		}
@@ -696,34 +698,35 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 		id := deploymentId + "_" + nodeToExtendTo.Id
 		log.Debugf("setting extension ")
 		exploring.Store(id, &sync.Once{})
+	}
 
+	if len(config.Locations) > 0 {
 		archClient := archimedes.NewArchimedesClient(nodeToExtendTo.Id + ":" + strconv.Itoa(archimedes.Port))
 		archClient.SetExploringCells(deploymentId, config.Locations)
 	}
 }
 
-func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children []*utils.Node,
-	parent *utils.Node, exploring bool) bool {
+func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children []*utils.Node, exploring bool) bool {
 	dto, ok := hTable.deploymentToDTO(deploymentId)
 	if !ok {
 		log.Errorf("hierarchy table does not contain deployment %s", deploymentId)
 		return false
 	}
 
-	dto.Parent = parent
+	dto.Grandparent = hTable.getGrandparent(deploymentId)
+	dto.Parent = myself
 	dto.Children = children
 	depClient := deployer.NewDeployerClient(nodeToExtendTo.Id + ":" + strconv.Itoa(deployer.Port))
 
 	log.Debugf("extending deployment %s to %s", deploymentId, nodeToExtendTo.Id)
-	status := depClient.RegisterDeployment(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Parent,
-		dto.Children, exploring)
-	if status == http.StatusConflict {
-		log.Debugf("deployment %s is already present in %s", deploymentId, nodeToExtendTo.Id)
-	} else if status != http.StatusOK {
+	status := depClient.RegisterDeployment(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Grandparent,
+		dto.Parent, dto.Children, exploring)
+	if status != http.StatusOK {
 		log.Errorf("got %d while extending deployment %s to %s", status, deploymentId, nodeToExtendTo.Id)
 		return false
 	}
 
+	hTable.addChild(deploymentId, nodeToExtendTo)
 	log.Debugf("extended %s to %s sucessfully", deploymentId, nodeToExtendTo.Id)
 	suspectedDeployments.Delete(deploymentId)
 

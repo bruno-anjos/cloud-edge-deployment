@@ -38,7 +38,6 @@ type (
 		Exploring    *sync.Map
 	}
 
-	exploringMapValue = chan interface{}
 )
 
 var (
@@ -104,7 +103,7 @@ func (a *Deployment) RemoveChild(childId string) {
 
 	_, ok := a.Exploring.Load(childId)
 	if ok {
-		a.BlacklistNode(childId)
+		a.BlacklistNode(childId, Myself.Id)
 	}
 }
 
@@ -151,19 +150,22 @@ func (a *Deployment) GetLoad() float64 {
 	return value.(float64)
 }
 
-func (a *Deployment) BlacklistNode(nodeId string) {
+func (a *Deployment) BlacklistNode(nodeId string, origin string) {
 	log.Debugf("blacklisting %s", nodeId)
 	a.Blacklist.Store(nodeId, nil)
 
-	autoClient := public.NewAutonomicClient("")
+	autoClient := public.NewAutonomicClient(a.ParentId + ":" + strconv.Itoa(public.Port))
+	if a.ParentId != "" && origin != a.ParentId {
+		autoClient.BlacklistNode(a.DeploymentId, nodeId, Myself.Id)
+	}
 	a.Children.Range(func(key, value interface{}) bool {
 		childId := key.(string)
-		if childId == nodeId {
+		if childId == nodeId || childId == origin {
 			return true
 		}
-		autoClient.SetHostPort(childId + ":" + strconv.Itoa(public.Port))
-		autoClient.BlacklistNode(a.DeploymentId, nodeId)
 		log.Debugf("telling %s to blacklist %s for %s", childId, nodeId, a.DeploymentId)
+		autoClient.SetHostPort(childId + ":" + strconv.Itoa(public.Port))
+		autoClient.BlacklistNode(a.DeploymentId, nodeId, Myself.Id)
 		return true
 	})
 

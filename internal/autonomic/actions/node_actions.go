@@ -39,11 +39,11 @@ type ExtendDeploymentAction struct {
 	*actionWithDeploymentTarget
 }
 
-func NewExtendDeploymentAction(deploymentId, target string, exploring bool, parent *utils.Node,
-	children []*utils.Node, location s2.CellID, toExclude map[string]interface{},
+func NewExtendDeploymentAction(deploymentId, target string, exploring bool, children []*utils.Node, location s2.CellID,
+	toExclude map[string]interface{},
 	setNodeExploringCallback func(nodeId string)) *ExtendDeploymentAction {
 	return &ExtendDeploymentAction{
-		actionWithDeploymentTarget: newActionWithDeploymentTarget(ExtendDeploymentId, deploymentId, target, exploring, parent,
+		actionWithDeploymentTarget: newActionWithDeploymentTarget(ExtendDeploymentId, deploymentId, target, exploring,
 			children, location, toExclude, setNodeExploringCallback),
 	}
 }
@@ -52,24 +52,20 @@ func (m *ExtendDeploymentAction) isExploring() bool {
 	return m.Args[2].(bool)
 }
 
-func (m *ExtendDeploymentAction) getParent() *utils.Node {
-	return m.Args[3].(*utils.Node)
-}
-
 func (m *ExtendDeploymentAction) getChildren() []*utils.Node {
-	return m.Args[4].([]*utils.Node)
+	return m.Args[3].([]*utils.Node)
 }
 
 func (m *ExtendDeploymentAction) getLocation() s2.CellID {
-	return m.Args[5].(s2.CellID)
+	return m.Args[4].(s2.CellID)
 }
 
 func (m *ExtendDeploymentAction) getToExclude() map[string]interface{} {
-	return m.Args[6].(map[string]interface{})
+	return m.Args[5].(map[string]interface{})
 }
 
 func (m *ExtendDeploymentAction) getSetNodeAsExploringCallback() func(nodeId string) {
-	return m.Args[7].(func(nodeId string))
+	return m.Args[6].(func(nodeId string))
 }
 
 func (m *ExtendDeploymentAction) Execute(client utils.Client) {
@@ -84,7 +80,6 @@ func (m *ExtendDeploymentAction) Execute(client utils.Client) {
 	}
 
 	config := &api.ExtendDeploymentConfig{
-		Parent:    m.getParent(),
 		Children:  m.getChildren(),
 		Locations: []s2.CellID{m.getLocation()},
 		ToExclude: m.getToExclude(),
@@ -104,38 +99,34 @@ type MultipleExtendDeploymentAction struct {
 	*actionWithDeploymentTargets
 }
 
-func NewMultipleExtendDeploymentAction(deploymentId string, targets []string, parent *utils.Node,
-	locations map[string][]s2.CellID, targetsExploring map[string]bool,
+func NewMultipleExtendDeploymentAction(deploymentId string, targets []string, locations map[string][]s2.CellID,
+	targetsExploring map[string]bool,
 	centroidsExtendedCallback func(centroid s2.CellID), toExclude map[string]interface{},
 	setNodeExploringCallback func(nodeId string)) *MultipleExtendDeploymentAction {
 	return &MultipleExtendDeploymentAction{
 		actionWithDeploymentTargets: newActionWithDeploymentTargets(MultipleExtendDeploymentId, deploymentId,
-			targets, parent, locations, targetsExploring, centroidsExtendedCallback, toExclude, setNodeExploringCallback),
+			targets, locations, targetsExploring, centroidsExtendedCallback, toExclude, setNodeExploringCallback),
 	}
 }
 
-func (m *MultipleExtendDeploymentAction) getParent() *utils.Node {
-	return m.Args[2].(*utils.Node)
-}
-
 func (m *MultipleExtendDeploymentAction) getLocations() map[string][]s2.CellID {
-	return m.Args[3].(map[string][]s2.CellID)
+	return m.Args[2].(map[string][]s2.CellID)
 }
 
 func (m *MultipleExtendDeploymentAction) getTargetsExploring() map[string]bool {
-	return m.Args[4].(map[string]bool)
+	return m.Args[3].(map[string]bool)
 }
 
 func (m *MultipleExtendDeploymentAction) getCentroidCallback() func(centroid s2.CellID) {
-	return m.Args[5].(func(centroid s2.CellID))
+	return m.Args[4].(func(centroid s2.CellID))
 }
 
 func (m *MultipleExtendDeploymentAction) getToExclude() map[string]interface{} {
-	return m.Args[6].(map[string]interface{})
+	return m.Args[5].(map[string]interface{})
 }
 
 func (m *MultipleExtendDeploymentAction) getSetNodeAsExploringCallback() func(nodeId string) {
-	return m.Args[7].(func(nodeId string))
+	return m.Args[6].(func(nodeId string))
 }
 
 func (m *MultipleExtendDeploymentAction) Execute(client utils.Client) {
@@ -155,7 +146,6 @@ func (m *MultipleExtendDeploymentAction) Execute(client utils.Client) {
 		}
 
 		config := &api.ExtendDeploymentConfig{
-			Parent:    m.getParent(),
 			Children:  nil,
 			Locations: locations[target],
 			ToExclude: toExclude,

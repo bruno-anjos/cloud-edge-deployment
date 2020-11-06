@@ -224,7 +224,7 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	client.SetHostPort(target.Addr)
 	config := hTable.getDeploymentConfig(deploymentId)
 	isStatic := hTable.isStatic(deploymentId)
-	client.RegisterDeployment(deploymentId, isStatic, config, myself, nil, false)
+	client.RegisterDeployment(deploymentId, isStatic, config, myself, hTable.getGrandparent(deploymentId), nil, false)
 }
 
 func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
@@ -278,42 +278,38 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	var missingChildren []string
-	deplChildren := hTable.getChildren(deploymentDTO.DeploymentId)
-	for _, child := range deploymentDTO.Children {
-		_, ok := deplChildren[child.Id]
-		if !ok {
-			missingChildren = append(missingChildren, child.Id)
-		}
-	}
-
-	if hTable.hasDeployment(deploymentDTO.DeploymentId) && len(missingChildren) == 0 {
+	if hTable.hasDeployment(deploymentDTO.DeploymentId) &&
+		hTable.getParent(deploymentDTO.DeploymentId) != deploymentDTO.Parent {
+		// case where i have the deployment and my father is either alive or not
 		w.WriteHeader(http.StatusConflict)
 		return
 	}
 
-	for _, child := range missingChildren {
-		if deploymentDTO.Parent != nil && child != deploymentDTO.Parent.Id {
+	hTable.Lock()
+	log.Debugf("will add deployment %s with parent %s(%s)", deploymentDTO.DeploymentId, deploymentDTO.Parent,
+		hTable.getParent(deploymentDTO.DeploymentId))
+
+	if hTable.hasDeployment(deploymentDTO.DeploymentId) &&
+		hTable.getParent(deploymentDTO.DeploymentId) != deploymentDTO.Parent {
+		// after locking to add guarantee that in the meanwhile it wasn't added
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	for _, child := range deploymentDTO.Children {
+		if deploymentDTO.Parent != nil && child.Id != deploymentDTO.Parent.Id {
 			log.Debugf("can take child %s, my parent is %s", child, deploymentDTO.Parent.Id)
 		} else {
+			// if any of the children is my parent i can't take them
 			log.Debugf("rejecting child %s", child)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 	}
 
-	if deploymentDTO.Parent != nil {
-		parent := hTable.getParent(deploymentDTO.DeploymentId)
-		if parent == nil || parent.Id == deploymentDTO.Parent.Id {
-			log.Debugf("can take %s as parent", deploymentDTO.Parent.Id)
-		} else {
-			log.Debugf("rejecting parent %s", deploymentDTO.Parent.Id)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-	}
-
 	hTable.addDeployment(deploymentDTO, registerBody.Exploring)
+	hTable.Unlock()
+
 	if deploymentDTO.Parent != nil {
 		if !pTable.hasParent(deploymentDTO.Parent.Id) {
 			pTable.addParent(deploymentDTO.Parent)
@@ -325,16 +321,6 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	go addDeploymentAsync(deployment, deploymentDTO.DeploymentId)
 
 	deplClient := deployer.NewDeployerClient("")
-	if deploymentDTO.Parent != nil {
-		deplClient.SetHostPort(deploymentDTO.Parent.Id + ":" + strconv.Itoa(deployer.Port))
-		grandparent, status := deplClient.WarnThatIAmChild(deploymentDTO.DeploymentId, myself)
-		if status != http.StatusOK {
-			log.Errorf("got status %d while telling %s that im his child for deployment %s", status,
-				deploymentDTO.Parent.Id, deploymentDTO.DeploymentId)
-			return
-		}
-		hTable.setDeploymentGrandparent(deploymentDTO.DeploymentId, grandparent)
-	}
 
 	for _, child := range deploymentDTO.Children {
 		deplClient.SetHostPort(child.Id + ":" + strconv.Itoa(deployer.Port))
@@ -350,6 +336,8 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 
 func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+
+	log.Debugf("deleting deployment %s", deploymentId)
 
 	parent := hTable.getParent(deploymentId)
 	if parent != nil {
@@ -526,6 +514,7 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 		log.Debugf("will redirect client at %f to %s", clientLocation, bestNode)
 
 		id := deploymentId + "_" + bestNode
+		// TODO this can be change by a load and delete probably
 		value, ok = exploring.Load(id)
 		if ok {
 			exploring.Delete(id)

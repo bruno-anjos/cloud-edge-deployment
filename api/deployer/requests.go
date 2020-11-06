@@ -40,7 +40,6 @@ type (
 	}
 	RedirectClientDownTheTreeRequestBody = s2.CellID
 	ExtendDeploymentConfig               struct {
-		Parent    *utils.Node
 		Children  []*utils.Node
 		Locations []s2.CellID
 		ToExclude map[string]interface{}
