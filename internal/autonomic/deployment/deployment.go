@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	blacklistDuration = 10 * time.Minute
+	blacklistDuration = 30 * time.Minute
 )
 
 type (
@@ -26,6 +26,8 @@ type (
 		NodeId   string
 		Location s2.CellID
 	}
+
+	exploringMapValue = int
 
 	Deployment struct {
 		DeploymentId string
@@ -37,7 +39,6 @@ type (
 		Blacklist    *sync.Map
 		Exploring    *sync.Map
 	}
-
 )
 
 var (
@@ -103,7 +104,7 @@ func (a *Deployment) RemoveChild(childId string) {
 
 	_, ok := a.Exploring.Load(childId)
 	if ok {
-		a.BlacklistNode(childId, Myself.Id)
+		a.BlacklistNode(Myself.Id, childId)
 	}
 }
 
@@ -150,30 +151,34 @@ func (a *Deployment) GetLoad() float64 {
 	return value.(float64)
 }
 
-func (a *Deployment) BlacklistNode(nodeId string, origin string) {
-	log.Debugf("blacklisting %s", nodeId)
-	a.Blacklist.Store(nodeId, nil)
+func (a *Deployment) BlacklistNode(origin string, nodes ...string) {
+	log.Debugf("blacklisting %+v", nodes)
+	for _, node := range nodes {
+		a.Blacklist.Store(node, nil)
+	}
 
 	autoClient := public.NewAutonomicClient(a.ParentId + ":" + strconv.Itoa(public.Port))
 	if a.ParentId != "" && origin != a.ParentId {
-		autoClient.BlacklistNode(a.DeploymentId, nodeId, Myself.Id)
+		autoClient.BlacklistNodes(a.DeploymentId, Myself.Id, nodes)
 	}
 	a.Children.Range(func(key, value interface{}) bool {
 		childId := key.(string)
-		if childId == nodeId || childId == origin {
+		if childId == origin {
 			return true
 		}
-		log.Debugf("telling %s to blacklist %s for %s", childId, nodeId, a.DeploymentId)
+		log.Debugf("telling %s to blacklist %+v for %s", childId, nodes, a.DeploymentId)
 		autoClient.SetHostPort(childId + ":" + strconv.Itoa(public.Port))
-		autoClient.BlacklistNode(a.DeploymentId, nodeId, Myself.Id)
+		autoClient.BlacklistNodes(a.DeploymentId, Myself.Id, nodes)
 		return true
 	})
 
 	go func() {
 		blacklistTimer := time.NewTimer(blacklistDuration)
 		<-blacklistTimer.C
-		log.Debugf("removing %s from blacklist", nodeId)
-		a.Blacklist.Delete(nodeId)
+		log.Debugf("removing %+v from blacklist", nodes)
+		for _, node := range nodes {
+			a.Blacklist.Delete(node)
+		}
 	}()
 }
 

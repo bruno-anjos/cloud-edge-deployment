@@ -9,12 +9,14 @@ import (
 const (
 	ParentIdx      = 0
 	GrandparentIdx = 1
+
+	NotExploringTTL = -1
 )
 
 type (
 	RegisterDeploymentRequestBody struct {
 		DeploymentConfig *DeploymentDTO
-		Exploring        bool
+		ExploringTTL     int
 	}
 	AddNodeRequestBody   = string
 	DeadChildRequestBody struct {
@@ -45,8 +47,8 @@ type (
 		ToExclude map[string]interface{}
 	}
 	ExtendDeploymentRequestBody struct {
-		Exploring bool
-		Config    *ExtendDeploymentConfig
+		ExploringTTL int
+		Config       *ExtendDeploymentConfig
 	}
 	PropagateLocationToHorizonRequestBody struct {
 		TTL      int8

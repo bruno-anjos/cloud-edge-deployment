@@ -43,7 +43,7 @@ func deadChildHandler(_ http.ResponseWriter, r *http.Request) {
 		ToExclude: nil,
 	}
 
-	go attemptToExtend(deploymentId, "", config, 0, body.Alternatives, false)
+	go attemptToExtend(deploymentId, "", config, 0, body.Alternatives, api.NotExploringTTL)
 }
 
 func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
@@ -64,7 +64,7 @@ func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
 		ToExclude: nil,
 	}
 
-	go attemptToExtend(deploymentId, reqBody.OrphanId, config, maxHopsToLookFor, nil, false)
+	go attemptToExtend(deploymentId, reqBody.OrphanId, config, maxHopsToLookFor, nil, api.NotExploringTTL)
 }
 
 func setGrandparentHandler(_ http.ResponseWriter, r *http.Request) {

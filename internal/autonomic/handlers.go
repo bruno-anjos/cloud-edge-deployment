@@ -29,7 +29,7 @@ func addDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	autonomicSystem.addDeployment(deploymentId, deploymentConfig.StrategyId, deploymentConfig.Exploring)
+	autonomicSystem.addDeployment(deploymentId, deploymentConfig.StrategyId, deploymentConfig.ExploringTTL)
 
 	return
 }
@@ -158,7 +158,6 @@ func setExploreSuccessfullyHandler(w http.ResponseWriter, r *http.Request) {
 
 func blacklistNodeHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-	nodeId := utils.ExtractPathVar(r, nodeIdPathVar)
 
 	var reqBody api.BlacklistNodeRequestBody
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -173,6 +172,5 @@ func blacklistNodeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	depl := value.(deploymentsMapValue)
-	depl.BlacklistNode(nodeId, reqBody.Origin)
-
+	depl.BlacklistNode(reqBody.Origin, reqBody.Nodes...)
 }

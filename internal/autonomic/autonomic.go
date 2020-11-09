@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	autonomicUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/pkg/errors"
@@ -48,11 +49,11 @@ func newSystem() *system {
 	}
 }
 
-func (a *system) addDeployment(deploymentId, strategyId string, exploring bool) {
+func (a *system) addDeployment(deploymentId, strategyId string, exploringTTL int) {
 	if value, ok := a.deployments.Load(deploymentId); ok {
 		depl := value.(deploymentsMapValue)
-		if exploring {
-			depl.Exploring.Store(deployment.Myself.Id, nil)
+		if exploringTTL != deployer2.NotExploringTTL {
+			depl.Exploring.Store(deployment.Myself.Id, exploringTTL)
 		} else {
 			depl.Exploring.Delete(deployment.Myself.Id)
 		}
@@ -61,13 +62,15 @@ func (a *system) addDeployment(deploymentId, strategyId string, exploring bool) 
 		go a.handleDeployment(depl, exitChan)
 	}
 
+	log.Debugf("new deployment %s has exploringTTL %d", deploymentId, exploringTTL)
+
 	s, err := deployment.New(deploymentId, strategyId, a.suspected, a.env)
 	if err != nil {
 		panic(err)
 	}
 
-	if exploring {
-		s.Exploring.Store(deployment.Myself.Id, nil)
+	if exploringTTL != deployer2.NotExploringTTL {
+		s.Exploring.Store(deployment.Myself.Id, exploringTTL)
 	}
 
 	a.deployments.Store(deploymentId, s)

@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
+	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
@@ -215,7 +216,7 @@ func (l *deploymentLoadBalanceGoal) GenerateAction(targets []string, args ...int
 			return true
 		})
 
-		return actions.NewExtendDeploymentAction(l.deployment.DeploymentId, targets[0], false,
+		return actions.NewExtendDeploymentAction(l.deployment.DeploymentId, targets[0], deployer2.NotExploringTTL,
 			nil, location, toExclude, l.deployment.SetNodeAsExploring)
 	case actions.RedirectClientsId:
 		return actions.NewRedirectAction(l.deployment.DeploymentId, args[lbFromIndex].(string), targets[0],

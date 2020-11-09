@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 
+	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	log "github.com/sirupsen/logrus"
@@ -105,7 +106,7 @@ func addDeployment(deploymentId, filename string, static bool) {
 		log.Fatal("error reading file: ", err)
 	}
 
-	status := deployerClient.RegisterDeployment(deploymentId, static, fileBytes, nil, nil, nil, false)
+	status := deployerClient.RegisterDeployment(deploymentId, static, fileBytes, nil, nil, nil, deployer2.NotExploringTTL)
 	if status != http.StatusOK {
 		log.Fatalf("got status %d from deployer", status)
 	}

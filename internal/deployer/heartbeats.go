@@ -2,7 +2,6 @@ package deployer
 
 import (
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
@@ -56,11 +55,6 @@ func checkParentHeartbeatsPeriodically() {
 		for _, deadParent := range deadParents {
 			log.Debugf("dead parent: %+v", deadParent)
 			pTable.removeParent(deadParent.Id)
-			filename := alternativesDir + deadParent.Addr
-			if _, err := os.Stat(filename); os.IsNotExist(err) {
-				err = os.Remove(filename)
-				log.Error(err)
-			}
 			renegotiateParent(deadParent, getParentAlternatives(deadParent.Id))
 		}
 	}

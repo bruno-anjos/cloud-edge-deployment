@@ -43,7 +43,7 @@ func (c *Client) GetDeployments() (deploymentIds []string, status int) {
 }
 
 func (c *Client) RegisterDeployment(deploymentId string, static bool, deploymentYamlBytes []byte,
-	grandparent, parent *utils.Node, children []*utils.Node, exploring bool) (status int) {
+	grandparent, parent *utils.Node, children []*utils.Node, exploringTTL int) (status int) {
 	reqBody := api.RegisterDeploymentRequestBody{
 		DeploymentConfig: &api.DeploymentDTO{
 			Children:            children,
@@ -53,7 +53,7 @@ func (c *Client) RegisterDeployment(deploymentId string, static bool, deployment
 			Static:              static,
 			DeploymentYAMLBytes: deploymentYamlBytes,
 		},
-		Exploring: exploring,
+		ExploringTTL: exploringTTL,
 	}
 	path := api.GetDeploymentsPath()
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
@@ -63,10 +63,10 @@ func (c *Client) RegisterDeployment(deploymentId string, static bool, deployment
 	return
 }
 
-func (c *Client) ExtendDeploymentTo(deploymentId, targetId string, exploring bool,
+func (c *Client) ExtendDeploymentTo(deploymentId, targetId string, exploringTTL int,
 	config *api.ExtendDeploymentConfig) (status int) {
 	reqBody := api.ExtendDeploymentRequestBody{
-		Exploring: exploring,
+		ExploringTTL: exploringTTL,
 		Config:    config,
 	}
 

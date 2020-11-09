@@ -39,17 +39,17 @@ type ExtendDeploymentAction struct {
 	*actionWithDeploymentTarget
 }
 
-func NewExtendDeploymentAction(deploymentId, target string, exploring bool, children []*utils.Node, location s2.CellID,
-	toExclude map[string]interface{},
+func NewExtendDeploymentAction(deploymentId, target string, exploringTTL int, children []*utils.Node,
+	location s2.CellID, toExclude map[string]interface{},
 	setNodeExploringCallback func(nodeId string)) *ExtendDeploymentAction {
 	return &ExtendDeploymentAction{
-		actionWithDeploymentTarget: newActionWithDeploymentTarget(ExtendDeploymentId, deploymentId, target, exploring,
+		actionWithDeploymentTarget: newActionWithDeploymentTarget(ExtendDeploymentId, deploymentId, target, exploringTTL,
 			children, location, toExclude, setNodeExploringCallback),
 	}
 }
 
-func (m *ExtendDeploymentAction) isExploring() bool {
-	return m.Args[2].(bool)
+func (m *ExtendDeploymentAction) exploringTTL() int {
+	return m.Args[2].(int)
 }
 
 func (m *ExtendDeploymentAction) getChildren() []*utils.Node {
@@ -84,13 +84,13 @@ func (m *ExtendDeploymentAction) Execute(client utils.Client) {
 		Locations: []s2.CellID{m.getLocation()},
 		ToExclude: m.getToExclude(),
 	}
-	status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), m.GetTarget(), m.isExploring(), config)
+	status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), m.GetTarget(), m.exploringTTL(), config)
 	if status != http.StatusOK {
 		log.Errorf("got status code %d while extending deployment", status)
 		return
 	}
 
-	if m.isExploring() {
+	if m.exploringTTL() != api.NotExploringTTL {
 		m.getSetNodeAsExploringCallback()(m.GetTarget())
 	}
 }
@@ -100,9 +100,8 @@ type MultipleExtendDeploymentAction struct {
 }
 
 func NewMultipleExtendDeploymentAction(deploymentId string, targets []string, locations map[string][]s2.CellID,
-	targetsExploring map[string]bool,
-	centroidsExtendedCallback func(centroid s2.CellID), toExclude map[string]interface{},
-	setNodeExploringCallback func(nodeId string)) *MultipleExtendDeploymentAction {
+	targetsExploring map[string]int, centroidsExtendedCallback func(centroid s2.CellID),
+	toExclude map[string]interface{}, setNodeExploringCallback func(nodeId string)) *MultipleExtendDeploymentAction {
 	return &MultipleExtendDeploymentAction{
 		actionWithDeploymentTargets: newActionWithDeploymentTargets(MultipleExtendDeploymentId, deploymentId,
 			targets, locations, targetsExploring, centroidsExtendedCallback, toExclude, setNodeExploringCallback),
@@ -113,8 +112,8 @@ func (m *MultipleExtendDeploymentAction) getLocations() map[string][]s2.CellID {
 	return m.Args[2].(map[string][]s2.CellID)
 }
 
-func (m *MultipleExtendDeploymentAction) getTargetsExploring() map[string]bool {
-	return m.Args[3].(map[string]bool)
+func (m *MultipleExtendDeploymentAction) getTargetsExploring() map[string]int {
+	return m.Args[3].(map[string]int)
 }
 
 func (m *MultipleExtendDeploymentAction) getCentroidCallback() func(centroid s2.CellID) {
@@ -157,7 +156,7 @@ func (m *MultipleExtendDeploymentAction) Execute(client utils.Client) {
 			return
 		}
 
-		if targetsExploring[target] {
+		if targetsExploring[target] != api.NotExploringTTL {
 			m.getSetNodeAsExploringCallback()(target)
 		}
 

@@ -20,7 +20,7 @@ const (
 	MyLocationPath       = "/location"
 	LoadPath             = "/load/%s"
 	ExplorePath          = "/explored/%s/%s"
-	BlacklistPath        = "/blacklist/%s/%s"
+	BlacklistPath        = "/blacklist/%s"
 )
 
 func GetDeploymentsPath() string {
@@ -59,6 +59,6 @@ func GetExploredPath(deploymentId, childId string) string {
 	return PrefixPath + fmt.Sprintf(ExplorePath, deploymentId, childId)
 }
 
-func GetBlacklistPath(deploymentId, nodeId string) string {
-	return PrefixPath + fmt.Sprintf(BlacklistPath, deploymentId, nodeId)
+func GetBlacklistPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(BlacklistPath, deploymentId)
 }

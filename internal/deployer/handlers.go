@@ -53,7 +53,6 @@ const (
 )
 
 const (
-	alternativesDir  = "/alternatives/"
 	fallbackFilename = "fallback.txt"
 	maxHopsToLookFor = 5
 
@@ -174,7 +173,7 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 	nodeLocations.Store(reqBody.ChildId, reqBody.Location)
 
 	parent := hTable.getParent(deploymentId)
-	if reqBody.TTL+1 > maxHopslocationHorizon || parent == nil {
+	if reqBody.TTL+1 >= maxHopslocationHorizon || parent == nil {
 		return
 	}
 
@@ -224,7 +223,7 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	client.SetHostPort(target.Addr)
 	config := hTable.getDeploymentConfig(deploymentId)
 	isStatic := hTable.isStatic(deploymentId)
-	client.RegisterDeployment(deploymentId, isStatic, config, myself, hTable.getGrandparent(deploymentId), nil, false)
+	client.RegisterDeployment(deploymentId, isStatic, config, myself, hTable.getGrandparent(deploymentId), nil, api.NotExploringTTL)
 }
 
 func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
@@ -245,7 +244,7 @@ func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	go attemptToExtend(deploymentId, targetAddr, reqBody.Config, 0, nil, reqBody.Exploring)
+	go attemptToExtend(deploymentId, targetAddr, reqBody.Config, 0, nil, reqBody.ExploringTTL)
 }
 
 func childDeletedDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
@@ -271,6 +270,7 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	deploymentDTO := registerBody.DeploymentConfig
+	deploymentId := deploymentDTO.DeploymentId
 
 	var deploymentYAML api.DeploymentYAML
 	err = yaml.Unmarshal(deploymentDTO.DeploymentYAMLBytes, &deploymentYAML)
@@ -278,22 +278,58 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	if hTable.hasDeployment(deploymentDTO.DeploymentId) &&
-		hTable.getParent(deploymentDTO.DeploymentId) != deploymentDTO.Parent {
-		// case where i have the deployment and my father is either alive or not
-		w.WriteHeader(http.StatusConflict)
-		return
+	parent := hTable.getParent(deploymentId)
+
+	parentId := "nil"
+	if parent != nil {
+		parentId = parent.Id
+	}
+
+	deploymentParentId := "nil"
+	if deploymentDTO.Parent != nil {
+		deploymentParentId = deploymentDTO.Parent.Id
+	}
+
+	log.Debugf("my parent is %s and the presented parent is %s", parentId,
+		deploymentParentId)
+
+	if hTable.hasDeployment(deploymentId) {
+		bothParentsNil := parent == nil && deploymentDTO.Parent == nil
+		parentsMatch := parent != nil && deploymentDTO.Parent != nil && parentId == deploymentParentId
+		parentDead := parent != nil && !pTable.hasParent(parentId)
+		correctParentSpeaking := bothParentsNil || parentsMatch
+
+		log.Debugf("conditions: %t, %t, %t", bothParentsNil, parentsMatch, parentDead)
+
+		if !correctParentSpeaking && !parentDead {
+			// case where i have the deployment and its not my parent speaking to me and my parent is not dead
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
 	}
 
 	hTable.Lock()
-	log.Debugf("will add deployment %s with parent %s(%s)", deploymentDTO.DeploymentId, deploymentDTO.Parent,
-		hTable.getParent(deploymentDTO.DeploymentId))
 
-	if hTable.hasDeployment(deploymentDTO.DeploymentId) &&
-		hTable.getParent(deploymentDTO.DeploymentId) != deploymentDTO.Parent {
-		// after locking to add guarantee that in the meanwhile it wasn't added
-		w.WriteHeader(http.StatusConflict)
-		return
+	parent = hTable.getParent(deploymentId)
+	parentId = "nil"
+	if parent != nil {
+		parentId = parent.Id
+	}
+
+	log.Debugf("my parent is %s and the presented parent is %s", parentId,
+		deploymentParentId)
+
+	if hTable.hasDeployment(deploymentDTO.DeploymentId) {
+		bothParentsNil := parent == nil && deploymentDTO.Parent == nil
+		parentsMatch := parent != nil && deploymentDTO.Parent != nil && parentId == deploymentParentId
+		parentDead := parent != nil && pTable.hasParent(parentId)
+		correctParentSpeaking := bothParentsNil || parentsMatch
+
+		if !correctParentSpeaking && !parentDead {
+			// after locking to add guarantee that in the meanwhile it wasn't added
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
 	}
 
 	for _, child := range deploymentDTO.Children {
@@ -307,7 +343,7 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	hTable.addDeployment(deploymentDTO, registerBody.Exploring)
+	hTable.addDeployment(deploymentDTO, registerBody.ExploringTTL)
 	hTable.Unlock()
 
 	if deploymentDTO.Parent != nil {
@@ -331,7 +367,6 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		hTable.addChild(deploymentDTO.DeploymentId, child)
 	}
-
 }
 
 func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {

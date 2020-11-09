@@ -198,7 +198,7 @@ func newHierarchyTable() *hierarchyTable {
 	}
 }
 
-func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, exploring bool) bool {
+func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, exploringTTL int) bool {
 	var (
 		static int32
 	)
@@ -211,20 +211,32 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, exploring bool) b
 	entry := &hierarchyEntry{
 		deploymentYAMLBytes: dto.DeploymentYAMLBytes,
 		parent:              dto.Parent,
+		grandparent:         dto.Grandparent,
 		children:            sync.Map{},
 		static:              static,
 		orphan:              notStaticValue,
 		newParentChan:       nil,
 	}
 
+	parentId := "nil"
+	if dto.Parent != nil {
+		parentId = dto.Parent.Id
+	}
+
+	grandparentId := "nil"
+	if dto.Grandparent != nil {
+		grandparentId = dto.Grandparent.Id
+	}
+
+	log.Debugf("deployment %s has parent %s and grandparent %s", dto.DeploymentId, parentId, grandparentId)
+
 	_, loaded := t.hierarchyEntries.LoadOrStore(dto.DeploymentId, entry)
 	if loaded {
 		return false
 	}
 
-	t.autonomicClient.RegisterDeployment(dto.DeploymentId, autonomic.StrategyIdealLatencyId, exploring)
+	t.autonomicClient.RegisterDeployment(dto.DeploymentId, autonomic.StrategyIdealLatencyId, exploringTTL)
 	if dto.Parent != nil {
-		log.Debugf("will set my parent as %s", dto.Parent.Addr)
 		t.autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent.Addr)
 		deplClient := deployer.NewDeployerClient(dto.Parent.Id + ":" + strconv.Itoa(deployer.Port))
 		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself.Id, location.ID(), 0)
@@ -526,6 +538,8 @@ func (t *parentsTable) addParent(parent *utils.Node) {
 		IsUp:             alive,
 	}
 
+	log.Debugf("adding parent %s", parent.Id)
+
 	t.parentEntries.Store(parent.Id, parentEntry)
 }
 
@@ -552,6 +566,7 @@ func (t *parentsTable) decreaseParentCount(parentId string) {
 }
 
 func (t *parentsTable) removeParent(parentId string) {
+	log.Debugf("removing parent %s", parentId)
 	t.parentEntries.Delete(parentId)
 }
 
@@ -561,8 +576,7 @@ func (t *parentsTable) setParentUp(parentId string) {
 		return
 	}
 
-	parentEntry := value.(typeParentEntriesMapValue)
-	atomic.StoreInt32(&parentEntry.IsUp, alive)
+	atomic.StoreInt32(&value.(typeParentEntriesMapValue).IsUp, alive)
 }
 
 func (t *parentsTable) checkDeadParents() (deadParents []*utils.Node) {
@@ -592,6 +606,7 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 
 	for _, deploymentId := range deploymentIds {
 		grandparent := hTable.getGrandparent(deploymentId)
+		log.Debugf("my grandparent for %s is %s", deploymentId, grandparent.Id)
 		if grandparent == nil {
 			deplClient := deployer.NewDeployerClient(fallback + ":" + strconv.Itoa(deployer.Port))
 			status := deplClient.Fallback(deploymentId, myself.Id, location.ID())
@@ -629,7 +644,7 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 	select {
 	case <-waitingTimer.C:
 		log.Debugf("falling back to %s", fallback)
-		deplClient := deployer.NewDeployerClient(fallback)
+		deplClient := deployer.NewDeployerClient(fallback + ":" + strconv.Itoa(deployer.Port))
 		status := deplClient.Fallback(deploymentId, myself.Id, location.ID())
 		if status != http.StatusOK {
 			log.Debugf("tried to fallback to %s, got %d", fallback, status)
@@ -643,11 +658,12 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 }
 
 func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentConfig, maxHops int,
-	alternatives map[string]*utils.Node, isExploring bool) {
+	alternatives map[string]*utils.Node, exploringTTL int) {
 	var extendTimer *time.Timer
 
-	toExclude := config.ToExclude
+	toExclude := map[string]interface{}{}
 	toExclude[myself.Id] = nil
+
 	for _, child := range config.Children {
 		toExclude[child.Id] = nil
 	}
@@ -674,7 +690,7 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 
 		if hasTarget {
 			nodeToExtendTo = utils.NewNode(target, target)
-			success = extendDeployment(deploymentId, nodeToExtendTo, config.Children, isExploring)
+			success = extendDeployment(deploymentId, nodeToExtendTo, config.Children, exploringTTL)
 			if success {
 				break
 			}
@@ -684,7 +700,7 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 			log.Debugf("failed to extend deployment %s", deploymentId)
 			target = myself.Id
 			for _, child := range config.Children {
-				extendDeployment(deploymentId, child, nil, isExploring)
+				extendDeployment(deploymentId, child, nil, exploringTTL)
 			}
 			return
 		}
@@ -694,7 +710,7 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 		<-extendTimer.C
 	}
 
-	if isExploring {
+	if exploringTTL != api.NotExploringTTL {
 		id := deploymentId + "_" + nodeToExtendTo.Id
 		log.Debugf("setting extension ")
 		exploring.Store(id, &sync.Once{})
@@ -704,24 +720,38 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 		archClient := archimedes.NewArchimedesClient(nodeToExtendTo.Id + ":" + strconv.Itoa(archimedes.Port))
 		archClient.SetExploringCells(deploymentId, config.Locations)
 	}
+
+	if len(toExclude) > 0 {
+		autoClient := autonomic.NewAutonomicClient(nodeToExtendTo.Id + ":" + strconv.Itoa(autonomic.Port))
+		toExcludeArr := make([]string, len(toExclude))
+		i := 0
+		for node := range toExclude {
+			toExcludeArr[i] = node
+			i++
+		}
+		autoClient.BlacklistNodes(deploymentId, myself.Id, toExcludeArr)
+	}
 }
 
-func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children []*utils.Node, exploring bool) bool {
+func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children []*utils.Node, exploringTTL int) bool {
 	dto, ok := hTable.deploymentToDTO(deploymentId)
 	if !ok {
 		log.Errorf("hierarchy table does not contain deployment %s", deploymentId)
 		return false
 	}
 
-	dto.Grandparent = hTable.getGrandparent(deploymentId)
+	dto.Grandparent = hTable.getParent(deploymentId)
 	dto.Parent = myself
 	dto.Children = children
 	depClient := deployer.NewDeployerClient(nodeToExtendTo.Id + ":" + strconv.Itoa(deployer.Port))
 
 	log.Debugf("extending deployment %s to %s", deploymentId, nodeToExtendTo.Id)
 	status := depClient.RegisterDeployment(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Grandparent,
-		dto.Parent, dto.Children, exploring)
-	if status != http.StatusOK {
+		dto.Parent, dto.Children, exploringTTL)
+	if status == http.StatusConflict {
+		log.Debugf("deployment %s already exists at %s", deploymentId, nodeToExtendTo.Id)
+		return false
+	} else if status != http.StatusOK {
 		log.Errorf("got %d while extending deployment %s to %s", status, deploymentId, nodeToExtendTo.Id)
 		return false
 	}

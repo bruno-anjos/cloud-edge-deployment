@@ -12,5 +12,6 @@ type (
 	}
 	BlacklistNodeRequestBody struct {
 		Origin string
+		Nodes  []string
 	}
 )

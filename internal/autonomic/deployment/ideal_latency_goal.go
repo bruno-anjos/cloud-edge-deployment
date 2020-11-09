@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 
+	deployerAPI "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -25,6 +26,8 @@ const (
 	maxDistance               = utils.EarthRadius * math.Pi
 	maxChildren               = 4.
 	branchingCutoff           = 1
+
+	maxExploringTTL = 3
 
 	idealLatencyGoalId = "GOAL_IDEAL_LATENCY"
 
@@ -181,7 +184,16 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 }
 
 func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[string]interface{}, success bool) {
-	value, ok := i.deployment.Environment.GetMetric(metrics.MetricLocationInVicinity)
+	value, ok := i.deployment.Exploring.Load(Myself.Id)
+	if ok {
+		exploringTTL := value.(exploringMapValue)
+		log.Debugf("my exploringTTL is %d(%d)", exploringTTL, maxExploringTTL)
+		if exploringTTL+1 == maxExploringTTL {
+			return nil, nil, true
+		}
+	}
+
+	value, ok = i.deployment.Environment.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		log.Debugf("no value for metric %s", metrics.MetricLocationInVicinity)
 		return nil, nil, false
@@ -292,7 +304,7 @@ func (i *idealLatency) GenerateAction(targets []string, args ...interface{}) act
 		nodeCells := map[string][]s2.CellID{}
 		var (
 			nodesToExtendTo  []string
-			targetsExploring = map[string]bool{}
+			targetsExploring = map[string]int{}
 		)
 
 		for cellId, nodesOrdered := range centroidsToNodes {
@@ -325,18 +337,25 @@ func (i *idealLatency) GenerateAction(targets []string, args ...interface{}) act
 			}
 		}
 
+		exploredTTL := deployerAPI.NotExploringTTL
+		value, ok := i.deployment.Exploring.Load(Myself.Id)
+		if ok {
+			exploredTTL = value.(exploringMapValue)
+		}
+
 		_, imExplored := i.deployment.Exploring.Load(Myself.Id)
 		log.Debugf("im being explored %t", imExplored)
 		for node, cells := range nodeCells {
-			targetsExploring[node] = true
+			targetsExploring[node] = 0
 			if imExplored {
+				targetsExploring[node] = exploredTTL + 1
 				continue
 			}
 			for _, cellId := range cells {
 				_, centroidExtended := i.centroidsExtended[cellId]
 				_, iAmExploring := i.deployment.Exploring.Load(Myself)
 				if !centroidExtended && !iAmExploring {
-					targetsExploring[node] = false
+					targetsExploring[node] = deployerAPI.NotExploringTTL
 					break
 				}
 			}
