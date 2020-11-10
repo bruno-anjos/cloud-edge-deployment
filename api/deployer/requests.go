@@ -7,9 +7,6 @@ import (
 )
 
 const (
-	ParentIdx      = 0
-	GrandparentIdx = 1
-
 	NotExploringTTL = -1
 )
 
@@ -24,7 +21,10 @@ type (
 		Alternatives map[string]*utils.Node
 		Locations    []s2.CellID
 	}
-	IAmYourParentRequestBody = []*utils.Node
+	IAmYourParentRequestBody struct {
+		Parent *utils.Node
+		Grandparent *utils.Node
+	}
 	IAmYourChildRequestBody  struct {
 		Child *utils.Node
 	}

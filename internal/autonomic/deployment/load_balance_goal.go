@@ -217,7 +217,7 @@ func (l *deploymentLoadBalanceGoal) GenerateAction(targets []string, args ...int
 		})
 
 		return actions.NewExtendDeploymentAction(l.deployment.DeploymentId, targets[0], deployer2.NotExploringTTL,
-			nil, location, toExclude, l.deployment.SetNodeAsExploring)
+			nil, location, toExclude, l.deployment.setNodeAsExploring)
 	case actions.RedirectClientsId:
 		return actions.NewRedirectAction(l.deployment.DeploymentId, args[lbFromIndex].(string), targets[0],
 			args[lbAmountIndex].(int))

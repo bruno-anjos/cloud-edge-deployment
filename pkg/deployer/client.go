@@ -148,9 +148,10 @@ func (c *Client) SetGrandparent(deploymentId string, grandparent *utils.Node) (s
 }
 
 func (c *Client) WarnThatIAmParent(deploymentId string, parent, grandparent *utils.Node) (status int) {
-	reqBody := api.IAmYourParentRequestBody{}
-	reqBody = append(reqBody, parent)
-	reqBody = append(reqBody, grandparent)
+	reqBody := api.IAmYourParentRequestBody{
+		Parent:      parent,
+		Grandparent: grandparent,
+	}
 
 	path := api.GetImYourParentPath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)

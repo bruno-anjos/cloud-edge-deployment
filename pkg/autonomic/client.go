@@ -169,7 +169,7 @@ func (c *Client) SetExploredSuccessfully(deploymentId, childId string) (status i
 	return
 }
 
-func (c *Client) BlacklistNodes(deploymentId, origin string, nodes[]string) (status int) {
+func (c *Client) BlacklistNodes(deploymentId, origin string, nodes ...string) (status int) {
 	path := api.GetBlacklistPath(deploymentId, )
 	reqBody := api.BlacklistNodeRequestBody{Origin: origin, Nodes: nodes}
 

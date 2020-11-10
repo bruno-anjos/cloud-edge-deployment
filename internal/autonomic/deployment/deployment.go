@@ -104,7 +104,7 @@ func (a *Deployment) RemoveChild(childId string) {
 
 	_, ok := a.Exploring.Load(childId)
 	if ok {
-		a.BlacklistNode(Myself.Id, childId)
+		a.BlacklistNodes(Myself.Id, childId)
 	}
 }
 
@@ -151,7 +151,7 @@ func (a *Deployment) GetLoad() float64 {
 	return value.(float64)
 }
 
-func (a *Deployment) BlacklistNode(origin string, nodes ...string) {
+func (a *Deployment) BlacklistNodes(origin string, nodes ...string) {
 	log.Debugf("blacklisting %+v", nodes)
 	for _, node := range nodes {
 		a.Blacklist.Store(node, nil)
@@ -159,7 +159,7 @@ func (a *Deployment) BlacklistNode(origin string, nodes ...string) {
 
 	autoClient := public.NewAutonomicClient(a.ParentId + ":" + strconv.Itoa(public.Port))
 	if a.ParentId != "" && origin != a.ParentId {
-		autoClient.BlacklistNodes(a.DeploymentId, Myself.Id, nodes)
+		autoClient.BlacklistNodes(a.DeploymentId, Myself.Id, nodes...)
 	}
 	a.Children.Range(func(key, value interface{}) bool {
 		childId := key.(string)
@@ -168,7 +168,7 @@ func (a *Deployment) BlacklistNode(origin string, nodes ...string) {
 		}
 		log.Debugf("telling %s to blacklist %+v for %s", childId, nodes, a.DeploymentId)
 		autoClient.SetHostPort(childId + ":" + strconv.Itoa(public.Port))
-		autoClient.BlacklistNodes(a.DeploymentId, Myself.Id, nodes)
+		autoClient.BlacklistNodes(a.DeploymentId, Myself.Id, nodes...)
 		return true
 	})
 
@@ -192,7 +192,7 @@ func (a *Deployment) SetExploreSuccess(childId string) bool {
 	return true
 }
 
-func (a *Deployment) SetNodeAsExploring(nodeId string) {
+func (a *Deployment) setNodeAsExploring(nodeId string) {
 	log.Debugf("exploring child %s", nodeId)
 	a.Exploring.Store(nodeId, nil)
 }

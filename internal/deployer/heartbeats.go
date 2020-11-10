@@ -34,6 +34,7 @@ func sendHeartbeatsPeriodically() {
 			for _, childId := range childrenToRemove {
 				if _, ok := depChildren[childId]; ok {
 					hTable.removeChild(deploymentId, childId)
+					children.Delete(childId)
 				}
 			}
 		}

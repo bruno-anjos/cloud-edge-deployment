@@ -198,6 +198,41 @@ func newHierarchyTable() *hierarchyTable {
 	}
 }
 
+func (t *hierarchyTable) updateDeployment(deploymentId string, parent *utils.Node, grandparent *utils.Node) bool {
+	value, ok := t.hierarchyEntries.Load(deploymentId)
+	if !ok {
+		return false
+	}
+
+	entry := value.(typeHierarchyEntriesMapValue)
+	entry.setParent(*parent)
+	entry.setGrandparent(*grandparent)
+
+	parentId := "nil"
+	if parent != nil {
+		parentId = parent.Id
+	}
+
+	grandparentId := "nil"
+	if grandparent != nil {
+		grandparentId = grandparent.Id
+	}
+
+	log.Debugf("deployment %s updated with parent %s and grandparent %s", deploymentId, parentId, grandparentId)
+
+	if parent != nil {
+		t.autonomicClient.SetDeploymentParent(deploymentId, parent.Id)
+		deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
+		status := deplClient.PropagateLocationToHorizon(deploymentId, myself.Id, location.ID(), 0)
+		if status != http.StatusOK {
+			log.Errorf("got status %d while trying to propagate location to %s for deployment %s", status,
+				parent.Id, deploymentId)
+		}
+	}
+
+	return true
+}
+
 func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, exploringTTL int) bool {
 	var (
 		static int32
@@ -619,8 +654,20 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 
 		newParentChan := hTable.setDeploymentAsOrphan(deploymentId)
 
-		locations, status := archimedesClient.GetClientCentroids(deploymentId)
-		if status != http.StatusOK {
+		var (
+			locations []s2.CellID
+			status    int
+		)
+		locations, status = archimedesClient.GetClientCentroids(deploymentId)
+		if status == http.StatusNoContent {
+			autoClient := autonomic.NewAutonomicClient("localhost:" + strconv.Itoa(autonomic.Port))
+			var myLoc s2.CellID
+			myLoc, status = autoClient.GetLocation()
+			if status != http.StatusOK {
+				log.Warnf("could not get centroids location, nor my location (%d)", status)
+			}
+			locations = append(locations, myLoc)
+		} else if status != http.StatusOK {
 			log.Errorf("got status %d while trying to get centroids for deployment %s", status, deploymentId)
 		}
 
@@ -681,7 +728,7 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 		tries          = 0
 		nodeToExtendTo = utils.NewNode(target, target)
 	)
-	for !success {
+	for  {
 		hasTarget := target != ""
 		if !hasTarget {
 			target = getAlternative(alternatives, config.Locations, maxHops, toExclude)
@@ -694,6 +741,7 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 			if success {
 				break
 			}
+			toExclude[nodeToExtendTo.Id] = nil
 		}
 
 		if tries == 5 {
@@ -729,7 +777,7 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 			toExcludeArr[i] = node
 			i++
 		}
-		autoClient.BlacklistNodes(deploymentId, myself.Id, toExcludeArr)
+		autoClient.BlacklistNodes(deploymentId, myself.Id, toExcludeArr...)
 	}
 }
 
@@ -748,19 +796,22 @@ func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children 
 	log.Debugf("extending deployment %s to %s", deploymentId, nodeToExtendTo.Id)
 	status := depClient.RegisterDeployment(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Grandparent,
 		dto.Parent, dto.Children, exploringTTL)
-	if status == http.StatusConflict {
+	switch status {
+	case http.StatusConflict:
 		log.Debugf("deployment %s already exists at %s", deploymentId, nodeToExtendTo.Id)
 		return false
-	} else if status != http.StatusOK {
+	case http.StatusOK:
+		log.Debugf("extended %s to %s sucessfully", deploymentId, nodeToExtendTo.Id)
+		hTable.addChild(deploymentId, nodeToExtendTo)
+		fallthrough
+	case http.StatusNoContent:
+		log.Debugf("%s took deployment %s children %+v", nodeToExtendTo.Id, deploymentId, children)
+		suspectedDeployments.Delete(deploymentId)
+		return true
+	default:
 		log.Errorf("got %d while extending deployment %s to %s", status, deploymentId, nodeToExtendTo.Id)
 		return false
 	}
-
-	hTable.addChild(deploymentId, nodeToExtendTo)
-	log.Debugf("extended %s to %s sucessfully", deploymentId, nodeToExtendTo.Id)
-	suspectedDeployments.Delete(deploymentId)
-
-	return true
 }
 
 func loadFallbackHostname(filename string) string {

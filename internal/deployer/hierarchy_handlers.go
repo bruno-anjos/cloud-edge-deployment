@@ -83,7 +83,7 @@ func setGrandparentHandler(_ http.ResponseWriter, r *http.Request) {
 	hTable.setDeploymentGrandparent(deploymentId, grandparent)
 }
 
-func iAmYourParentHandler(_ http.ResponseWriter, r *http.Request) {
+func iAmYourParentHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
 	reqBody := api.IAmYourParentRequestBody{}
@@ -92,37 +92,34 @@ func iAmYourParentHandler(_ http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	var (
-		parent      *utils.Node
-		grandparent *utils.Node
-	)
-
-	if len(reqBody) == 0 {
-		panic("no parent in request body")
+	parentId := "nil"
+	if reqBody.Parent != nil {
+		parentId = reqBody.Parent.Id
 	}
 
-	if len(reqBody) > 0 {
-		parent = reqBody[api.ParentIdx]
+	grandparentId := "nil"
+	if reqBody.Grandparent != nil {
+		grandparentId = reqBody.Grandparent.Id
 	}
 
-	if len(reqBody) > 1 {
-		grandparent = reqBody[api.GrandparentIdx]
+	log.Debugf("told to accept %s as parent and %s as grandparent for deployment %s", parentId, grandparentId,
+		deploymentId)
+
+	parent := hTable.getParent(deploymentId)
+	hasParent := parent != nil
+	deadParent := false
+	if hasParent {
+		deadParent = !pTable.hasParent(parent.Id)
 	}
 
-	if parent == nil {
-		panic("parent is nil")
-	}
-
-	if grandparent != nil {
-		log.Debugf("told to accept %s as parent (%s grandparent) for deployment %s", parent.Id, grandparent.Id,
-			deploymentId)
-
-	} else {
-		log.Debugf("told to accept %s as parent for deployment %s", parent.Id, deploymentId)
+	if hasParent && !deadParent {
+		log.Debugf("rejecting parent %s, since i have %s and he is not dead", parentId, parent.Id)
+		w.WriteHeader(http.StatusConflict)
+		return
 	}
 
 	hTable.setDeploymentParent(deploymentId, parent)
-	hTable.setDeploymentGrandparent(deploymentId, grandparent)
+	hTable.setDeploymentGrandparent(deploymentId, reqBody.Grandparent)
 }
 
 func iAmYourChildHandler(w http.ResponseWriter, r *http.Request) {

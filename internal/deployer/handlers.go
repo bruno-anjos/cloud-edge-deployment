@@ -223,7 +223,12 @@ func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	client.SetHostPort(target.Addr)
 	config := hTable.getDeploymentConfig(deploymentId)
 	isStatic := hTable.isStatic(deploymentId)
-	client.RegisterDeployment(deploymentId, isStatic, config, myself, hTable.getGrandparent(deploymentId), nil, api.NotExploringTTL)
+	status := client.RegisterDeployment(deploymentId, isStatic, config, myself, hTable.getGrandparent(deploymentId),
+		nil, api.NotExploringTTL)
+
+	if status != http.StatusOK {
+		log.Errorf("got status %d while migrating deployment %s to %s", status, deploymentId, target.Id)
+	}
 }
 
 func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
@@ -253,6 +258,10 @@ func childDeletedDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	childId := utils.ExtractPathVar(r, nodeIdPathVar)
 
 	hTable.removeChild(deploymentId, childId)
+	children.Delete(childId)
+
+	autoClient := autonomic.NewAutonomicClient("localhost:" + strconv.Itoa(autonomic.Port))
+	autoClient.BlacklistNodes(deploymentId, myself.Id, childId)
 }
 
 func getDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
@@ -294,17 +303,20 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 		deploymentParentId)
 
 	if hTable.hasDeployment(deploymentId) {
-		bothParentsNil := parent == nil && deploymentDTO.Parent == nil
 		parentsMatch := parent != nil && deploymentDTO.Parent != nil && parentId == deploymentParentId
 		parentDead := parent != nil && !pTable.hasParent(parentId)
-		correctParentSpeaking := bothParentsNil || parentsMatch
 
-		log.Debugf("conditions: %t, %t, %t", bothParentsNil, parentsMatch, parentDead)
+		log.Debugf("conditions: %t, %t", parentsMatch, parentDead)
 
-		if !correctParentSpeaking && !parentDead {
-			// case where i have the deployment and its not my parent speaking to me and my parent is not dead
-			w.WriteHeader(http.StatusConflict)
-			return
+		if !parentsMatch && !parentDead {
+			shouldTakeChildren := len(deploymentDTO.Children) > 0 && checkChildren(parent, deploymentDTO.Children...)
+			if !shouldTakeChildren {
+				// case where i have the deployment, its not my parent speaking to me, my parent is not dead
+				// and i should not take the children
+				w.WriteHeader(http.StatusConflict)
+				return
+			}
+			log.Debug("won't take deployment but should take children")
 		}
 	}
 
@@ -319,32 +331,49 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("my parent is %s and the presented parent is %s", parentId,
 		deploymentParentId)
 
+	alreadyHadDeployment := false
 	if hTable.hasDeployment(deploymentDTO.DeploymentId) {
-		bothParentsNil := parent == nil && deploymentDTO.Parent == nil
+		alreadyHadDeployment = true
 		parentsMatch := parent != nil && deploymentDTO.Parent != nil && parentId == deploymentParentId
-		parentDead := parent != nil && pTable.hasParent(parentId)
-		correctParentSpeaking := bothParentsNil || parentsMatch
+		parentDead := parent != nil && !pTable.hasParent(parentId)
 
-		if !correctParentSpeaking && !parentDead {
-			// after locking to add guarantee that in the meanwhile it wasn't added
+		if !parentsMatch && !parentDead {
+			shouldTakeChildren := len(deploymentDTO.Children) > 0 && checkChildren(parent, deploymentDTO.Children...)
+
+			if !shouldTakeChildren {
+				// after locking to add guarantee that in the meanwhile it wasn't added
+				w.WriteHeader(http.StatusConflict)
+				hTable.Unlock()
+				return
+			}
+
+			log.Debugf("will take children %+v for deployment %s", deploymentDTO.Children, deploymentId)
+			takeChildren(deploymentId, parent, deploymentDTO.Children...)
+
+			w.WriteHeader(http.StatusNoContent)
+			hTable.Unlock()
+			return
+		}
+	}
+
+	canTake := checkChildren(parent, deploymentDTO.Children...)
+	if !canTake {
+		w.WriteHeader(http.StatusBadRequest)
+		hTable.Unlock()
+		return
+	}
+
+	if alreadyHadDeployment {
+		hTable.updateDeployment(deploymentId, parent, deploymentDTO.Grandparent)
+	} else {
+		success := hTable.addDeployment(deploymentDTO, registerBody.ExploringTTL)
+		if !success {
+			log.Debugf("failed adding deployment %s", deploymentId)
 			w.WriteHeader(http.StatusConflict)
+			hTable.Unlock()
 			return
 		}
 	}
-
-	for _, child := range deploymentDTO.Children {
-		if deploymentDTO.Parent != nil && child.Id != deploymentDTO.Parent.Id {
-			log.Debugf("can take child %s, my parent is %s", child, deploymentDTO.Parent.Id)
-		} else {
-			// if any of the children is my parent i can't take them
-			log.Debugf("rejecting child %s", child)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-	}
-
-	hTable.addDeployment(deploymentDTO, registerBody.ExploringTTL)
-	hTable.Unlock()
 
 	if deploymentDTO.Parent != nil {
 		if !pTable.hasParent(deploymentDTO.Parent.Id) {
@@ -352,21 +381,46 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	deployment := deploymentYAMLToDeployment(&deploymentYAML, deploymentDTO.Static)
+	hTable.Unlock()
 
-	go addDeploymentAsync(deployment, deploymentDTO.DeploymentId)
+	if !alreadyHadDeployment {
+		deployment := deploymentYAMLToDeployment(&deploymentYAML, deploymentDTO.Static)
+		go addDeploymentAsync(deployment, deploymentDTO.DeploymentId)
+	}
 
+	takeChildren(deploymentId, parent, deploymentDTO.Children...)
+}
+
+func takeChildren(deploymentId string, parent *utils.Node, children ...*utils.Node) {
 	deplClient := deployer.NewDeployerClient("")
 
-	for _, child := range deploymentDTO.Children {
+	for _, child := range children {
 		deplClient.SetHostPort(child.Id + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.WarnThatIAmParent(deploymentDTO.DeploymentId, myself, deploymentDTO.Parent)
-		if status != http.StatusOK {
+		status := deplClient.WarnThatIAmParent(deploymentId, myself, parent)
+		if status == http.StatusConflict {
+			log.Debugf("can not be %s parent since it already has a live parent", child.Id)
+			continue
+		} else if status != http.StatusOK {
 			log.Errorf("got status code %d while telling %s that im his parent for %s", status, child.Id,
-				deploymentDTO.DeploymentId)
+				deploymentId)
+			continue
 		}
-		hTable.addChild(deploymentDTO.DeploymentId, child)
+		hTable.addChild(deploymentId, child)
 	}
+}
+
+func checkChildren(parent *utils.Node, children ...*utils.Node) bool {
+	for _, child := range children {
+		if parent != nil && child.Id != parent.Id {
+			log.Debugf("can take child %s, my parent is %s", child.Id, parent.Id)
+		} else {
+			// if any of the children is my parent i can't take them
+			log.Debugf("rejecting child %s", child)
+			return false
+		}
+	}
+
+	return true
 }
 
 func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
@@ -546,7 +600,7 @@ func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if bestNode != myself.Id {
-		log.Debugf("will redirect client at %f to %s", clientLocation, bestNode)
+		log.Debugf("will redirect client at %d to %s", clientLocation, bestNode)
 
 		id := deploymentId + "_" + bestNode
 		// TODO this can be change by a load and delete probably

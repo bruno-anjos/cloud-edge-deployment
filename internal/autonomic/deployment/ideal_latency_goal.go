@@ -374,7 +374,7 @@ func (i *idealLatency) GenerateAction(targets []string, args ...interface{}) act
 		})
 
 		return actions.NewMultipleExtendDeploymentAction(i.deployment.DeploymentId, nodesToExtendTo, nodeCells,
-			targetsExploring, i.extendedCentroidCallback, toExclude, i.deployment.SetNodeAsExploring)
+			targetsExploring, i.extendedCentroidCallback, toExclude, i.deployment.setNodeAsExploring)
 	}
 
 	return nil
