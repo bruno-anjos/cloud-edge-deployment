@@ -3,6 +3,7 @@ package cell
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/golang/geo/s2"
@@ -10,6 +11,9 @@ import (
 )
 
 type (
+	LocationsMapKey   = s2.CellID
+	LocationsMapValue = *int64
+
 	cellsByDeploymentKey = string
 	cellsByDeployment    struct {
 		topCells *Collection
@@ -82,22 +86,28 @@ func (cm *Manager) AddClientToDownmostCell(deploymentId string, clientCellId s2.
 	}
 }
 
-func (cm *Manager) RemoveClientsFromCells(deploymentId string, locations map[s2.CellID]int) {
+func (cm *Manager) RemoveClientsFromCells(deploymentId string, locations *sync.Map) {
 	deploymentCells := cm.getDeploymentCells(deploymentId)
 
 	var (
 		topCellId s2.CellID
 		topCell   *Cell
 	)
-	for cellId, amount := range locations {
+
+	locations.Range(func(key, value interface{}) bool {
+		cellId := key.(LocationsMapKey)
+		amount := value.(LocationsMapValue)
+
 		topCellId, topCell = cm.getTopCell(deploymentId, deploymentCells, cellId)
 
 		_, downmostCell := cm.findDownmostCellAndRLock(topCellId, topCell, cellId,
 			deploymentCells.cells)
 
-		downmostCell.RemoveClients(cellId, amount)
+		downmostCell.RemoveClients(cellId, int(atomic.LoadInt64(amount)))
 		deploymentCells.cells.RUnlock()
-	}
+
+		return true
+	})
 }
 
 func (cm *Manager) findDownmostCellAndRLock(topCellId s2.CellID, topCell *Cell, clientCellId s2.CellID,

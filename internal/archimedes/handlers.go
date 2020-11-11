@@ -106,6 +106,7 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	sendDeploymentsTable()
 
 	log.Debugf("added deployment %s", deploymentId)
+	clientsManager.AddDeployment(deploymentId)
 }
 
 func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {

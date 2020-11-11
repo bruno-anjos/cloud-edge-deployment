@@ -164,6 +164,8 @@ def graph_combined_deployments(graph, deployments, node_tables, deployment_color
 
 
 def graph_deployment(deployment_id, graph, node_tables, deployment_color, loads):
+    print(f"plotting {deployment_id}")
+
     for node, table in node_tables.items():
         if "dead" in table:
             graph.add_vertex(node, color="black", service=False)
@@ -278,11 +280,11 @@ def graph_deployer():
 
     resulting_trees = {}
     for deployment_id, dp in deployer_processes.items():
-        dp.wait()
+        res = dp.get()
         if not dp.successful():
-            print(f"error with {deployment_id}: {dp.get()}")
+            print(f"error with {deployment_id}: {res}")
             return
-        resulting_trees[deployment_id] = dp.get()
+        resulting_trees[deployment_id] = res
 
     with open(f"/home/b.anjos/results/results.json", "w") as resultsFp:
         print("writing results.json")
@@ -422,12 +424,9 @@ colors = ["blue", "pink", "green", "orange", "dark blue", "brown", "dark green"]
 arrow_width_dict = {attr_grandparent: 3, attr_parent: 1, attr_child: 1, attr_neigh: 0.5}
 edge_width_dict = {attr_grandparent: 1, attr_parent: 1, attr_child: 3, attr_neigh: 0.5}
 
+pool = Pool(processes=os.cpu_count())
 while True:
-    pool = Pool(processes=os.cpu_count())
-
-    pool.apply_async(graph_archimedes, ())
+    graph_archimedes()
     graph_deployer()
 
-    pool.close()
-    pool.join()
     time.sleep(5)

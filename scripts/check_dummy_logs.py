@@ -18,7 +18,7 @@ args = sys.argv
 args = args[1:]
 
 flag_all = False
-flag_pattern = "level=error\\|panic\\|DATA RACE"
+flag_pattern = "level=error\\|panic\\|DATA RACE\\|race"
 if len(args) > 0:
     error = False
     for idx, arg in enumerate(args):
