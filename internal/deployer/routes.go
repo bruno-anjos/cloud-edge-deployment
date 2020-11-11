@@ -26,13 +26,9 @@ const (
 	extendDeploymentToName         = "EXTEND_DEPLOYMENT_TO"
 	setGrandparentName             = "SET_GRANDPARENT"
 	fallbackName                   = "FALLBACK"
-	resolveUpTheTreeName           = "RESOLVE_UP_THE_TREE"
-	startResolveUpTheTreeName      = "START_RESOLVE_UP_THE_TREE"
-	redirectDownTheTreeName        = "REDIRECT_DOWN_THE_TREE"
 	getFallbackIdName              = "GET_FALLBACK"
 	hasDeploymentName              = "HAS_DEPLOYMENT"
 	propagateLocationToHorizonName = "PROPAGATE_LOCATION_TO_HORIZON"
-	iAmYourChildName               = "I_AM_YOUR_CHILD"
 
 	// scheduler
 	heartbeatDeploymentInstanceName         = "HEARTBEAT_DEPLOYMENT_INSTANCE"
@@ -64,13 +60,9 @@ var (
 	extendDeploymentToRoute    = fmt.Sprintf(deployer.ExtendDeploymentToPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
 	setGrandparentRoute             = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
 	fallbackRoute                   = fmt.Sprintf(deployer.FallbackPath, _deploymentIdPathVarFormatted)
-	resolveUpTheTreeRoute           = fmt.Sprintf(deployer.ResolveUpTheTreePath, _deploymentIdPathVarFormatted)
-	startResolveUpTheTreeRoute      = fmt.Sprintf(deployer.StartResolveUpTheTreePath, _deploymentIdPathVarFormatted)
-	redirectDownTheTreeRoute        = fmt.Sprintf(deployer.RedirectDownTheTreePath, _deploymentIdPathVarFormatted)
 	getFallbackRoute                = deployer.GetFallbackIdPath
 	hasDeploymentRoute              = fmt.Sprintf(deployer.HasDeploymentPath, _deploymentIdPathVarFormatted)
 	propagateLocationToHorzionRoute = fmt.Sprintf(deployer.PropagateLocationToHorizon, _deploymentIdPathVarFormatted)
-	iAmYourChildRoute               = fmt.Sprintf(deployer.IAmYourChildPath, _deploymentIdPathVarFormatted)
 
 	// scheduler
 	deploymentInstanceAliveRoute = fmt.Sprintf(deployer.DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
@@ -81,13 +73,6 @@ var (
 )
 
 var Routes = []utils.Route{
-
-	{
-		Name:        iAmYourChildName,
-		Method:      http.MethodPost,
-		Pattern:     iAmYourChildRoute,
-		HandlerFunc: iAmYourChildHandler,
-	},
 
 	{
 		Name:        propagateLocationToHorizonName,
@@ -108,27 +93,6 @@ var Routes = []utils.Route{
 		Method:      http.MethodGet,
 		Pattern:     getFallbackRoute,
 		HandlerFunc: getFallbackHandler,
-	},
-
-	{
-		Name:        redirectDownTheTreeName,
-		Method:      http.MethodGet,
-		Pattern:     redirectDownTheTreeRoute,
-		HandlerFunc: redirectClientDownTheTreeHandler,
-	},
-
-	{
-		Name:        startResolveUpTheTreeName,
-		Method:      http.MethodPost,
-		Pattern:     startResolveUpTheTreeRoute,
-		HandlerFunc: startResolveUpTheTreeHandler,
-	},
-
-	{
-		Name:        resolveUpTheTreeName,
-		Method:      http.MethodPost,
-		Pattern:     resolveUpTheTreeRoute,
-		HandlerFunc: resolveUpTheTreeHandler,
 	},
 
 	{

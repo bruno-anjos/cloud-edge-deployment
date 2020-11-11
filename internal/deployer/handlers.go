@@ -10,14 +10,12 @@ import (
 	"sync"
 	"time"
 
-	archimedesApi "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/go-connections/nat"
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
@@ -30,17 +28,6 @@ type (
 	typeChildrenMapValue       = *utils.Node
 
 	typeSuspectedChildMapKey = string
-
-	typeDeploymentsLocationsValue = terminalDeploymentLocations
-
-	terminalDeploymentLocations = *sync.Map
-
-	typeTerminalLocationKey   = string
-	typeTerminalLocationValue = s2.CellID
-
-	typeExploringValue = *sync.Once
-
-	typeNodeLocationCache = s2.CellID
 )
 
 // Timeouts
@@ -60,6 +47,7 @@ const (
 )
 
 var (
+	autonomicClient  = autonomic.NewAutonomicClient(autonomic.DefaultHostPort)
 	archimedesClient = archimedes.NewArchimedesClient(archimedes.DefaultHostPort)
 	schedulerClient  = scheduler.NewSchedulerClient(scheduler.DefaultHostPort)
 )
@@ -77,17 +65,11 @@ var (
 	hTable *hierarchyTable
 	pTable *parentsTable
 
-	deploymentLocations       sync.Map
-	addDeploymentLocationLock sync.Mutex
-
 	suspectedChild       sync.Map
 	suspectedDeployments sync.Map
 	children             sync.Map
-	childrenClient       = deployer.NewDeployerClient("")
 
-	nodeLocationCache sync.Map
-
-	exploring sync.Map
+	nodeLocCache *nodeLocationCache
 
 	timer *time.Timer
 )
@@ -111,12 +93,7 @@ func init() {
 	suspectedDeployments = sync.Map{}
 	children = sync.Map{}
 
-	deploymentLocations = sync.Map{}
-	addDeploymentLocationLock = sync.Mutex{}
-
-	nodeLocationCache = sync.Map{}
-
-	exploring = sync.Map{}
+	nodeLocCache = &nodeLocationCache{}
 
 	timer = time.NewTimer(sendAlternativesTimeout * time.Second)
 
@@ -131,7 +108,7 @@ func init() {
 		status     int
 	)
 	for status != http.StatusOK {
-		locationId, status = hTable.autonomicClient.GetLocation()
+		locationId, status = autonomicClient.GetLocation()
 		time.Sleep(10 * time.Second)
 	}
 
@@ -154,23 +131,7 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Debugf("got location from %s for deployment %s", reqBody.ChildId, deploymentId)
-
-	var nodeLocations typeDeploymentsLocationsValue
-	value, ok := deploymentLocations.Load(deploymentId)
-	if !ok {
-		addDeploymentLocationLock.Lock()
-		value, ok = deploymentLocations.Load(deploymentId)
-		if !ok {
-			nodeLocations = &sync.Map{}
-			deploymentLocations.Store(deploymentId, nodeLocations)
-		} else {
-			nodeLocations = value.(typeDeploymentsLocationsValue)
-		}
-		addDeploymentLocationLock.Unlock()
-	} else {
-		nodeLocations = value.(typeDeploymentsLocationsValue)
-	}
-	nodeLocations.Store(reqBody.ChildId, reqBody.Location)
+	archimedesClient.AddDeploymentNode(deploymentId, reqBody.ChildId, reqBody.Location, false)
 
 	parent := hTable.getParent(deploymentId)
 	if reqBody.TTL+1 >= maxHopslocationHorizon || parent == nil {
@@ -405,7 +366,7 @@ func takeChildren(deploymentId string, parent *utils.Node, children ...*utils.No
 				deploymentId)
 			continue
 		}
-		hTable.addChild(deploymentId, child)
+		hTable.addChild(deploymentId, child, false)
 	}
 }
 
@@ -459,173 +420,6 @@ func whoAreYouHandler(w http.ResponseWriter, _ *http.Request) {
 	utils.SendJSONReplyOK(w, myself.Id)
 }
 
-func startResolveUpTheTreeHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-
-	var reqBody api.StartResolveUpTheTreeRequestBody
-	err := json.NewDecoder(r.Body).Decode(&reqBody)
-	if err != nil {
-		panic(err)
-	}
-
-	parent := hTable.getParent(deploymentId)
-	if parent == nil {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	log.Debugf("starting resolution (%s) %s", deploymentId, reqBody.Host, parent.Id)
-
-	go resolveUp(parent.Id, deploymentId, hostname, &reqBody)
-}
-
-func resolveUp(parentId, deploymentId, origin string, toResolve *archimedesApi.ToResolveDTO) {
-	log.Debugf("resolving (%s) %s through %s", deploymentId, toResolve.Host, parentId)
-
-	deplClient := deployer.NewDeployerClient(parentId + ":" + strconv.Itoa(deployer.Port))
-	status := deplClient.ResolveUpTheTree(deploymentId, origin, toResolve)
-	if status != http.StatusOK {
-		log.Debugf("got %d while attempting to resolve up the tree", status)
-	}
-}
-
-func resolveUpTheTreeHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-
-	var reqBody api.ResolveUpTheTreeRequestBody
-	err := json.NewDecoder(r.Body).Decode(&reqBody)
-	if err != nil {
-		panic(err)
-	}
-
-	log.Debugf("resolving (%s) %s for %s", deploymentId, reqBody.ToResolve.Host, reqBody.Origin)
-
-	archClient := archimedes.NewArchimedesClient(publicUtils.ArchimedesServiceName + ":" + strconv.Itoa(archimedes.Port))
-	rHost, rPort, status := archClient.ResolveLocally(reqBody.ToResolve.Host, reqBody.ToResolve.Port)
-
-	archClient.SetHostPort(reqBody.Origin + ":" + strconv.Itoa(archimedes.Port))
-	id := reqBody.ToResolve.Host + ":" + reqBody.ToResolve.Port.Port()
-
-	switch status {
-	case http.StatusOK:
-		resolved := &archimedesApi.ResolvedDTO{
-			Host: rHost,
-			Port: rPort,
-		}
-		archClient.SetResolvingAnswer(id, resolved)
-		log.Debugf("resolved (%s) %s locally to %s", deploymentId, reqBody.ToResolve.Host, resolved)
-	case http.StatusNotFound:
-		parent := hTable.getParent(deploymentId)
-		if parent == nil {
-			archClient.SetResolvingAnswer(id, nil)
-		} else {
-			go resolveUp(parent.Id, deploymentId, reqBody.Origin, reqBody.ToResolve)
-		}
-	default:
-		log.Debugf("got status %d while trying to resolve locally in archimedes", status)
-		w.WriteHeader(http.StatusInternalServerError)
-		archClient.SetResolvingAnswer(id, nil)
-	}
-}
-
-func redirectClientDownTheTreeHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-
-	var reqBody api.RedirectClientDownTheTreeRequestBody
-	err := json.NewDecoder(r.Body).Decode(&reqBody)
-	if err != nil {
-		panic(err)
-	}
-
-	clientLocation := reqBody
-
-	auxChildren := hTable.getChildren(deploymentId)
-	if len(auxChildren) == 0 {
-		log.Debugf("no children to redirect client to")
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	var (
-		bestDiff      = utils.ChordAngleToKM(location.DistanceToCell(s2.CellFromCellID(clientLocation)))
-		bestNode      = myself.Id
-		autoClient    *autonomic.Client
-		auxLocationId s2.CellID
-		status        int
-	)
-
-	for id := range auxChildren {
-		value, ok := nodeLocationCache.Load(id)
-		if !ok {
-			if autoClient == nil {
-				autoClient = autonomic.NewAutonomicClient(id + ":" + strconv.Itoa(autonomic.Port))
-			} else {
-				autoClient.SetHostPort(id + ":" + strconv.Itoa(autonomic.Port))
-			}
-			auxLocationId, status = autoClient.GetLocation()
-			if status != http.StatusOK {
-				log.Errorf("got %d while trying to get %s location", status, id)
-				continue
-			}
-			nodeLocationCache.Store(id, auxLocationId)
-		} else {
-			auxLocationId = value.(typeNodeLocationCache)
-		}
-
-		auxLocation := s2.CellFromCellID(auxLocationId)
-		currDiff := utils.ChordAngleToKM(auxLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
-		if currDiff < bestDiff {
-			bestDiff = currDiff
-			bestNode = id
-		}
-	}
-
-	log.Debugf("best node in vicinity to redirect client from %+v to is %s", clientLocation, bestNode)
-
-	value, ok := deploymentLocations.Load(deploymentId)
-	if ok {
-		terminalLocations := value.(terminalDeploymentLocations)
-		terminalLocations.Range(func(key, value interface{}) bool {
-			nodeId := key.(typeTerminalLocationKey)
-			nodeLocId := value.(typeTerminalLocationValue)
-			nodeLoc := s2.CellFromCellID(nodeLocId)
-			diff := utils.ChordAngleToKM(nodeLoc.DistanceToCell(s2.CellFromCellID(clientLocation)))
-			if diff < bestDiff {
-				bestNode = nodeId
-				bestDiff = diff
-			}
-
-			return true
-		})
-	}
-
-	if bestNode != myself.Id {
-		log.Debugf("will redirect client at %d to %s", clientLocation, bestNode)
-
-		id := deploymentId + "_" + bestNode
-		// TODO this can be change by a load and delete probably
-		value, ok = exploring.Load(id)
-		if ok {
-			exploring.Delete(id)
-			once := value.(typeExploringValue)
-			once.Do(func() {
-				childAutoClient := autonomic.NewAutonomicClient(myself.Id + ":" + strconv.Itoa(autonomic.Port))
-				status = childAutoClient.SetExploredSuccessfully(deploymentId, bestNode)
-				if status != http.StatusOK {
-					log.Errorf("got status %d when setting %s exploration as success", status, bestNode)
-				}
-			})
-		}
-
-		var respBody api.RedirectClientDownTheTreeResponseBody
-		respBody = bestNode
-		utils.SendJSONReplyOK(w, respBody)
-	} else {
-		log.Debugf("client is already connected to closest node")
-		w.WriteHeader(http.StatusNoContent)
-	}
-}
-
 func getFallbackHandler(w http.ResponseWriter, _ *http.Request) {
 	var respBody api.GetFallbackResponseBody
 	respBody = fallback
@@ -643,7 +437,7 @@ func hasDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 // TODO function simulating lower API
 func getNodeCloserTo(locations []s2.CellID, maxHopsToLookFor int,
 	excludeNodes map[string]interface{}) (closest string, found bool) {
-	closest = hTable.autonomicClient.GetClosestNode(locations, excludeNodes)
+	closest = autonomicClient.GetClosestNode(locations, excludeNodes)
 	found = closest != ""
 	return
 }
@@ -675,8 +469,7 @@ func addDeploymentAsync(deployment *Deployment, deploymentId string) {
 }
 
 func deleteDeploymentAsync(deploymentId string) {
-	hTable.autonomicClient.DeleteDeployment(deploymentId)
-
+	autonomicClient.DeleteDeployment(deploymentId)
 }
 
 func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool) *Deployment {
@@ -768,17 +561,6 @@ func onNodeUp(addr string) {
 	timer.Reset(sendAlternativesTimeout * time.Second)
 }
 
-// TODO function simulation lower API
-// Node down is only triggered for nodes that were one hop away
-func onNodeDown(id string) {
-	myAlternatives.Delete(id)
-	sendAlternatives()
-	if !timer.Stop() {
-		<-timer.C
-	}
-	timer.Reset(sendAlternativesTimeout * time.Second)
-}
-
 func getParentAlternatives(parentId string) (alternatives map[string]*utils.Node) {
 	nodeAlternativesLock.RLock()
 	defer nodeAlternativesLock.RUnlock()
@@ -790,14 +572,4 @@ func getParentAlternatives(parentId string) (alternatives map[string]*utils.Node
 	}
 
 	return
-}
-
-func removeTerminalLocsForChild(deploymentId, childId string) {
-	value, ok := deploymentLocations.Load(deploymentId)
-	if !ok {
-		return
-	}
-
-	deploymentLocs := value.(typeDeploymentsLocationsValue)
-	deploymentLocs.Delete(childId)
 }

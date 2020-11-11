@@ -122,30 +122,6 @@ func iAmYourParentHandler(w http.ResponseWriter, r *http.Request) {
 	hTable.setDeploymentGrandparent(deploymentId, reqBody.Grandparent)
 }
 
-func iAmYourChildHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-
-	reqBody := api.IAmYourChildRequestBody{}
-	err := json.NewDecoder(r.Body).Decode(&reqBody)
-	if err != nil {
-		panic(err)
-	}
-
-	if !hTable.hasDeployment(deploymentId) {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	log.Debugf("told to accept %s as child for deployment %s", reqBody.Child.Id, deploymentId)
-
-	hTable.addChild(deploymentId, reqBody.Child)
-
-	var responseBody *api.IAmYourChildResponseBody
-	responseBody = hTable.getGrandparent(deploymentId)
-
-	utils.SendJSONReplyOK(w, responseBody)
-}
-
 func getHierarchyTableHandler(w http.ResponseWriter, _ *http.Request) {
 	utils.SendJSONReplyOK(w, hTable.toDTO())
 }

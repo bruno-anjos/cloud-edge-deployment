@@ -1,18 +1,4 @@
 {
-    "A": [
-        {
-            "request_timeout": 10,
-            "max_requests": 10000,
-            "number_of_clients": 100,
-            "port": 8001
-        },
-        {
-            "request_timeout": 10,
-            "max_requests": 10000,
-            "number_of_clients": 500,
-            "port": 8001
-        }
-    ],
     "B": [
         {
             "request_timeout": 10,

@@ -8,7 +8,6 @@ import (
 	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/cell"
 	"github.com/golang/geo/s2"
-	log "github.com/sirupsen/logrus"
 )
 
 type (
@@ -77,7 +76,6 @@ func (r *Manager) updateEntry(deploymentId string, location s2.CellID) {
 	// load the entry
 	value, ok := r.numReqsLastMinute.Load(deploymentId)
 	if !ok {
-		log.Errorf("should have entry numReqs for deployment %s", deploymentId)
 		return
 	}
 
@@ -96,7 +94,6 @@ func (r *Manager) updateEntry(deploymentId string, location s2.CellID) {
 func (r *Manager) updateBatch(deploymentId string, location s2.CellID) {
 	value, ok := r.numReqsLastMinute.Load(deploymentId)
 	if !ok {
-		log.Errorf("should have entry batch for deployment %s", deploymentId)
 		return
 	}
 
@@ -113,7 +110,6 @@ func (r *Manager) updateBatch(deploymentId string, location s2.CellID) {
 func (r *Manager) GetLoad(deploymentId string) (load int) {
 	value, ok := r.numReqsLastMinute.Load(deploymentId)
 	if !ok {
-		log.Errorf("should have entry load for deployment %s", deploymentId)
 		return 0
 	}
 
@@ -174,7 +170,6 @@ func (r *Manager) waitToRemove(deploymentId string, batch *batchValue) {
 	// load numRequests and decrement the amount of requests by the amount of requests in this batch
 	value, ok := r.numReqsLastMinute.Load(deploymentId)
 	if !ok {
-		log.Errorf("should have entry numReqs for deployment %s waiting to remove", deploymentId)
 		return
 	}
 	entry := value.(numReqsLastMinuteMapValue)
@@ -187,15 +182,12 @@ func (r *Manager) waitToRemove(deploymentId string, batch *batchValue) {
 		amount := value.(cell.LocationsMapValue)
 		value, ok = r.numReqsLastMinute.Load(deploymentId)
 		if !ok {
-			log.Errorf("should have entry numReqs for deployment %s ranging over batch", deploymentId)
 			return false
 		}
 
 		entry = value.(numReqsLastMinuteMapValue)
 		value, ok = entry.Locations.Load(locId)
 		if !ok {
-			log.Errorf("should have entry numReqs location %d for deployment %s ranging over batch", deploymentId,
-				locId)
 			return false
 		}
 

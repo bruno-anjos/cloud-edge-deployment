@@ -36,7 +36,7 @@ type (
 		static              int32
 		orphan              int32
 		newParentChan       chan<- string
-		sync.RWMutex
+		*sync.RWMutex
 	}
 )
 
@@ -183,7 +183,6 @@ type (
 
 	hierarchyTable struct {
 		hierarchyEntries sync.Map
-		autonomicClient  *autonomic.Client
 		sync.Mutex
 	}
 
@@ -194,7 +193,6 @@ type (
 func newHierarchyTable() *hierarchyTable {
 	return &hierarchyTable{
 		hierarchyEntries: sync.Map{},
-		autonomicClient:  autonomic.NewAutonomicClient(autonomic.DefaultHostPort),
 	}
 }
 
@@ -221,7 +219,7 @@ func (t *hierarchyTable) updateDeployment(deploymentId string, parent *utils.Nod
 	log.Debugf("deployment %s updated with parent %s and grandparent %s", deploymentId, parentId, grandparentId)
 
 	if parent != nil {
-		t.autonomicClient.SetDeploymentParent(deploymentId, parent.Id)
+		autonomicClient.SetDeploymentParent(deploymentId, parent.Id)
 		deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
 		status := deplClient.PropagateLocationToHorizon(deploymentId, myself.Id, location.ID(), 0)
 		if status != http.StatusOK {
@@ -251,6 +249,7 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, exploringTTL int)
 		static:              static,
 		orphan:              notStaticValue,
 		newParentChan:       nil,
+		RWMutex:             &sync.RWMutex{},
 	}
 
 	parentId := "nil"
@@ -270,9 +269,9 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, exploringTTL int)
 		return false
 	}
 
-	t.autonomicClient.RegisterDeployment(dto.DeploymentId, autonomic.StrategyIdealLatencyId, exploringTTL)
+	autonomicClient.RegisterDeployment(dto.DeploymentId, autonomic.StrategyIdealLatencyId, exploringTTL)
 	if dto.Parent != nil {
-		t.autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent.Addr)
+		autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent.Addr)
 		deplClient := deployer.NewDeployerClient(dto.Parent.Id + ":" + strconv.Itoa(deployer.Port))
 		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself.Id, location.ID(), 0)
 		if status != http.StatusOK {
@@ -294,7 +293,7 @@ func (t *hierarchyTable) removeDeployment(deploymentId string) {
 	if entry.getNumChildren() != 0 {
 		log.Errorf("removing deployment that is still someones father")
 	} else {
-		status := t.autonomicClient.DeleteDeployment(deploymentId)
+		status := autonomicClient.DeleteDeployment(deploymentId)
 		if status != http.StatusOK {
 			log.Errorf("got status code %d from autonomic while deleting %s", status, deploymentId)
 			return
@@ -371,7 +370,7 @@ func (t *hierarchyTable) setDeploymentAsOrphan(deploymentId string) <-chan strin
 	return entry.setOrphan(true)
 }
 
-func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node) {
+func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node, exploring bool) {
 	value, ok := t.hierarchyEntries.Load(deploymentId)
 	if !ok {
 		return
@@ -380,7 +379,8 @@ func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node) {
 	entry := value.(typeHierarchyEntriesMapValue)
 	entry.addChild(*child)
 	children.LoadOrStore(child.Id, child)
-	t.autonomicClient.AddDeploymentChild(deploymentId, child.Id)
+	autonomicClient.AddDeploymentChild(deploymentId, child.Id)
+	archimedesClient.AddDeploymentNode(deploymentId, child.Id, nodeLocCache.get(child.Id), exploring)
 	return
 }
 
@@ -392,8 +392,8 @@ func (t *hierarchyTable) removeChild(deploymentId, childId string) {
 
 	entry := value.(typeHierarchyEntriesMapValue)
 	entry.removeChild(childId)
-	t.autonomicClient.RemoveDeploymentChild(deploymentId, childId)
-	removeTerminalLocsForChild(deploymentId, childId)
+	autonomicClient.RemoveDeploymentChild(deploymentId, childId)
+	archimedesClient.DeleteDeploymentNode(deploymentId, childId)
 
 	return
 }
@@ -728,7 +728,7 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 		tries          = 0
 		nodeToExtendTo = utils.NewNode(target, target)
 	)
-	for  {
+	for {
 		hasTarget := target != ""
 		if !hasTarget {
 			target = getAlternative(alternatives, config.Locations, maxHops, toExclude)
@@ -756,12 +756,6 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 		tries++
 		extendTimer = time.NewTimer(extendAttemptTimeout * time.Second)
 		<-extendTimer.C
-	}
-
-	if exploringTTL != api.NotExploringTTL {
-		id := deploymentId + "_" + nodeToExtendTo.Id
-		log.Debugf("setting extension ")
-		exploring.Store(id, &sync.Once{})
 	}
 
 	if len(config.Locations) > 0 {
@@ -802,7 +796,7 @@ func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children 
 		return false
 	case http.StatusOK:
 		log.Debugf("extended %s to %s sucessfully", deploymentId, nodeToExtendTo.Id)
-		hTable.addChild(deploymentId, nodeToExtendTo)
+		hTable.addChild(deploymentId, nodeToExtendTo, exploringTTL != api.NotExploringTTL)
 		fallthrough
 	case http.StatusNoContent:
 		log.Debugf("%s took deployment %s children %+v", nodeToExtendTo.Id, deploymentId, children)

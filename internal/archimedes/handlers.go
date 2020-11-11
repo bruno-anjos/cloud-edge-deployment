@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/clients"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	"github.com/golang/geo/s2"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -40,12 +42,17 @@ const (
 )
 
 var (
-	messagesReceived    sync.Map
 	sTable              *deploymentsTable
 	redirectServicesMap sync.Map
-	archimedesId        string
-	hostname            string
+	messagesReceived    sync.Map
 	clientsManager      *clients.Manager
+
+	redirectTargets *nodesPerDeployment
+	exploringNodes  *explorersPerDeployment
+
+	archimedesId string
+	myself       string
+	myLocation   s2.Cell
 )
 
 func init() {
@@ -56,10 +63,25 @@ func init() {
 	clientsManager = clients.NewManager()
 
 	var err error
-	hostname, err = os.Hostname()
+	myself, err = os.Hostname()
 	if err != nil {
 		panic(err)
 	}
+
+	var (
+		locationId s2.CellID
+		status     int
+		autoClient = autonomic.NewAutonomicClient("localhost:" + strconv.Itoa(autonomic.Port))
+	)
+	for status != http.StatusOK {
+		locationId, status = autoClient.GetLocation()
+		time.Sleep(10 * time.Second)
+	}
+
+	myLocation = s2.CellFromCellID(locationId)
+
+	redirectTargets = &nodesPerDeployment{}
+	exploringNodes = &explorersPerDeployment{}
 
 	archimedesId = uuid.New().String()
 
@@ -280,32 +302,34 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	var reqBody api.ResolveRequestBody
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
-		log.Errorf("bad request")
+		log.Errorf("(%s) bad request", reqBody.Id)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	defer func() {
-		log.Debugf("took %f to answer request %s", time.Since(start).Seconds(), reqBody.Id)
+		id := reqBody.Id
+		log.Debugf("took %f to answer request %s", time.Since(start).Seconds(), id)
 	}()
 
-	log.Debugf("got request from %s", reqBody.Location.LatLng().String())
+	log.Debugf("(%s) got request from %s", reqBody.Id, reqBody.Location.LatLng().String())
 
-	redirect, targetUrl := checkForRedirections(reqBody.ToResolve.Host)
+	redirect, targetUrl := checkForLoadBalanceRedirections(reqBody.ToResolve.Host)
 	if redirect {
-		log.Debugf("redirecting %s to %s to achieve load balancing", reqBody.ToResolve.Host, targetUrl.Host)
+		log.Debugf("(%s) redirecting %s to %s to achieve load balancing", reqBody.Id, reqBody.ToResolve.Host,
+			targetUrl.Host)
 		clientsManager.RemoveFromExploring(reqBody.DeploymentId)
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
 		return
 	}
 
 	deplClient := deployer.NewDeployerClient(publicUtils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
-	redirectTo, status := deplClient.RedirectDownTheTree(reqBody.DeploymentId, reqBody.Location)
-	switch status {
-	case http.StatusNoContent:
-		break
-	case http.StatusOK:
-		log.Debugf("redirecting client from %+v", reqBody.Location)
+	redirectTo := checkForClosestNodeRedirection(reqBody.DeploymentId, reqBody.Location)
+
+	switch redirectTo {
+	case myself:
+	default:
+		log.Debugf("(%s) redirecting to %s from %s", reqBody.Id, redirectTo, reqBody.Location)
 		targetUrl = url.URL{
 			Scheme: "http",
 			Host:   redirectTo + ":" + strconv.Itoa(archimedes.Port),
@@ -314,20 +338,18 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		clientsManager.RemoveFromExploring(reqBody.DeploymentId)
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
 		return
-	default:
-		log.Errorf("got status %d while redirecting down the tree", status)
-		return
 	}
 
 	resolved, found := resolveLocally(reqBody.ToResolve)
 	if !found {
-		var fallback string
-		fallback, status = deplClient.GetFallback()
+		fallback, status := deplClient.GetFallback()
 		if status != http.StatusOK {
 			log.Errorf("got status %d while asking for fallback from deployer", fallback)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+
+		log.Debugf("(%s) redirecting to fallback %s", reqBody.Id, fallback)
 
 		fallbackURL := url.URL{
 			Scheme: "http",
@@ -339,12 +361,16 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Debugf("(%s) updating num reqs", reqBody.Id)
 	clientsManager.UpdateNumRequests(reqBody.DeploymentId, reqBody.Location)
+	log.Debugf("(%s) updated num reqs", reqBody.Id)
 
 	var resp api.ResolveResponseBody
 	resp = *resolved
 
+	log.Debugf("(%s) will remove from exploring", reqBody.Id)
 	clientsManager.RemoveFromExploring(reqBody.DeploymentId)
+	log.Debugf("(%s) removed from exploring", reqBody.Id)
 	utils.SendJSONReplyOK(w, resp)
 }
 
@@ -365,7 +391,7 @@ func resolveLocallyHandler(w http.ResponseWriter, r *http.Request) {
 	utils.SendJSONReplyOK(w, resolved)
 }
 
-func checkForRedirections(hostToResolve string) (redirect bool, targetUrl url.URL) {
+func checkForLoadBalanceRedirections(hostToResolve string) (redirect bool, targetUrl url.URL) {
 	redirect = false
 
 	value, ok := redirectServicesMap.Load(hostToResolve)
@@ -523,6 +549,33 @@ func setExploringClientLocationHandler(_ http.ResponseWriter, r *http.Request) {
 	clientsManager.SetToExploring(deploymentId, reqBody)
 }
 
+func addDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+
+	var reqBody api.AddDeploymentNodeRequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		panic(err)
+	}
+
+	redirectTargets.add(deploymentId, reqBody.NodeId, reqBody.Location)
+	if reqBody.Exploring {
+		exploringNodes.add(deploymentId, reqBody.NodeId)
+	}
+
+	log.Debugf("added node %s for deployment %s (exploring: %t)", reqBody.NodeId, deploymentId, reqBody.Exploring)
+}
+
+func removeDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	nodeId := utils.ExtractPathVar(r, nodeIdPathVar)
+
+	redirectTargets.delete(deploymentId, nodeId)
+	exploringNodes.checkAndDelete(deploymentId, nodeId)
+
+	log.Debugf("deleted node %s for deployment %s", nodeId, deploymentId)
+}
+
 // TODO simulating
 func getLoadHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
@@ -584,12 +637,53 @@ func resolveInstance(originalPort nat.Port, instance *api.Instance) (*api.Resolv
 	}
 
 	return &api.ResolvedDTO{
-		Host: hostname,
+		Host: myself,
 		Port: portNatResolved[0].HostPort,
 	}, true
 }
 
 func broadcastMsgWithHorizon(discoverMsg *api.DiscoverMsg, hops int) {
 	// TODO this simulates the lower level layer
+	return
+}
+
+func checkForClosestNodeRedirection(deploymentId string, clientLocation s2.CellID) (redirectTo string) {
+	redirectTo = myself
+
+	var (
+		bestDiff = utils.ChordAngleToKM(myLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
+		status   int
+	)
+
+	redirectTargets.rangeOver(deploymentId, func(nodeId string, nodeLocId s2.CellID) bool {
+		auxLocation := s2.CellFromCellID(nodeLocId)
+		currDiff := utils.ChordAngleToKM(auxLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
+		if currDiff < bestDiff {
+			bestDiff = currDiff
+			redirectTo = nodeId
+		}
+
+		return true
+	})
+
+	log.Debugf("best node in vicinity to redirect client from %+v to is %s", clientLocation, redirectTo)
+
+	if redirectTo != myself {
+		log.Debugf("will redirect client at %d to %s", clientLocation, redirectTo)
+
+		// TODO this can be change by a load and delete probably
+		has := exploringNodes.checkAndDelete(deploymentId, redirectTo)
+		if has {
+			childAutoClient := autonomic.NewAutonomicClient(myself + ":" + strconv.Itoa(autonomic.Port))
+			status = childAutoClient.SetExploredSuccessfully(deploymentId, redirectTo)
+			if status != http.StatusOK {
+				log.Errorf("got status %d when setting %s exploration as success", status, redirectTo)
+			}
+		}
+
+	} else {
+		log.Debugf("client is already connected to closest node")
+	}
+
 	return
 }

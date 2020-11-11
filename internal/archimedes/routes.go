@@ -29,17 +29,21 @@ const (
 	getLoadName                    = "GET_LOAD"
 	getAvgClientLocationName       = "GET_AVG_CLIENT_LOCATION"
 	setExploringLocationName       = "SET_EXPLORING_CLIENT_LOCATION"
+	addDeploymentNodeName          = "ADD_DEPLOYMENT_NODE"
+	removeDeploymentNodeName       = "REMOVE_DEPLOYMENT_NODE"
 )
 
 // Path variables
 const (
 	deploymentIdPathVar = "deploymentId"
+	nodeIdPathVar       = "nodeId"
 	instanceIdPathVar   = "instanceId"
 )
 
 var (
 	_deploymentIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, deploymentIdPathVar)
 	_instanceIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, instanceIdPathVar)
+	_nodeIdPathVarFormatted       = fmt.Sprintf(utils.PathVarFormat, nodeIdPathVar)
 
 	deploymentsRoute        = archimedes.DeploymentsPath
 	deploymentRoute         = fmt.Sprintf(archimedes.DeploymentPath, _deploymentIdPathVarFormatted)
@@ -56,9 +60,26 @@ var (
 	getLoadRoute                    = fmt.Sprintf(archimedes.LoadPath, _deploymentIdPathVarFormatted)
 	getAvgClientLocationRoute       = fmt.Sprintf(archimedes.AvgClientLocationPath, _deploymentIdPathVarFormatted)
 	setExploringClientLocationRoute = fmt.Sprintf(archimedes.ExploringClientLocationPath, _deploymentIdPathVarFormatted)
+	addDeploymentNodeRoute          = fmt.Sprintf(archimedes.AddDeploymentNodePath, _deploymentIdPathVarFormatted)
+	removeDeploymentNodeRoute       = fmt.Sprintf(archimedes.RemoveDeploymentNodePath, _deploymentIdPathVarFormatted,
+		_nodeIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        removeDeploymentNodeName,
+		Method:      http.MethodDelete,
+		Pattern:     removeDeploymentNodeRoute,
+		HandlerFunc: removeDeploymentNodeHandler,
+	},
+
+	{
+		Name:        addDeploymentNodeName,
+		Method:      http.MethodPost,
+		Pattern:     addDeploymentNodeRoute,
+		HandlerFunc: addDeploymentNodeHandler,
+	},
+
 	{
 		Name:        setExploringLocationName,
 		Method:      http.MethodPost,

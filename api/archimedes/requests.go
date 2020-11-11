@@ -8,7 +8,7 @@ type (
 	RegisterDeploymentRequestBody         = deploymentDTO
 	RegisterDeploymentInstanceRequestBody = InstanceDTO
 	DiscoverRequestBody                   = DiscoverMsg
-	ResolveRequestBody                    = struct {
+	ResolveRequestBody                    struct {
 		ToResolve    *ToResolveDTO
 		DeploymentId string
 		Location     s2.CellID
@@ -16,9 +16,14 @@ type (
 	}
 	ResolveLocallyRequestBody      = ToResolveDTO
 	RedirectRequestBody            = redirectDTO
-	SetResolutionAnswerRequestBody = struct {
+	SetResolutionAnswerRequestBody struct {
 		Resolved *ResolvedDTO
 		Id       string
 	}
 	SetExploringClientLocationRequestBody = []s2.CellID
+	AddDeploymentNodeRequestBody          struct {
+		NodeId   string
+		Location s2.CellID
+		Exploring bool
+	}
 )

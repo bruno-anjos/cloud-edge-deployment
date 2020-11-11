@@ -2,15 +2,21 @@
 
 REL_PATH="$(dirname "$0")"
 
-docker stop $(docker ps -a -q)
-docker rm $(docker ps -a -q)
-docker network rm nodes-network
+function del_everything() {
+	docker stop $(docker ps -a -q)
+	docker rm $(docker ps -a -q)
+	docker network rm nodes-network
+}
+
+del_everything &
 
 set -e
 
 echo "---------------------------- BUILDING IMAGE ----------------------------"
 
 bash "$CLOUD_EDGE_DEPLOYMENT"/build/dummy_node/build_dummy_node.sh
+
+wait
 
 ALTERNATIVES_DIR="$CLOUD_EDGE_DEPLOYMENT/build/dummy_node/alternatives"
 OPTIONS="--mount type=bind,source=$ALTERNATIVES_DIR,target=/alternatives"

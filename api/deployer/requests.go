@@ -35,11 +35,6 @@ type (
 		OrphanId       string
 		OrphanLocation s2.CellID
 	}
-	StartResolveUpTheTreeRequestBody = archimedes.ToResolveDTO
-	ResolveUpTheTreeRequestBody      struct {
-		Origin    string
-		ToResolve *archimedes.ToResolveDTO
-	}
 	RedirectClientDownTheTreeRequestBody = s2.CellID
 	ExtendDeploymentConfig               struct {
 		Children  []*utils.Node

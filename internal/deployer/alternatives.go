@@ -37,7 +37,7 @@ func loadAlternativesPeriodically() {
 	for {
 		<-ticker.C
 
-		vicinity, status := hTable.autonomicClient.GetVicinity()
+		vicinity, status := autonomicClient.GetVicinity()
 		if status != http.StatusOK {
 			continue
 		}

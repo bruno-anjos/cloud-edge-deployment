@@ -1,13 +1,11 @@
 package deployer
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/golang/geo/s2"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
@@ -67,7 +65,7 @@ func (c *Client) ExtendDeploymentTo(deploymentId, targetId string, exploringTTL 
 	config *api.ExtendDeploymentConfig) (status int) {
 	reqBody := api.ExtendDeploymentRequestBody{
 		ExploringTTL: exploringTTL,
-		Config:    config,
+		Config:       config,
 	}
 
 	path := api.GetExtendDeploymentPath(deploymentId, targetId)
@@ -157,30 +155,6 @@ func (c *Client) WarnThatIAmParent(deploymentId string, parent, grandparent *uti
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
-
-	return
-}
-
-func (c *Client) WarnThatIAmChild(deploymentId string, child *utils.Node) (grandparent *utils.Node, status int) {
-	reqBody := api.IAmYourChildRequestBody{
-		Child: child,
-	}
-
-	path := api.GetIAmYourChildPath(deploymentId)
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
-
-	var (
-		resp *http.Response
-	)
-	status, resp = utils.DoRequest(c.Client, req, nil)
-	if status == http.StatusOK {
-		var respBody api.IAmYourChildResponseBody
-		err := json.NewDecoder(resp.Body).Decode(&respBody)
-		if err != nil {
-			panic(err)
-		}
-		grandparent = &respBody
-	}
 
 	return
 }
@@ -290,54 +264,6 @@ func (c *Client) Fallback(deploymentId, orphanId string, orphanLocation s2.CellI
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status, _ = utils.DoRequest(c.Client, req, nil)
-
-	return
-}
-
-func (c *Client) StartResolveUpTheTree(deploymentId string, toResolve *archimedes.ToResolveDTO) (status int) {
-	var reqBody api.StartResolveUpTheTreeRequestBody
-	reqBody = *toResolve
-	path := api.GetStartResolveUpTheTreePath(deploymentId)
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
-
-	status, _ = utils.DoRequest(c.Client, req, nil)
-
-	return
-}
-
-func (c *Client) ResolveUpTheTree(deploymentId, origin string, toResolve *archimedes.ToResolveDTO) (status int) {
-	reqBody := api.ResolveUpTheTreeRequestBody{
-		Origin:    origin,
-		ToResolve: toResolve,
-	}
-
-	path := api.GetResolveUpTheTreePath(deploymentId)
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
-
-	status, _ = utils.DoRequest(c.Client, req, nil)
-
-	return
-}
-
-func (c *Client) RedirectDownTheTree(deploymentId string, location s2.CellID) (redirectTo string, status int) {
-	var reqBody api.RedirectClientDownTheTreeRequestBody
-	reqBody = location
-
-	path := api.GetRedirectDownTheTreePath(deploymentId)
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, reqBody)
-
-	var (
-		resp     *http.Response
-		respBody api.RedirectClientDownTheTreeResponseBody
-	)
-	status, resp = utils.DoRequest(c.Client, req, nil)
-	if status == http.StatusOK {
-		err := json.NewDecoder(resp.Body).Decode(&respBody)
-		if err != nil {
-			panic(err)
-		}
-		redirectTo = respBody
-	}
 
 	return
 }

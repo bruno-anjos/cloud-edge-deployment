@@ -25,6 +25,8 @@ const (
 	LoadPath                    = "/deployments/%s/load"
 	AvgClientLocationPath       = "/deployments/%s/avg_cli_loc"
 	ExploringClientLocationPath = "/deployments/%s/exploring_loc"
+	AddDeploymentNodePath       = "/deployments/%s/node"
+	RemoveDeploymentNodePath    = "/deployments/%s/node/%s"
 )
 
 func GetDeploymentsPath() string {
@@ -69,4 +71,12 @@ func GetAvgClientLocationPath(deploymentId string) string {
 
 func GetSetExploringClientLocationPath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(ExploringClientLocationPath, deploymentId)
+}
+
+func GetAddDeploymentNodePath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(AddDeploymentNodePath, deploymentId)
+}
+
+func GetRemoveDeploymentNodePath(deploymentId, nodeId string) string {
+	return PrefixPath + fmt.Sprintf(RemoveDeploymentNodePath, deploymentId, nodeId)
 }

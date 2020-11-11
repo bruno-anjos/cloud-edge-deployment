@@ -230,6 +230,31 @@ func (c *Client) SetExploringCells(deploymentId string, cells []s2.CellID) (stat
 	return
 }
 
+func (c *Client) AddDeploymentNode(deploymentId string, nodeId string, location s2.CellID,
+	exploring bool) (status int) {
+	reqBody := api.AddDeploymentNodeRequestBody{
+		NodeId:    nodeId,
+		Location:  location,
+		Exploring: exploring,
+	}
+
+	path := api.GetAddDeploymentNodePath(deploymentId)
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
+func (c *Client) DeleteDeploymentNode(deploymentId string, nodeId string) (status int) {
+	path := api.GetRemoveDeploymentNodePath(deploymentId, nodeId)
+	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
+
+	status, _ = utils.DoRequest(c.Client, req, nil)
+
+	return
+}
+
 func (c *Client) handleRedirect(req *http.Request, via []*http.Request) error {
 	log.Debugf("redirecting %s to %s", via[len(via)-1].URL.Host, req.URL.Host)
 

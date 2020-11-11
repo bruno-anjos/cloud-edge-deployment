@@ -9,6 +9,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var (
+	childrenClient = deployer.NewDeployerClient("")
+)
+
 func sendHeartbeatsPeriodically() {
 	ticker := time.NewTicker(heartbeatTimeout * time.Second)
 

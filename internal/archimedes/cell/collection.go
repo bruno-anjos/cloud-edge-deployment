@@ -9,14 +9,14 @@ import (
 type (
 	Collection struct {
 		cells *sync.Map
-		sync.RWMutex
+		*sync.RWMutex
 	}
 )
 
 func newCollection() *Collection {
 	return &Collection{
 		cells:   &sync.Map{},
-		RWMutex: sync.RWMutex{},
+		RWMutex: &sync.RWMutex{},
 	}
 }
 

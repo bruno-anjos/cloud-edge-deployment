@@ -19,7 +19,6 @@ const (
 
 	DeadChildPath              = "/deployments/%s/deadchild/%s"
 	IAmYourParentPath          = "/deployments/%s/parent"
-	IAmYourChildPath           = "/deployments/%s/child"
 	HierarchyTablePath         = "/table"
 	ParentAlivePath            = "/parent/%s/up"
 	DeploymentChildPath        = "/deployments/%s/child/%s"
@@ -27,9 +26,6 @@ const (
 	ExtendDeploymentToPath     = "/deployments/%s/extend/%s"
 	SetGrandparentPath         = "/deployments/%s/grandparent"
 	FallbackPath               = "/deployments/%s/fallback"
-	ResolveUpTheTreePath       = "/deployments/%s/resolve_up"
-	StartResolveUpTheTreePath  = "/deployments/%s/start_resolve_up"
-	RedirectDownTheTreePath    = "/deployments/%s/redirect_down"
 	GetFallbackIdPath          = "/deployments/fallback"
 	HasDeploymentPath          = "/deployments/%s/has"
 	PropagateLocationToHorizon = "/deployments/%s/propagate_location"
@@ -98,18 +94,6 @@ func GetFallbackPath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(FallbackPath, deploymentId)
 }
 
-func GetResolveUpTheTreePath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(ResolveUpTheTreePath, deploymentId)
-}
-
-func GetStartResolveUpTheTreePath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(StartResolveUpTheTreePath, deploymentId)
-}
-
-func GetRedirectDownTheTreePath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(RedirectDownTheTreePath, deploymentId)
-}
-
 func GetGetFallbackIdPath() string {
 	return PrefixPath + GetFallbackIdPath
 }
@@ -120,8 +104,4 @@ func GetHasDeploymentPath(deploymentId string) string {
 
 func GetPropagateLocationToHorizonPath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(PropagateLocationToHorizon, deploymentId)
-}
-
-func GetIAmYourChildPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(IAmYourChildPath, deploymentId)
 }

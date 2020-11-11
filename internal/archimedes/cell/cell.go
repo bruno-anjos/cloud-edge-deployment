@@ -13,7 +13,7 @@ type (
 		HasParent       bool
 		Parent          s2.CellID
 		Children        map[s2.CellID]interface{}
-		sync.RWMutex
+		*sync.RWMutex
 	}
 )
 
@@ -24,6 +24,7 @@ func NewCell(numClients int, clientLocations map[s2.CellID]int, parent s2.CellID
 		Children:        map[s2.CellID]interface{}{},
 		Parent:          parent,
 		HasParent:       hasParent,
+		RWMutex:         &sync.RWMutex{},
 	}
 }
 
