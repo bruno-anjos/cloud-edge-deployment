@@ -426,7 +426,7 @@ edge_width_dict = {attr_grandparent: 1, attr_parent: 1, attr_child: 3, attr_neig
 
 pool = Pool(processes=os.cpu_count())
 while True:
-    graph_archimedes()
     graph_deployer()
+    graph_archimedes()
 
     time.sleep(5)

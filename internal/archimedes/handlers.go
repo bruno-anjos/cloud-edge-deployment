@@ -307,16 +307,16 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defer func() {
-		id := reqBody.Id
-		log.Debugf("took %f to answer request %s", time.Since(start).Seconds(), id)
-	}()
+	reqLogger := log.WithField("REQ_ID", reqBody.Id)
+	reqLogger.Level = log.DebugLevel
 
-	log.Debugf("(%s) got request from %s", reqBody.Id, reqBody.Location.LatLng().String())
+	defer reqLogger.Debugf("took %f to answer", time.Since(start).Seconds())
+
+	reqLogger.Debugf("got request from %s", reqBody.Location.LatLng().String())
 
 	redirect, targetUrl := checkForLoadBalanceRedirections(reqBody.ToResolve.Host)
 	if redirect {
-		log.Debugf("(%s) redirecting %s to %s to achieve load balancing", reqBody.Id, reqBody.ToResolve.Host,
+		reqLogger.Debugf("redirecting %s to %s to achieve load balancing", reqBody.ToResolve.Host,
 			targetUrl.Host)
 		clientsManager.RemoveFromExploring(reqBody.DeploymentId)
 		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
@@ -329,7 +329,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	switch redirectTo {
 	case myself:
 	default:
-		log.Debugf("(%s) redirecting to %s from %s", reqBody.Id, redirectTo, reqBody.Location)
+		reqLogger.Debugf("redirecting to %s from %s", redirectTo, reqBody.Location)
 		targetUrl = url.URL{
 			Scheme: "http",
 			Host:   redirectTo + ":" + strconv.Itoa(archimedes.Port),
@@ -344,12 +344,12 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	if !found {
 		fallback, status := deplClient.GetFallback()
 		if status != http.StatusOK {
-			log.Errorf("got status %d while asking for fallback from deployer", fallback)
+			reqLogger.Errorf("got status %d while asking for fallback from deployer", fallback)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		log.Debugf("(%s) redirecting to fallback %s", reqBody.Id, fallback)
+		reqLogger.Debugf("redirecting to fallback %s", fallback)
 
 		fallbackURL := url.URL{
 			Scheme: "http",
@@ -361,16 +361,16 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Debugf("(%s) updating num reqs", reqBody.Id)
-	clientsManager.UpdateNumRequests(reqBody.DeploymentId, reqBody.Location)
-	log.Debugf("(%s) updated num reqs", reqBody.Id)
+	reqLogger.Debug("updating num reqs")
+	clientsManager.UpdateNumRequests(reqBody.DeploymentId, reqBody.Location, reqLogger)
+	reqLogger.Debug("updated num reqs")
 
 	var resp api.ResolveResponseBody
 	resp = *resolved
 
-	log.Debugf("(%s) will remove from exploring", reqBody.Id)
+	reqLogger.Debug("will remove from exploring")
 	clientsManager.RemoveFromExploring(reqBody.DeploymentId)
-	log.Debugf("(%s) removed from exploring", reqBody.Id)
+	reqLogger.Debug("removed from exploring")
 	utils.SendJSONReplyOK(w, resp)
 }
 
@@ -557,6 +557,8 @@ func addDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
+
+	log.Debugf("will add node %s for deployment %s", reqBody.NodeId, deploymentId)
 
 	redirectTargets.add(deploymentId, reqBody.NodeId, reqBody.Location)
 	if reqBody.Exploring {

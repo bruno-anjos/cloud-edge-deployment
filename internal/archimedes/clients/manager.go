@@ -8,6 +8,7 @@ import (
 	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/cell"
 	"github.com/golang/geo/s2"
+	"github.com/sirupsen/logrus"
 )
 
 type (
@@ -62,11 +63,11 @@ func (r *Manager) AddDeployment(deploymentId string) {
 	r.currBatch.LoadOrStore(deploymentId, newBatch)
 }
 
-func (r *Manager) UpdateNumRequests(deploymentId string, location s2.CellID) {
+func (r *Manager) UpdateNumRequests(deploymentId string, location s2.CellID, logEntry *logrus.Entry) {
 	r.updateEntry(deploymentId, location)
 	r.updateBatch(deploymentId, location)
 
-	r.cellManager.AddClientToDownmostCell(deploymentId, location)
+	r.cellManager.AddClientToDownmostCell(deploymentId, location, logEntry)
 }
 
 // Even though this is thread safe, this does not guarantee a perfectly accurate count

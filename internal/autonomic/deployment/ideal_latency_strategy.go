@@ -65,6 +65,10 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 	}
 
 	action := goalToChooseActionFrom.GenerateAction(nextDomain, goalActionArgs...)
+	if action == nil {
+		return action
+	}
+
 	log.Debugf("generated action of type %s", action.GetActionId())
 	if action.GetActionId() == actions.RedirectClientsId {
 		if i.redirecting {

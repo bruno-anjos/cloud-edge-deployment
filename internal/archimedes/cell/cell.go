@@ -8,6 +8,7 @@ import (
 
 type (
 	Cell struct {
+		Id              s2.CellID
 		numClients      int
 		clientLocations map[s2.CellID]int
 		HasParent       bool
@@ -17,8 +18,9 @@ type (
 	}
 )
 
-func NewCell(numClients int, clientLocations map[s2.CellID]int, parent s2.CellID, hasParent bool) *Cell {
+func NewCell(id s2.CellID, numClients int, clientLocations map[s2.CellID]int, parent s2.CellID, hasParent bool) *Cell {
 	return &Cell{
+		Id:              id,
 		numClients:      numClients,
 		clientLocations: clientLocations,
 		Children:        map[s2.CellID]interface{}{},

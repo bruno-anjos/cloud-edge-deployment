@@ -175,7 +175,16 @@ func (c *Client) GetRedirected(deploymentId string) (redirected int32, status in
 	path := api.GetRedirectedPath(deploymentId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, &redirected)
+	var resp *http.Response
+	status, resp = utils.DoRequest(c.Client, req, nil)
+
+	if status == http.StatusOK {
+		err := json.NewDecoder(resp.Body).Decode(&redirected)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	return
 }
 

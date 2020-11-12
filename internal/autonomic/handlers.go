@@ -67,6 +67,7 @@ func setDeploymentParentHandler(_ http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	parentId := utils.ExtractPathVar(r, parentIdPathVar)
 
+	log.Debugf("setting %s as parent for deployment %s", parentId, deploymentId)
 	autonomicSystem.setDeploymentParent(deploymentId, parentId)
 }
 

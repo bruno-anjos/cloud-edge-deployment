@@ -86,6 +86,8 @@ func DoRequest(httpClient *http.Client, request *http.Request, responseBody inte
 		}
 	}
 
+	log.Debugf("Done: %s %s", request.Method, request.URL.String())
+
 	return resp.StatusCode, resp
 }
 

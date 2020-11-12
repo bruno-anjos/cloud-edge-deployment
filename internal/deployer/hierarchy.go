@@ -203,17 +203,21 @@ func (t *hierarchyTable) updateDeployment(deploymentId string, parent *utils.Nod
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	entry.setParent(*parent)
-	entry.setGrandparent(*grandparent)
 
 	parentId := "nil"
 	if parent != nil {
 		parentId = parent.Id
+		entry.setParent(*parent)
+	} else {
+		entry.removeParent()
 	}
 
 	grandparentId := "nil"
 	if grandparent != nil {
 		grandparentId = grandparent.Id
+		entry.setGrandparent(*grandparent)
+	} else {
+		entry.removeGrandparent()
 	}
 
 	log.Debugf("deployment %s updated with parent %s and grandparent %s", deploymentId, parentId, grandparentId)
@@ -336,7 +340,12 @@ func (t *hierarchyTable) setDeploymentParent(deploymentId string, parent *utils.
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	entry.setParent(*parent)
+
+	if parent == nil {
+		entry.removeParent()
+	} else {
+		entry.setParent(*parent)
+	}
 
 	auxChildren := t.getChildren(deploymentId)
 	if len(auxChildren) > 0 {
@@ -357,7 +366,12 @@ func (t *hierarchyTable) setDeploymentGrandparent(deploymentId string, grandpare
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	entry.setGrandparent(*grandparent)
+
+	if grandparent == nil {
+		entry.removeGrandparent()
+	} else {
+		entry.setGrandparent(*grandparent)
+	}
 }
 
 func (t *hierarchyTable) setDeploymentAsOrphan(deploymentId string) <-chan string {
