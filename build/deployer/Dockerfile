@@ -1,4 +1,4 @@
-FROM busybox
+FROM frolvlad/alpine-glibc
 COPY ./deployer /deployer
 COPY ./fallback.txt /fallback.txt
 

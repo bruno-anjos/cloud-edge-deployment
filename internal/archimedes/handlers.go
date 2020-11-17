@@ -34,6 +34,8 @@ type (
 		Done    bool
 	}
 
+	redirectingToMeMapValue = *sync.Map
+
 	redirectionsMapValue = *redirectedConfig
 )
 
@@ -45,6 +47,7 @@ var (
 	sTable              *deploymentsTable
 	redirectServicesMap sync.Map
 	messagesReceived    sync.Map
+	redirectingToMe     sync.Map
 	clientsManager      *clients.Manager
 
 	redirectTargets *nodesPerDeployment
@@ -56,10 +59,7 @@ var (
 )
 
 func init() {
-	messagesReceived = sync.Map{}
-
 	sTable = newDeploymentsTable()
-	redirectServicesMap = sync.Map{}
 	clientsManager = clients.NewManager()
 
 	var err error
@@ -323,23 +323,40 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deplClient := deployer.NewDeployerClient(publicUtils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
-	redirectTo := checkForClosestNodeRedirection(reqBody.DeploymentId, reqBody.Location)
+	log.Debugf("redirections %+v", reqBody.Redirects)
 
-	switch redirectTo {
-	case myself:
-	default:
-		reqLogger.Debugf("redirecting to %s from %s", redirectTo, reqBody.Location)
-		targetUrl = url.URL{
-			Scheme: "http",
-			Host:   redirectTo + ":" + strconv.Itoa(archimedes.Port),
-			Path:   api.GetResolvePath(),
+	canRedirect := true
+	if len(reqBody.Redirects) > 0 {
+		lastRedirect := reqBody.Redirects[len(reqBody.Redirects)-1]
+		value, ok := redirectingToMe.Load(reqBody.DeploymentId)
+		if ok {
+			_, ok = value.(redirectingToMeMapValue).Load(lastRedirect)
+			canRedirect = !ok
+			if ok {
+				log.Debugf("%s is redirecting to me", lastRedirect)
+			}
 		}
-		clientsManager.RemoveFromExploring(reqBody.DeploymentId)
-		http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
-		return
 	}
 
+	if canRedirect {
+		redirectTo := checkForClosestNodeRedirection(reqBody.DeploymentId, reqBody.Location)
+
+		switch redirectTo {
+		case myself:
+		default:
+			reqLogger.Debugf("redirecting to %s from %s", redirectTo, reqBody.Location)
+			targetUrl = url.URL{
+				Scheme: "http",
+				Host:   redirectTo + ":" + strconv.Itoa(archimedes.Port),
+				Path:   api.GetResolvePath(),
+			}
+			clientsManager.RemoveFromExploring(reqBody.DeploymentId)
+			http.Redirect(w, r, targetUrl.String(), http.StatusPermanentRedirect)
+			return
+		}
+	}
+
+	deplClient := deployer.NewDeployerClient(publicUtils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
 	resolved, found := resolveLocally(reqBody.ToResolve)
 	if !found {
 		fallback, status := deplClient.GetFallback()
@@ -503,6 +520,18 @@ func redirectServiceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_, ok := sTable.deploymentsMap.Load(deploymentId)
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	_, ok = redirectingToMe.Load(deploymentId)
+	if ok {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
 	log.Debugf("redirecting %d clients to %s", req.Amount, req.Target)
 
 	redirectConfig := &redirectedConfig{
@@ -513,6 +542,56 @@ func redirectServiceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	redirectServicesMap.Store(deploymentId, redirectConfig)
+}
+
+func canRedirectToYouHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+
+	if _, ok := sTable.deploymentsMap.Load(deploymentId); !ok {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	if _, ok := redirectServicesMap.Load(deploymentId); ok {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	return
+}
+
+func willRedirectToYouHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	nodeId := utils.ExtractPathVar(r, nodeIdPathVar)
+
+	if _, ok := sTable.deploymentsMap.Load(deploymentId); !ok {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	if _, ok := redirectServicesMap.Load(deploymentId); ok {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	nodesMap := &sync.Map{}
+	value, _ := redirectingToMe.LoadOrStore(deploymentId, nodesMap)
+	nodesMap = value.(redirectingToMeMapValue)
+	nodesMap.Store(nodeId, nil)
+
+	log.Debugf("%s redirecting %s to me", nodeId, deploymentId)
+}
+
+func stoppedRedirectingToYouHandler(w http.ResponseWriter, r *http.Request) {
+	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	nodeId := utils.ExtractPathVar(r, nodeIdPathVar)
+
+	value, ok := redirectingToMe.Load(deploymentId)
+	if ok {
+		nodesMap := value.(redirectingToMeMapValue)
+		nodesMap.Delete(nodeId)
+		log.Debugf("%s stopped redirecting %s to me", nodeId, deploymentId)
+	}
 }
 
 func removeRedirectionHandler(_ http.ResponseWriter, r *http.Request) {
@@ -526,12 +605,11 @@ func getRedirectedHandler(w http.ResponseWriter, r *http.Request) {
 	value, ok := redirectServicesMap.Load(deploymentId)
 	if !ok {
 		log.Debugf("deployment %s is not being redirected", deploymentId)
-		w.WriteHeader(http.StatusNotFound)
+		utils.SendJSONReplyStatus(w, http.StatusNotFound, 0)
 		return
 	}
 
 	redirected := value.(redirectionsMapValue)
-
 	utils.SendJSONReplyOK(w, redirected.Current)
 }
 
@@ -583,7 +661,8 @@ func getLoadHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
 	load := clientsManager.GetLoad(deploymentId)
-	log.Debugf("got load %d for deployment %s", load, deploymentId)
+	log.WithField("REQ_ID", r.Header.Get(utils.ReqIdHeaderField)).Debugf("got load %d for deployment %s",
+		load, deploymentId)
 
 	utils.SendJSONReplyOK(w, load)
 }
@@ -592,7 +671,7 @@ func getClientCentroidsHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	centroids, ok := clientsManager.GetDeploymentClientsCentroids(deploymentId)
 	if !ok {
-		w.WriteHeader(http.StatusNoContent)
+		utils.SendJSONReplyStatus(w, http.StatusNotFound, nil)
 	} else {
 		utils.SendJSONReplyOK(w, centroids)
 	}

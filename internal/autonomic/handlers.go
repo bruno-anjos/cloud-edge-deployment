@@ -90,7 +90,7 @@ func closestNodeToHandler(w http.ResponseWriter, r *http.Request) {
 
 	closest := autonomicSystem.closestNodeTo(reqBody.Locations, reqBody.ToExclude)
 	if closest == "" {
-		w.WriteHeader(http.StatusNotFound)
+		utils.SendJSONReplyStatus(w, http.StatusNotFound, closest)
 		return
 	}
 
@@ -100,7 +100,7 @@ func closestNodeToHandler(w http.ResponseWriter, r *http.Request) {
 func getVicinityHandler(w http.ResponseWriter, _ *http.Request) {
 	vicinity := autonomicSystem.getVicinity()
 	if vicinity == nil {
-		w.WriteHeader(http.StatusNotFound)
+		utils.SendJSONReplyStatus(w, http.StatusNotFound, nil)
 		return
 	}
 
@@ -113,7 +113,7 @@ func getVicinityHandler(w http.ResponseWriter, _ *http.Request) {
 func getMyLocationHandler(w http.ResponseWriter, _ *http.Request) {
 	location, err := autonomicSystem.getMyLocation()
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
+		utils.SendJSONReplyStatus(w, http.StatusNotFound, 0)
 		return
 	}
 

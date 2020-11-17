@@ -6,8 +6,26 @@ import sys
 from datetime import datetime
 from multiprocessing import Pool
 
+clients_config_file = f"{os.path.expanduser('~')}" \
+                      f"/go/src/github.com/bruno-anjos/cloud-edge-deployment/scripts/launch_config.json"
+
 log_prefixes = ["archimedes", "autonomic", "deployer", "scheduler"]
 
+def get_client_logs(logs_dir_name):
+    client_logs_dir = f"{logs_dir_name}/client_logs"
+    os.mkdir(client_logs_dir)
+
+    with open(clients_config_file) as clients_config_fp:
+        client_configs = json.load(clients_config_fp)
+
+    clients = []
+    for client_config in client_configs:
+        clients.extend([f"{client_config}_{num}" for num in range(len(client_configs[client_config]))])
+
+    for client in clients:
+        with open(f"{client_logs_dir}⁄{client}", "r") as client_log_fp:
+            cmd = f"docker logs {client}".split(" ")
+            subprocess.run(cmd, stdout=client_log_fp)
 
 def get_specific_logs(logs_dir_name, dummy, logs_prefix):
     docker_logs_cmd = f"docker exec {dummy} cat logs/{logs_prefix}_logs".split(" ")

@@ -1,4 +1,4 @@
-FROM busybox:glibc
+FROM frolvlad/alpine-glibc
 
 COPY ./archimedes /archimedes
 COPY ./deployer /deployer

@@ -1,4 +1,4 @@
-FROM busybox
+FROM frolvlad/alpine-glibc
 COPY ./autonomic /autonomic
 RUN mkdir /metrics
 COPY ./metrics/* /metrics/

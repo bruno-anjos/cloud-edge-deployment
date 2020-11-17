@@ -71,6 +71,10 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 
 	log.Debugf("generated action of type %s", action.GetActionId())
 	if action.GetActionId() == actions.RedirectClientsId {
+		assertedAction := action.(*actions.RedirectAction)
+		assertedAction.SetErrorRedirectingCallback(i.resetRedirecting)
+
+		log.Debugf("redirecting clients from %s to %s", assertedAction.GetOrigin(), assertedAction.GetTarget())
 		if i.redirecting {
 			// case where i WAS already redirecting
 
@@ -87,10 +91,8 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 						i.deployment.DeploymentId, i.redirectingTo)
 				}
 			}
-
 		} else {
 			// case where i was NOT yet redirecting
-			assertedAction := action.(*actions.RedirectAction)
 			i.redirecting = true
 			i.redirectGoal = assertedAction.GetAmount()
 			i.redirectingTo = assertedAction.GetTarget()
@@ -101,4 +103,8 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 	}
 
 	return action
+}
+
+func (i *idealLatencyStrategy) resetRedirecting() {
+	i.redirecting = false
 }

@@ -27,6 +27,7 @@ const (
 	ExploringClientLocationPath = "/deployments/%s/exploring_loc"
 	AddDeploymentNodePath       = "/deployments/%s/node"
 	RemoveDeploymentNodePath    = "/deployments/%s/node/%s"
+	RedirectingToYouPath        = "/deployments/%s/redirecting/%s"
 )
 
 func GetDeploymentsPath() string {
@@ -79,4 +80,8 @@ func GetAddDeploymentNodePath(deploymentId string) string {
 
 func GetRemoveDeploymentNodePath(deploymentId, nodeId string) string {
 	return PrefixPath + fmt.Sprintf(RemoveDeploymentNodePath, deploymentId, nodeId)
+}
+
+func GetRedirectingToYouPath(deploymentId, nodeId string) string {
+	return PrefixPath + fmt.Sprintf(RedirectingToYouPath, deploymentId, nodeId)
 }

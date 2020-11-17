@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 from multiprocessing import Pool
+import json
 
 logsPrefix = "logs/"
 
@@ -28,10 +29,9 @@ if len(args) > 0:
             if idx + 1 > len(args) - 1:
                 error = True
                 break
-            flag_pattern = args[idx+1]
+            flag_pattern = args[idx + 1]
     if error:
         print("usage: python3 check_dummy_logs.py -a -p panic")
-
 
 dockerExecCmd = ["docker", "exec"]
 filterSuffix = ["|", "grep", f"\"{flag_pattern}\""]
@@ -45,14 +45,24 @@ for f in files:
 def process_node_logs(data):
     node_to_process, log_to_process = data
 
-    insideDockerCmd = ["cat", logsPrefix + log_to_process]
-    insideDockerCmd.extend(filterSuffix)
-    cmd = dockerExecCmd + [node_to_process] + [" ".join(insideDockerCmd)]
+    inside_docker_cmd = ["cat", logsPrefix + log_to_process]
+    inside_docker_cmd.extend(filterSuffix)
+    cmd = dockerExecCmd + [node_to_process] + [" ".join(inside_docker_cmd)]
     out = subprocess.getoutput(" ".join(cmd))
     if out:
         return False, f"[ERROR] {node_to_process} {log_to_process}", out
 
     return True, f"[OK] {node_to_process} {log_to_process}", ""
+
+def process_client_logs(data):
+    client_to_process = data
+
+    docker_cmd = ["docker", "logs", client_to_process]
+    docker_cmd.extend(filterSuffix)
+    out = subprocess.getoutput(" ".join(docker_cmd))
+    if out:
+        return False, f"[ERROR] {client_to_process}", out
+    return True, f"[OK] {client_to_process}", out
 
 
 nodes = []
@@ -73,8 +83,17 @@ for node in nodes:
     for log in logs:
         logs_per_node.append((node, log))
 
+with open(f"{os.path.dirname(os.path.realpath(__file__))}/launch_config.json") as services_config_fp:
+    service_configs = json.load(services_config_fp)
+
+service_clients = []
+for service in service_configs:
+    for idx in enumerate(service_configs[service]):
+        service_clients.append(f"{service}_{idx}")
+
 pool = Pool(processes=cpu_count)
 results = pool.map(process_node_logs, logs_per_node)
+results.extend(pool.map(process_client_logs, service_clients))
 pool.close()
 
 for idx, log_per_node in enumerate(logs_per_node):

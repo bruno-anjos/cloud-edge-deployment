@@ -31,6 +31,9 @@ const (
 	setExploringLocationName       = "SET_EXPLORING_CLIENT_LOCATION"
 	addDeploymentNodeName          = "ADD_DEPLOYMENT_NODE"
 	removeDeploymentNodeName       = "REMOVE_DEPLOYMENT_NODE"
+	willRedirectToYouName          = "WILL_REDIRECT_TO_YOU"
+	stopRedirectingToYouName       = "STOP_REDIRECTING_TO_YOU"
+	canRedirectToYouName           = "CAN_REDIRECT_TO_YOU"
 )
 
 // Path variables
@@ -63,9 +66,32 @@ var (
 	addDeploymentNodeRoute          = fmt.Sprintf(archimedes.AddDeploymentNodePath, _deploymentIdPathVarFormatted)
 	removeDeploymentNodeRoute       = fmt.Sprintf(archimedes.RemoveDeploymentNodePath, _deploymentIdPathVarFormatted,
 		_nodeIdPathVarFormatted)
+	redirectingToYou = fmt.Sprintf(archimedes.RedirectingToYouPath, _deploymentIdPathVarFormatted,
+		_nodeIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{
+	{
+		Name:        canRedirectToYouName,
+		Method:      http.MethodGet,
+		Pattern:     redirectingToYou,
+		HandlerFunc: canRedirectToYouHandler,
+	},
+
+	{
+		Name:        stopRedirectingToYouName,
+		Method:      http.MethodDelete,
+		Pattern:     redirectingToYou,
+		HandlerFunc: stoppedRedirectingToYouHandler,
+	},
+
+	{
+		Name:        willRedirectToYouName,
+		Method:      http.MethodPost,
+		Pattern:     redirectingToYou,
+		HandlerFunc: willRedirectToYouHandler,
+	},
+
 	{
 		Name:        removeDeploymentNodeName,
 		Method:      http.MethodDelete,

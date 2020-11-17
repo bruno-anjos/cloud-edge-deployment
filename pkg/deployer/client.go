@@ -34,7 +34,7 @@ func (c *Client) GetDeployments() (deploymentIds []string, status int) {
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	var resp api.GetDeploymentsResponseBody
-	status, _ = utils.DoRequest(c.Client, req, &resp)
+	status = utils.DoRequest(c.Client, req, &resp)
 	deploymentIds = resp
 
 	return
@@ -56,7 +56,7 @@ func (c *Client) RegisterDeployment(deploymentId string, static bool, deployment
 	path := api.GetDeploymentsPath()
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -71,7 +71,7 @@ func (c *Client) ExtendDeploymentTo(deploymentId, targetId string, exploringTTL 
 	path := api.GetExtendDeploymentPath(deploymentId, targetId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -80,7 +80,7 @@ func (c *Client) DeleteDeployment(deploymentId string) (status int) {
 	path := api.GetDeploymentPath(deploymentId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -95,7 +95,7 @@ func (c *Client) RegisterDeploymentInstance(deploymentId, instanceId string, sta
 	path := api.GetDeploymentInstancePath(deploymentId, instanceId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -104,7 +104,7 @@ func (c *Client) RegisterHearbeatDeploymentInstance(deploymentId, instanceId str
 	path := api.GetDeploymentInstanceAlivePath(deploymentId, instanceId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -113,7 +113,7 @@ func (c *Client) SendHearbeatDeploymentInstance(deploymentId, instanceId string)
 	path := api.GetDeploymentInstanceAlivePath(deploymentId, instanceId)
 	req := utils.BuildRequest(http.MethodPut, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -128,7 +128,7 @@ func (c *Client) WarnOfDeadChild(deploymentId, deadChildId string, grandChild *u
 	path := api.GetDeadChildPath(deploymentId, deadChildId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -140,7 +140,7 @@ func (c *Client) SetGrandparent(deploymentId string, grandparent *utils.Node) (s
 	path := api.GetSetGrandparentPath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -154,7 +154,7 @@ func (c *Client) WarnThatIAmParent(deploymentId string, parent, grandparent *uti
 	path := api.GetImYourParentPath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -163,7 +163,7 @@ func (c *Client) ChildDeletedDeployment(deploymentId, childId string) (status in
 	path := api.GetDeploymentChildPath(deploymentId, childId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -176,7 +176,7 @@ func (c *Client) MigrateDeployment(deploymentId, origin, target string) (status 
 	}
 
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -186,7 +186,7 @@ func (c *Client) GetHierarchyTable() (table map[string]*api.HierarchyEntryDTO, s
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	var resp api.GetHierarchyTableResponseBody
-	status, _ = utils.DoRequest(c.Client, req, &resp)
+	status = utils.DoRequest(c.Client, req, &resp)
 
 	table = resp
 
@@ -197,7 +197,7 @@ func (c *Client) SetParentAlive(parentId string) (status int) {
 	path := api.GetParentAlivePath(parentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -209,7 +209,7 @@ func (c *Client) AddNode(nodeAddr string) (status int) {
 	path := api.GetAddNodePath()
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -250,7 +250,7 @@ func (c *Client) SendAlternatives(myId string, alternatives []*utils.Node) (stat
 	path := api.GetSetAlternativesPath(myId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -263,7 +263,7 @@ func (c *Client) Fallback(deploymentId, orphanId string, orphanLocation s2.CellI
 	path := api.GetFallbackPath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -275,7 +275,7 @@ func (c *Client) GetFallback() (fallback string, status int) {
 	var (
 		respBody api.GetFallbackResponseBody
 	)
-	status, _ = utils.DoRequest(c.Client, req, &respBody)
+	status = utils.DoRequest(c.Client, req, &respBody)
 
 	fallback = respBody
 
@@ -286,7 +286,7 @@ func (c *Client) HasDeployment(deploymentId string) (has bool, status int) {
 	path := api.GetHasDeploymentPath(deploymentId)
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	has = status == http.StatusOK
 	return
@@ -303,7 +303,7 @@ func (c *Client) PropagateLocationToHorizon(deploymentId, origin string, locatio
 	path := api.GetPropagateLocationToHorizonPath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }

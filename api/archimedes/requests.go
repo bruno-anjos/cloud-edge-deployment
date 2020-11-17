@@ -13,6 +13,7 @@ type (
 		DeploymentId string
 		Location     s2.CellID
 		Id           string
+		Redirects    []string
 	}
 	ResolveLocallyRequestBody      = ToResolveDTO
 	RedirectRequestBody            = redirectDTO
@@ -22,8 +23,8 @@ type (
 	}
 	SetExploringClientLocationRequestBody = []s2.CellID
 	AddDeploymentNodeRequestBody          struct {
-		NodeId   string
-		Location s2.CellID
+		NodeId    string
+		Location  s2.CellID
 		Exploring bool
 	}
 )

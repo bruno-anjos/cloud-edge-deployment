@@ -3,14 +3,20 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
 
 	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	ReqIdHeaderField = "REQ_ID"
 )
 
 func resolve(toResolve string) (resolved string) {
@@ -64,7 +70,7 @@ func BuildRequest(method, host, path string, body interface{}) *http.Request {
 	return request
 }
 
-func DoRequest(httpClient *http.Client, request *http.Request, responseBody interface{}) (int, *http.Response) {
+func DoRequest(httpClient *http.Client, request *http.Request, responseBody interface{}) int {
 	request.URL.Host = resolve(request.URL.Host)
 
 	log.Debugf("Doing request: %s %s", request.Method, request.URL.String())
@@ -73,10 +79,17 @@ func DoRequest(httpClient *http.Client, request *http.Request, responseBody inte
 		panic(errorHttpClietNilFormat)
 	}
 
+	reqId, err := uuid.NewUUID()
+	if err != nil {
+		panic(err)
+	}
+
+	request.Header.Add(ReqIdHeaderField, reqId.String())
+
 	resp, err := httpClient.Do(request)
 	if err != nil {
 		log.Warn(err)
-		return -1, nil
+		return -1
 	}
 
 	if responseBody != nil {
@@ -84,11 +97,26 @@ func DoRequest(httpClient *http.Client, request *http.Request, responseBody inte
 		if err != nil {
 			panic(err)
 		}
+
+		err = resp.Body.Close()
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		_, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			panic(err)
+		}
+
+		err = resp.Body.Close()
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	log.Debugf("Done: %s %s", request.Method, request.URL.String())
 
-	return resp.StatusCode, resp
+	return resp.StatusCode
 }
 
 func ExtractPathVar(r *http.Request, varName string) (varValue string) {

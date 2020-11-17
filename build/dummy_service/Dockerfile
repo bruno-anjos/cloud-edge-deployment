@@ -1,4 +1,4 @@
-FROM busybox:latest
+FROM frolvlad/alpine-glibc
 
 COPY ./dummy.sh /dummy.sh
 

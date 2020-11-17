@@ -31,7 +31,7 @@ func (c *Client) StartInstance(deploymentName, imageName string, ports nat.PortS
 	path := api.GetInstancesPath()
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -40,7 +40,7 @@ func (c *Client) StopInstance(instanceId string) (status int) {
 	path := api.GetInstancePath(instanceId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }
@@ -49,7 +49,7 @@ func (c *Client) StopAllInstances() (status int) {
 	path := api.GetInstancesPath()
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status = utils.DoRequest(c.Client, req, nil)
 
 	return
 }

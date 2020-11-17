@@ -655,7 +655,11 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 
 	for _, deploymentId := range deploymentIds {
 		grandparent := hTable.getGrandparent(deploymentId)
-		log.Debugf("my grandparent for %s is %s", deploymentId, grandparent.Id)
+		grandparentId := "nil"
+		if grandparent != nil {
+			grandparentId = grandparent.Id
+		}
+		log.Debugf("my grandparent for %s is %s", deploymentId, grandparentId)
 		if grandparent == nil {
 			deplClient := deployer.NewDeployerClient(fallback + ":" + strconv.Itoa(deployer.Port))
 			status := deplClient.Fallback(deploymentId, myself.Id, location.ID())
@@ -673,7 +677,7 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 			status    int
 		)
 		locations, status = archimedesClient.GetClientCentroids(deploymentId)
-		if status == http.StatusNoContent {
+		if status == http.StatusNotFound {
 			autoClient := autonomic.NewAutonomicClient("localhost:" + strconv.Itoa(autonomic.Port))
 			var myLoc s2.CellID
 			myLoc, status = autoClient.GetLocation()

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"io/ioutil"
+	"math/rand"
 	defaultHttp "net/http"
 	"net/url"
 	"strconv"
@@ -18,7 +19,9 @@ import (
 )
 
 const (
-	invalid = "__invalid"
+	invalid               = "__invalid"
+	minTimeBetweenClients = 1
+	maxTimeBetweenClients = 5
 )
 
 type config struct {
@@ -72,6 +75,9 @@ func main() {
 	wg := &sync.WaitGroup{}
 	log.Debugf("Launching %d clients with config %+v", conf.NumberOfClients, conf)
 	for i := 1; i <= conf.NumberOfClients; i++ {
+		waitTime := time.Duration(minTimeBetweenClients+rand.Intn(maxTimeBetweenClients-minTimeBetweenClients)) * time.
+			Second
+		time.Sleep(waitTime)
 		wg.Add(1)
 		go runClient(wg, i, deploymentUrl, &conf, location)
 	}

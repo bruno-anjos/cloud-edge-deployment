@@ -89,10 +89,19 @@ func (l *deploymentLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax boo
 			origin := ordered[len(ordered)-1]
 			actionArgs[lbFromIndex] = origin
 			actionArgs[lbAmountIndex] = sortingCriteria[origin].(loadType) / 4
-			log.Debugf("will try to achieve load equilibrium redirecting %d clients from %s to %s",
-				actionArgs[lbAmountIndex], origin, optRange[0])
-		}
 
+			var filteredRedirectedTargets Range
+			archClient := archimedes.NewArchimedesClient("")
+			for _, node := range optRange {
+				archClient.SetHostPort(node + ":" + strconv.Itoa(archimedes.Port))
+				can, _ := archClient.CanRedirectToYou(l.deployment.DeploymentId, Myself.Id)
+				log.Debugf("%s deployment %s to redirect: %t", node, l.deployment.DeploymentId, can)
+				if can {
+					filteredRedirectedTargets = append(filteredRedirectedTargets, node)
+				}
+			}
+			optRange = filteredRedirectedTargets
+		}
 	} else if l.deployment.ParentId != "" {
 		remove := l.checkIfShouldBeRemoved()
 		if remove {
@@ -334,4 +343,8 @@ func (l *deploymentLoadBalanceGoal) checkIfHasAlternatives(sortingCriteria map[s
 	}
 
 	return
+}
+
+func (l *deploymentLoadBalanceGoal) errorRedirecting() {
+
 }
