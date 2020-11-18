@@ -1,0 +1,14 @@
+replicas: 3
+serviceName: microtransactions
+containers:
+  image: docker.io/brunoanjos/microtransactions:latest
+  command: [ "sh", "-c", "./executable -l -d" ]
+  ports:
+    - containerPort: 8005
+  env:
+    - name: MONGODB_URL
+      value: "mongodb://novapokemon-microtransactionsdb:27017"
+    - name: AUTHENTICATION_URL
+      value: "authentication:8001"
+    - name: TRAINERS_URL
+      value: "trainers:8009"

@@ -1,0 +1,14 @@
+replicas: 3
+serviceName: gym
+containers:
+  image: docker.io/brunoanjos/gym:latest
+  command: [ "sh", "-c", "./executable -l -d" ]
+  ports:
+    - containerPort: 8003
+  env:
+    - name: MONGODB_URL
+      value: "mongodb://novapokemon-gymsdb:27017"
+    - name: LOCATION_URL
+      value: "location:8004"
+    - name: TRAINERS_URL
+      value: "trainers:8009"
