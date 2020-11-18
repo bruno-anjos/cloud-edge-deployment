@@ -21,7 +21,9 @@ const (
 	staleCyclesNumToRemove = int((float64(archimedesHTTPClient.ResetToFallbackTimeout) * (3. / 2.)) /
 		float64(utils.DefaultGoalCycleTimeout))
 
-	loadBalanceGoalId = "GOAL_LOAD_BALANCE"
+	loadBalanceGoalId          = "GOAL_LOAD_BALANCE"
+	overloadedCyclesToRedirect = int((float64(archimedesHTTPClient.CacheExpiringTime) * (3. / 2.)) /
+		float64(utils.DefaultGoalCycleTimeout))
 )
 
 const (
@@ -36,9 +38,10 @@ type (
 )
 
 type deploymentLoadBalanceGoal struct {
-	deployment   *Deployment
-	dependencies []string
-	staleCycles  int
+	deployment       *Deployment
+	dependencies     []string
+	staleCycles      int
+	overloadedCycles int
 }
 
 func newLoadBalanceGoal(deployment *Deployment) *deploymentLoadBalanceGoal {
@@ -101,6 +104,8 @@ func (l *deploymentLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax boo
 				}
 			}
 			optRange = filteredRedirectedTargets
+			l.overloadedCycles = 0
+			log.Debugf("resetting overloaded cycles")
 		}
 	} else if l.deployment.ParentId != "" {
 		remove := l.checkIfShouldBeRemoved()
@@ -184,8 +189,14 @@ func (l *deploymentLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria
 	myLoad := candidatesCriteria[Myself.Id].(loadType)
 
 	if myLoad > maximumLoad {
-		log.Debugf("im overloaded (%d)", myLoad)
-		maxed = false
+		log.Debugf("im overloaded: %d (%d)", myLoad, overloadedCyclesToRedirect)
+		if l.overloadedCycles == overloadedCyclesToRedirect {
+			maxed = false
+		}
+		l.overloadedCycles++
+	} else {
+		log.Debugf("resetting overloaded cycles")
+		l.overloadedCycles = 0
 	}
 
 	for _, candidate := range candidates {

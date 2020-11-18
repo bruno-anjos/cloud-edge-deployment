@@ -20,8 +20,7 @@ import (
 
 const (
 	invalid               = "__invalid"
-	minTimeBetweenClients = 1
-	maxTimeBetweenClients = 5
+	maxTimeBetweenClients = 120
 )
 
 type config struct {
@@ -75,9 +74,6 @@ func main() {
 	wg := &sync.WaitGroup{}
 	log.Debugf("Launching %d clients with config %+v", conf.NumberOfClients, conf)
 	for i := 1; i <= conf.NumberOfClients; i++ {
-		waitTime := time.Duration(minTimeBetweenClients+rand.Intn(maxTimeBetweenClients-minTimeBetweenClients)) * time.
-			Second
-		time.Sleep(waitTime)
 		wg.Add(1)
 		go runClient(wg, i, deploymentUrl, &conf, location)
 	}
@@ -87,6 +83,10 @@ func main() {
 
 func runClient(wg *sync.WaitGroup, clientNum int, deploymentUrl url.URL, config *config, location s2.LatLng) {
 	defer wg.Done()
+
+	waitTime := time.Duration(rand.Intn(maxTimeBetweenClients)) * time.
+		Second
+	time.Sleep(waitTime)
 
 	log.Debugf("[%d] Starting client", clientNum)
 

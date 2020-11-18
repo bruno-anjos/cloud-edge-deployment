@@ -136,23 +136,6 @@ func (c *Client) Resolve(host string, port nat.Port, deploymentId string, cLocat
 	return
 }
 
-func (c *Client) ResolveLocally(host string, port nat.Port) (rHost, rPort string, status int) {
-	reqBody := api.ResolveLocallyRequestBody{
-		Host: host,
-		Port: port,
-	}
-
-	path := api.GetResolveLocallyPath()
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
-
-	var resp api.ResolveResponseBody
-	status = utils.DoRequest(c.Client, req, &resp)
-	rHost = resp.Host
-	rPort = resp.Port
-
-	return
-}
-
 func (c *Client) Redirect(deploymentId, target string, amount int) (status int) {
 	reqBody := api.RedirectRequestBody{
 		Amount: int32(amount),

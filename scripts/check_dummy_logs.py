@@ -57,7 +57,7 @@ def process_node_logs(data):
 def process_client_logs(data):
     client_to_process = data
 
-    docker_cmd = ["docker", "logs", client_to_process]
+    docker_cmd = ["docker", "logs", client_to_process, "2>&1"]
     docker_cmd.extend(filterSuffix)
     out = subprocess.getoutput(" ".join(docker_cmd))
     if out:
@@ -73,10 +73,8 @@ for f in os.listdir(path):
     node = f.split(".met")[0]
     nodes.append(node)
 
-print("nodes:", nodes)
-
 cpu_count = os.cpu_count()
-print(f"using {cpu_count} cores")
+print(f"[INFO] using {cpu_count} cores")
 
 logs_per_node = []
 for node in nodes:
@@ -88,8 +86,11 @@ with open(f"{os.path.dirname(os.path.realpath(__file__))}/launch_config.json") a
 
 service_clients = []
 for service in service_configs:
-    for idx in enumerate(service_configs[service]):
+    for idx, service_config in enumerate(service_configs[service]):
         service_clients.append(f"{service}_{idx}")
+
+print("[INFO] nodes:", nodes)
+print("[INFO] clients:", service_clients)
 
 pool = Pool(processes=cpu_count)
 results = pool.map(process_node_logs, logs_per_node)

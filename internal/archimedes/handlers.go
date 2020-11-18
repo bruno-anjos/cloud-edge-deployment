@@ -323,7 +323,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Debugf("redirections %+v", reqBody.Redirects)
+	reqLogger.Debugf("redirections %+v", reqBody.Redirects)
 
 	canRedirect := true
 	if len(reqBody.Redirects) > 0 {
@@ -343,6 +343,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 		switch redirectTo {
 		case myself:
+			reqLogger.Debugf("im the node to redirect to")
 		default:
 			reqLogger.Debugf("redirecting to %s from %s", redirectTo, reqBody.Location)
 			targetUrl = url.URL{
@@ -357,7 +358,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	deplClient := deployer.NewDeployerClient(publicUtils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
-	resolved, found := resolveLocally(reqBody.ToResolve)
+	resolved, found := resolveLocally(reqBody.ToResolve, reqLogger)
 	if !found {
 		fallback, status := deplClient.GetFallback()
 		if status != http.StatusOK {
@@ -391,23 +392,6 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	utils.SendJSONReplyOK(w, resp)
 }
 
-func resolveLocallyHandler(w http.ResponseWriter, r *http.Request) {
-	var req api.ResolveLocallyRequestBody
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		panic(err)
-	}
-
-	toResolve := &req
-	resolved, found := resolveLocally(toResolve)
-	if !found {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	utils.SendJSONReplyOK(w, resolved)
-}
-
 func checkForLoadBalanceRedirections(hostToResolve string) (redirect bool, targetUrl url.URL) {
 	redirect = false
 
@@ -415,14 +399,16 @@ func checkForLoadBalanceRedirections(hostToResolve string) (redirect bool, targe
 	if ok {
 		redirectConfig := value.(redirectionsMapValue)
 		if !redirectConfig.Done {
-			reachedGoal := atomic.CompareAndSwapInt32(&redirectConfig.Current, redirectConfig.Goal-1,
-				redirectConfig.Goal)
-			redirect, targetUrl = true, url.URL{
-				Scheme: "http",
-				Host:   redirectConfig.Target + ":" + strconv.Itoa(archimedes.Port),
-				Path:   api.GetResolvePath(),
+			current := atomic.AddInt32(&redirectConfig.Current, 1)
+			if current <= redirectConfig.Goal {
+				redirect, targetUrl = true, url.URL{
+					Scheme: "http",
+					Host:   redirectConfig.Target + ":" + strconv.Itoa(archimedes.Port),
+					Path:   api.GetResolvePath(),
+				}
 			}
-			if reachedGoal {
+
+			if current == redirectConfig.Goal {
 				log.Debugf("completed goal of redirecting %d clients to %s for deployment %s", redirectConfig.Target,
 					redirectConfig.Goal, hostToResolve)
 				redirectConfig.Done = true
@@ -434,13 +420,14 @@ func checkForLoadBalanceRedirections(hostToResolve string) (redirect bool, targe
 	return
 }
 
-func resolveLocally(toResolve *api.ToResolveDTO) (resolved *api.ResolvedDTO, found bool) {
+func resolveLocally(toResolve *api.ToResolveDTO, reqLogger *log.Entry) (resolved *api.ResolvedDTO, found bool) {
 	found = false
 
 	deployment, sOk := sTable.getDeployment(toResolve.Host)
 	if !sOk {
 		instance, iOk := sTable.getInstance(toResolve.Host)
 		if !iOk {
+			reqLogger.Debugf("no deployment or instance for: %s", toResolve.Host)
 			return
 		}
 
@@ -656,7 +643,6 @@ func removeDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
 	log.Debugf("deleted node %s for deployment %s", nodeId, deploymentId)
 }
 
-// TODO simulating
 func getLoadHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 

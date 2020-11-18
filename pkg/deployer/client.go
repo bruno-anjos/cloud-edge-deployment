@@ -292,12 +292,13 @@ func (c *Client) HasDeployment(deploymentId string) (has bool, status int) {
 	return
 }
 
-func (c *Client) PropagateLocationToHorizon(deploymentId, origin string, location s2.CellID,
-	TTL int8) (status int) {
+func (c *Client) PropagateLocationToHorizon(deploymentId, origin string, location s2.CellID, TTL int8,
+	op api.PropagateOpType) (status int) {
 	reqBody := api.PropagateLocationToHorizonRequestBody{
-		TTL:      TTL,
-		ChildId:  origin,
-		Location: location,
+		Operation: op,
+		TTL:       TTL,
+		ChildId:   origin,
+		Location:  location,
 	}
 
 	path := api.GetPropagateLocationToHorizonPath(deploymentId)

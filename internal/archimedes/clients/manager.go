@@ -8,7 +8,7 @@ import (
 	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/cell"
 	"github.com/golang/geo/s2"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 type (
@@ -63,7 +63,7 @@ func (r *Manager) AddDeployment(deploymentId string) {
 	r.currBatch.LoadOrStore(deploymentId, newBatch)
 }
 
-func (r *Manager) UpdateNumRequests(deploymentId string, location s2.CellID, logEntry *logrus.Entry) {
+func (r *Manager) UpdateNumRequests(deploymentId string, location s2.CellID, logEntry *log.Entry) {
 	r.updateEntry(deploymentId, location)
 	r.updateBatch(deploymentId, location)
 
@@ -71,7 +71,7 @@ func (r *Manager) UpdateNumRequests(deploymentId string, location s2.CellID, log
 }
 
 // Even though this is thread safe, this does not guarantee a perfectly accurate count
-// of requests received since one can load the entry, meanwhile the entry be swapped, and
+// of requests received since one can load the entry, meanwhile the entry is swapped, and
 // increment the entry that is stale, thus never reflecting the count on the updated entry.
 func (r *Manager) updateEntry(deploymentId string, location s2.CellID) {
 	// load the entry
@@ -89,11 +89,13 @@ func (r *Manager) updateEntry(deploymentId string, location s2.CellID) {
 
 	atomic.AddInt64(intValue, 1)
 	atomic.AddInt64(&entry.NumReqs, 1)
+
+	log.Debugf("adding to numRequests %d (%d)", location, atomic.LoadInt64(&entry.NumReqs))
 }
 
 // Same as updateEntry
 func (r *Manager) updateBatch(deploymentId string, location s2.CellID) {
-	value, ok := r.numReqsLastMinute.Load(deploymentId)
+	value, ok := r.currBatch.Load(deploymentId)
 	if !ok {
 		return
 	}
@@ -106,6 +108,8 @@ func (r *Manager) updateBatch(deploymentId string, location s2.CellID) {
 
 	atomic.AddInt64(intValue, 1)
 	atomic.AddInt64(&entry.NumReqs, 1)
+
+	log.Debugf("adding to batch %d (%d)", location, atomic.LoadInt64(&entry.NumReqs))
 }
 
 func (r *Manager) GetLoad(deploymentId string) (load int) {
@@ -174,7 +178,10 @@ func (r *Manager) waitToRemove(deploymentId string, batch *batchValue) {
 		return
 	}
 	entry := value.(numReqsLastMinuteMapValue)
-	atomic.AddInt64(&entry.NumReqs, -batch.NumReqs)
+
+	log.Debugf("removing %d requests", atomic.LoadInt64(&batch.NumReqs))
+
+	atomic.AddInt64(&entry.NumReqs, -atomic.LoadInt64(&batch.NumReqs))
 
 	// iterate this batch locations and decrement the count of each location in numRequests by the amount
 	// of each location on this batch

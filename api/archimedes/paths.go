@@ -18,7 +18,6 @@ const (
 	WhoAreYouPath               = "/who"
 	TablePath                   = "/table"
 	ResolvePath                 = "/resolve"
-	ResolveLocallyPath          = "/resolve/local"
 	RedirectPath                = "/deployments/%s/redirect"
 	RedirectedPath              = "/deployments/%s/redirected"
 	SetResolvingAnswerPath      = "/deployments/asnwer"
@@ -48,10 +47,6 @@ func GetDeploymentInstancePath(deploymentId, instanceId string) string {
 
 func GetResolvePath() string {
 	return PrefixPath + ResolvePath
-}
-
-func GetResolveLocallyPath() string {
-	return PrefixPath + ResolveLocallyPath
 }
 
 func GetRedirectPath(deploymentId string) string {

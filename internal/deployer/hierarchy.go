@@ -225,7 +225,7 @@ func (t *hierarchyTable) updateDeployment(deploymentId string, parent *utils.Nod
 	if parent != nil {
 		autonomicClient.SetDeploymentParent(deploymentId, parent.Id)
 		deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.PropagateLocationToHorizon(deploymentId, myself.Id, location.ID(), 0)
+		status := deplClient.PropagateLocationToHorizon(deploymentId, myself.Id, location.ID(), 0, api.Add)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while trying to propagate location to %s for deployment %s", status,
 				parent.Id, deploymentId)
@@ -277,7 +277,7 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, exploringTTL int)
 	if dto.Parent != nil {
 		autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent.Addr)
 		deplClient := deployer.NewDeployerClient(dto.Parent.Id + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself.Id, location.ID(), 0)
+		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself.Id, location.ID(), 0, api.Add)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while trying to propagate location to %s for deployment %s", status,
 				dto.Parent.Id, dto.DeploymentId)
@@ -321,6 +321,16 @@ func (t *hierarchyTable) removeDeployment(deploymentId string) {
 			if status != http.StatusOK {
 				log.Errorf("got status code %d from scheduler", status)
 				return
+			}
+		}
+
+		parent := t.getParent(deploymentId)
+		if parent != nil {
+			deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
+			status = deplClient.PropagateLocationToHorizon(deploymentId, myself.Id, location.ID(), 0, api.Remove)
+			if status != http.StatusOK {
+				log.Errorf("got status %d while propagating location to %s for deployment %s", status, parent.Id,
+					deploymentId)
 			}
 		}
 

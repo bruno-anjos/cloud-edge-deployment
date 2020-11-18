@@ -25,7 +25,6 @@ const (
 	redirectName                   = "REDIRECT"
 	removeRedirectName             = "REMOVE_REDIRECT"
 	getRedirectedName              = "GET_REDIRECTED"
-	resolveLocallyName             = "RESOLVE_LOCALLY"
 	getLoadName                    = "GET_LOAD"
 	getAvgClientLocationName       = "GET_AVG_CLIENT_LOCATION"
 	setExploringLocationName       = "SET_EXPLORING_CLIENT_LOCATION"
@@ -57,7 +56,6 @@ var (
 	whoAreYouRoute                  = archimedes.WhoAreYouPath
 	tableRoute                      = archimedes.TablePath
 	resolveRoute                    = archimedes.ResolvePath
-	resolveLocallyRoute             = archimedes.ResolveLocallyPath
 	redirectRoute                   = fmt.Sprintf(archimedes.RedirectPath, _deploymentIdPathVarFormatted)
 	redirectedRoute                 = fmt.Sprintf(archimedes.RedirectedPath, _deploymentIdPathVarFormatted)
 	getLoadRoute                    = fmt.Sprintf(archimedes.LoadPath, _deploymentIdPathVarFormatted)
@@ -125,13 +123,6 @@ var Routes = []utils.Route{
 		Method:      http.MethodGet,
 		Pattern:     getLoadRoute,
 		HandlerFunc: getLoadHandler,
-	},
-
-	{
-		Name:        resolveLocallyName,
-		Method:      http.MethodPost,
-		Pattern:     resolveLocallyRoute,
-		HandlerFunc: resolveLocallyHandler,
 	},
 
 	{

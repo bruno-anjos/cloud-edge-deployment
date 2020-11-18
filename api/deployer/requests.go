@@ -22,10 +22,10 @@ type (
 		Locations    []s2.CellID
 	}
 	IAmYourParentRequestBody struct {
-		Parent *utils.Node
+		Parent      *utils.Node
 		Grandparent *utils.Node
 	}
-	IAmYourChildRequestBody  struct {
+	IAmYourChildRequestBody struct {
 		Child *utils.Node
 	}
 	RegisterDeploymentInstanceRequestBody = archimedes.InstanceDTO
@@ -45,9 +45,17 @@ type (
 		ExploringTTL int
 		Config       *ExtendDeploymentConfig
 	}
+
+	PropagateOpType                       string
 	PropagateLocationToHorizonRequestBody struct {
-		TTL      int8
-		ChildId  string
-		Location s2.CellID
+		Operation PropagateOpType
+		TTL       int8
+		ChildId   string
+		Location  s2.CellID
 	}
+)
+
+const (
+	Add    PropagateOpType = "ADD"
+	Remove PropagateOpType = "REMOVE"
 )

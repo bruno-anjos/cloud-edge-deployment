@@ -130,8 +130,14 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	log.Debugf("got location from %s for deployment %s", reqBody.ChildId, deploymentId)
-	archimedesClient.AddDeploymentNode(deploymentId, reqBody.ChildId, reqBody.Location, false)
+	log.Debugf("got location from %s for deployment %s (%s)", reqBody.ChildId, deploymentId, reqBody.Operation)
+
+	switch reqBody.Operation {
+	case api.Add:
+		archimedesClient.AddDeploymentNode(deploymentId, reqBody.ChildId, reqBody.Location, false)
+	case api.Remove:
+		archimedesClient.DeleteDeploymentNode(deploymentId, reqBody.ChildId)
+	}
 
 	parent := hTable.getParent(deploymentId)
 	if reqBody.TTL+1 >= maxHopslocationHorizon || parent == nil {
@@ -140,7 +146,8 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 
 	deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
 	log.Debugf("propagating %s location for deployments %+v to %s", reqBody.ChildId, deploymentId, parent.Id)
-	deplClient.PropagateLocationToHorizon(deploymentId, reqBody.ChildId, reqBody.Location, reqBody.TTL+1)
+	deplClient.PropagateLocationToHorizon(deploymentId, reqBody.ChildId, reqBody.Location, reqBody.TTL+1,
+		reqBody.Operation)
 }
 
 func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {

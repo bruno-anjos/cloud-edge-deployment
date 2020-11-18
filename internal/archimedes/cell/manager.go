@@ -178,7 +178,6 @@ func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collecti
 	toSplitIds := []s2.CellID{cellId}
 	toSplitCells := []*Cell{cell}
 
-	logEntry.Debugf("splitting cell %d", cellId)
 	logEntry.Debug("Locking deployment cells in SPLIT")
 	deploymentCells.Lock()
 	logEntry.Debug("Locked")
@@ -201,6 +200,8 @@ func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collecti
 
 		toSplitIds = toSplitIds[1:]
 		toSplitCells = toSplitCells[1:]
+
+		logEntry.Debugf("splitting cell %d", splittingCellId)
 
 		newCells := map[s2.CellID]*Cell{}
 
@@ -226,6 +227,8 @@ func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collecti
 				toSplitIds = append(toSplitIds, tempCellId)
 				toSplitCells = append(toSplitCells, tempCell)
 			}
+
+			log.Debugf("added new cell %d to %d", tempCellId, splittingCellId)
 
 			splittingCell.AddChild(tempCellId)
 			activeCells.Store(tempCellId, tempCell)
