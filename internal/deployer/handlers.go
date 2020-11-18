@@ -150,55 +150,6 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 		reqBody.Operation)
 }
 
-func migrateDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
-	log.Debugf("handling migrate request")
-
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-
-	var migrateDTO api.MigrateDTO
-	err := json.NewDecoder(r.Body).Decode(&migrateDTO)
-	if err != nil {
-		panic(err)
-		return
-	}
-
-	if !hTable.hasDeployment(deploymentId) {
-		log.Debugf("deployment %s does not exist, ignoring migration request", deploymentId)
-		return
-	}
-
-	deploymentChildren := hTable.getChildren(deploymentId)
-	origin, ok := deploymentChildren[migrateDTO.Origin]
-	if !ok {
-		log.Debugf("origin %s does not exist for deployment %s", migrateDTO.Origin, deploymentId)
-		return
-	}
-
-	target, ok := deploymentChildren[migrateDTO.Target]
-	if !ok {
-		log.Debugf("target %s does not exist for deployment %s", migrateDTO.Target, deploymentId)
-		return
-	}
-
-	if origin.Id == target.Id {
-		log.Debugf("origin is the same as target (%s)", origin.Id)
-		return
-	}
-
-	client := deployer.NewDeployerClient(origin.Addr + ":" + strconv.Itoa(deployer.Port))
-	client.DeleteDeployment(deploymentId)
-
-	client.SetHostPort(target.Addr)
-	config := hTable.getDeploymentConfig(deploymentId)
-	isStatic := hTable.isStatic(deploymentId)
-	status := client.RegisterDeployment(deploymentId, isStatic, config, myself, hTable.getGrandparent(deploymentId),
-		nil, api.NotExploringTTL)
-
-	if status != http.StatusOK {
-		log.Errorf("got status %d while migrating deployment %s to %s", status, deploymentId, target.Id)
-	}
-}
-
 func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	targetAddr := utils.ExtractPathVar(r, nodeIdPathVar)
@@ -460,7 +411,7 @@ func addDeploymentAsync(deployment *Deployment, deploymentId string) {
 
 	for i := 0; i < deployment.NumberOfInstances; i++ {
 		status = schedulerClient.StartInstance(deploymentId, deployment.Image, deployment.Ports, deployment.Static,
-			deployment.EnvVars)
+			deployment.EnvVars, deployment.Command)
 		if status != http.StatusOK {
 			log.Errorf("got status code %d from scheduler", status)
 
@@ -482,14 +433,14 @@ func deleteDeploymentAsync(deploymentId string) {
 func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool) *Deployment {
 	log.Debugf("%+v", deploymentYAML)
 
-	numContainers := len(deploymentYAML.Spec.Template.Spec.Containers)
+	numContainers := len(deploymentYAML.Containers)
 	if numContainers > 1 {
 		panic("more than one container per deployment is not supported")
 	} else if numContainers == 0 {
 		panic("no container provided")
 	}
 
-	containerSpec := deploymentYAML.Spec.Template.Spec.Containers[0]
+	containerSpec := deploymentYAML.Containers[0]
 
 	envVars := make([]string, len(containerSpec.Env))
 	for i, envVar := range containerSpec.Env {
@@ -507,9 +458,10 @@ func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool)
 	}
 
 	deployment := Deployment{
-		DeploymentId:      deploymentYAML.Spec.DeploymentName,
-		NumberOfInstances: deploymentYAML.Spec.Replicas,
+		DeploymentId:      deploymentYAML.DeploymentName,
+		NumberOfInstances: deploymentYAML.Replicas,
 		Image:             containerSpec.Image,
+		Command:           containerSpec.Command,
 		EnvVars:           envVars,
 		Ports:             ports,
 		Static:            static,

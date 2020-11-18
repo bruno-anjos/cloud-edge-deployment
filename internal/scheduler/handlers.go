@@ -166,6 +166,7 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	}
 
 	containerConfig := container.Config{
+		Cmd:   containerInstance.Command,
 		Env:   envVars,
 		Image: containerInstance.ImageName,
 	}

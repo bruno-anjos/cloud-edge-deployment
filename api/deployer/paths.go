@@ -22,7 +22,6 @@ const (
 	HierarchyTablePath         = "/table"
 	ParentAlivePath            = "/parent/%s/up"
 	DeploymentChildPath        = "/deployments/%s/child/%s"
-	MigrateDeploymentPath      = "/deployments/%s/migrate"
 	ExtendDeploymentToPath     = "/deployments/%s/extend/%s"
 	SetGrandparentPath         = "/deployments/%s/grandparent"
 	FallbackPath               = "/deployments/%s/fallback"
@@ -76,10 +75,6 @@ func GetDeploymentInstanceAlivePath(deploymentId, instanceId string) string {
 
 func GetDeploymentChildPath(deploymentId, childId string) string {
 	return PrefixPath + fmt.Sprintf(DeploymentChildPath, deploymentId, childId)
-}
-
-func GetMigrateDeploymentPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(MigrateDeploymentPath, deploymentId)
 }
 
 func GetExtendDeploymentPath(deploymentId, targetId string) string {

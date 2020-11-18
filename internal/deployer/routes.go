@@ -22,7 +22,6 @@ const (
 	iAmYourParentName              = "I_AM_YOUR_PARENT"
 	getHierarchyTableName          = "GET_TABLE"
 	parentAliveName                = "PARENT_ALIVE"
-	migrateDeploymentName          = "MIGRATE_DEPLOYMENT"
 	extendDeploymentToName         = "EXTEND_DEPLOYMENT_TO"
 	setGrandparentName             = "SET_GRANDPARENT"
 	fallbackName                   = "FALLBACK"
@@ -56,7 +55,6 @@ var (
 	deploymentChildRoute       = fmt.Sprintf(deployer.DeploymentChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
 	iAmYourParentRoute         = fmt.Sprintf(deployer.IAmYourParentPath, _deploymentIdPathVarFormatted)
 	hierarchyTableRoute        = deployer.HierarchyTablePath
-	migrateDeploymentRoute     = fmt.Sprintf(deployer.MigrateDeploymentPath, _deploymentIdPathVarFormatted)
 	extendDeploymentToRoute    = fmt.Sprintf(deployer.ExtendDeploymentToPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
 	setGrandparentRoute             = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
 	fallbackRoute                   = fmt.Sprintf(deployer.FallbackPath, _deploymentIdPathVarFormatted)
@@ -128,13 +126,6 @@ var Routes = []utils.Route{
 		Method:      http.MethodPost,
 		Pattern:     deadChildRoute,
 		HandlerFunc: deadChildHandler,
-	},
-
-	{
-		Name:        migrateDeploymentName,
-		Method:      http.MethodPost,
-		Pattern:     migrateDeploymentRoute,
-		HandlerFunc: migrateDeploymentHandler,
 	},
 
 	{

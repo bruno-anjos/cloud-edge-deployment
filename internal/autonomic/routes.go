@@ -51,7 +51,7 @@ var (
 	getMyLocationRoute        = autonomic.MyLocationPath
 	getLoadRoute              = fmt.Sprintf(autonomic.LoadPath, _deploymentIdPathVarFormatted)
 	exploredSuccessfullyRoute = fmt.Sprintf(autonomic.ExplorePath, _deploymentIdPathVarFormatted, _childIdPathVarFormatted)
-	blacklistRoute            = fmt.Sprintf(autonomic.BlacklistPath, _deploymentIdPathVarFormatted, _nodeIdPathVarFormatted)
+	blacklistRoute            = fmt.Sprintf(autonomic.BlacklistPath, _deploymentIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{

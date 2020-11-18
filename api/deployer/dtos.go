@@ -23,28 +23,18 @@ type (
 	}
 
 	DeploymentYAML struct {
-		Spec struct {
-			Replicas       int
-			DeploymentName string `yaml:"serviceName"`
-			Template       struct {
-				Spec struct {
-					Containers []struct {
-						Image string
-						Env   []struct {
-							Name  string
-							Value string
-						}
-						Ports []struct {
-							ContainerPort string `yaml:"containerPort"`
-						}
-					}
-				}
+		Replicas       int
+		DeploymentName string `yaml:"serviceName"`
+		Containers     []struct {
+			Image   string
+			Command []string
+			Ports   []struct {
+				ContainerPort string `yaml:"containerPort"`
+			}
+			Env []struct {
+				Name  string
+				Value string
 			}
 		}
-	}
-
-	MigrateDTO struct {
-		Origin string
-		Target string
 	}
 )

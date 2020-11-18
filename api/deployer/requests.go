@@ -25,9 +25,6 @@ type (
 		Parent      *utils.Node
 		Grandparent *utils.Node
 	}
-	IAmYourChildRequestBody struct {
-		Child *utils.Node
-	}
 	RegisterDeploymentInstanceRequestBody = archimedes.InstanceDTO
 	AlternativesRequestBody               = []*utils.Node
 	SetGrandparentRequestBody             = utils.Node
@@ -35,8 +32,7 @@ type (
 		OrphanId       string
 		OrphanLocation s2.CellID
 	}
-	RedirectClientDownTheTreeRequestBody = s2.CellID
-	ExtendDeploymentConfig               struct {
+	ExtendDeploymentConfig struct {
 		Children  []*utils.Node
 		Locations []s2.CellID
 		ToExclude map[string]interface{}

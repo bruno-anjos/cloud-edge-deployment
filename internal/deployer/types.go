@@ -9,6 +9,7 @@ import (
 type Deployment struct {
 	DeploymentId      string
 	NumberOfInstances int
+	Command           []string
 	Image             string
 	EnvVars           []string
 	Ports             nat.PortSet

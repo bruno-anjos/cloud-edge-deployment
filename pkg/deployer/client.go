@@ -168,19 +168,6 @@ func (c *Client) ChildDeletedDeployment(deploymentId, childId string) (status in
 	return
 }
 
-func (c *Client) MigrateDeployment(deploymentId, origin, target string) (status int) {
-	path := api.GetMigrateDeploymentPath(deploymentId)
-	reqBody := api.MigrateDTO{
-		Origin: origin,
-		Target: target,
-	}
-
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
-	status = utils.DoRequest(c.Client, req, nil)
-
-	return
-}
-
 func (c *Client) GetHierarchyTable() (table map[string]*api.HierarchyEntryDTO, status int) {
 	path := api.GetHierarchyTablePath()
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
