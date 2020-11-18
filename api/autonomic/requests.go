@@ -6,7 +6,7 @@ import (
 
 type (
 	AddDeploymentRequestBody = deploymentConfig
-	ClosestNodeRequestBody   = struct {
+	ClosestNodeRequestBody   struct {
 		Locations []s2.CellID
 		ToExclude map[string]interface{}
 	}
