@@ -32,94 +32,94 @@ services_config_name = "DEPLOYMENTS_CONFIG"
 fallback_config_name = "FALLBACK_CONFIG"
 
 
-def sortChildren(n, sortingService, nodesLocations, clientLocations):
-    return calcDistInLatLng(nodesLocations[n], clientLocations[sortingService])
+def sort_children(n, sorting_service, nodes_locations, client_locations):
+    return calc_dist_in_lat_lng(nodes_locations[n], client_locations[sorting_service])
 
 
-def generateServiceTree(startNode, sName, nodesChildren, nodesLocations, clientLocations):
+def generate_service_tree(start_node, service_name, nodes_children, nodes_locations, client_locations):
     global sortingService
 
-    sortingService = sName
-    tree = f"{sName}: {startNode}"
-    treeSize = 1
+    sortingService = service_name
+    tree = f"{service_name}: {start_node}"
+    tree_size = 1
 
     better = True
-    currNode = startNode
-    best = startNode
+    curr_node = start_node
+    best = start_node
 
     while better:
-        children = nodesChildren[currNode]
+        children = nodes_children[curr_node]
         if len(children) < 1:
             better = False
             continue
         candidates = []
         candidates.extend(children)
-        candidates += [currNode]
-        candidates.sort(key=lambda elem: sortChildren(elem, sName, nodesLocations, clientLocations))
+        candidates += [curr_node]
+        candidates.sort(key=lambda elem: sort_children(elem, service_name, nodes_locations, client_locations))
         best = candidates[0]
-        if best != currNode:
+        if best != curr_node:
             tree += f" -> {best}"
-            treeSize += 1
-            currNode = best
+            tree_size += 1
+            curr_node = best
         else:
             better = False
 
-    print(f"closest node to {sName} is {best} at {nodesLocations[best]}")
+    print(f"closest node to {service_name} is {best} at {nodes_locations[best]}")
 
-    lastNode = best
-    return tree, treeSize, lastNode
-
-
-def generateServiceLatency():
-    minLatency, maxLatency = 100, 1000
-    return random.randint(minLatency, maxLatency)
+    last_node = best
+    return tree, tree_size, last_node
 
 
-def generateServiceProcessingTime():
-    minProcess, maxProcess = 0, 10
-    return random.randint(minProcess, maxProcess)
+def generate_service_latency():
+    min_latency, max_latency = 100, 1000
+    return random.randint(min_latency, max_latency)
 
 
-def generateDictsForServiceTree():
-    processingTime = generateServiceProcessingTime()
-    serviceLatency = generateServiceLatency()
-
-    minLat, maxLat, minLong, maxLong = -90, 90, -180, 180
-
-    serviceLocation = {"lat": random.randrange(minLat, maxLat), "lng": random.randint(minLong, maxLong)}
-
-    return serviceLocation, processingTime, serviceLatency
+def generate_service_processing_time():
+    min_process, max_process = 0, 10
+    return random.randint(min_process, max_process)
 
 
-def generateNodeMetrics(nodeId, loc, visibleNodes, children, nodesLocations, services, serviceLatencies,
-                        processingTimes, clientLocations, lastNode):
-    visibleNodesLocation = ",\n".join([
-        f""""{nodeId}": "{s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(nodesLocations[nodeId]["lat"], nodesLocations[nodeId]["lng"])).to_token()}" """
-        for nodeId in visibleNodes])
+def generate_dicts_for_service_tree():
+    processing_time = generate_service_processing_time()
+    service_latency = generate_service_latency()
+
+    min_lat, max_lat, min_long, max_long = -90, 90, -180, 180
+
+    service_location = {"lat": random.randrange(min_lat, max_lat), "lng": random.randint(min_long, max_long)}
+
+    return service_location, processing_time, service_latency
+
+
+def generate_node_metrics(node_id, loc, visible_nodes, children, nodes_locations, services, service_latencies,
+                          processing_times, client_locations):
+    visible_nodes_location = ",\n".join([
+        f""""{nodeId}": "{s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(nodes_locations[nodeId]["lat"], nodes_locations[nodeId]["lng"])).to_token()}" """
+        for nodeId in visible_nodes])
 
     other = []
     for s in services:
-        cellToken = s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(clientLocations[s]["lat"],
-                                                                              clientLocations[s]["lng"])).to_token()
+        cell_token = s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(client_locations[s]["lat"],
+                                                                               client_locations[s]["lng"])).to_token()
         other += [f"\"METRIC_LOAD_PER_DEPLOYMENT_{s}_IN_CHILDREN\": {{}}",
                   f"\"METRIC_AGG_LOAD_PER_DEPLOYMENT_{s}_IN_CHILDREN\": 0",
-                  f"\"METRIC_CLIENT_LATENCY_PER_DEPLOYMENT_{s}\": {serviceLatencies[s]}",
-                  f"\"METRIC_PROCESSING_TIME_PER_DEPLOYMENT_{s}\": {processingTimes[s]}",
+                  f"\"METRIC_CLIENT_LATENCY_PER_DEPLOYMENT_{s}\": {service_latencies[s]}",
+                  f"\"METRIC_PROCESSING_TIME_PER_DEPLOYMENT_{s}\": {processing_times[s]}",
                   f"\"METRIC_NUMBER_OF_INSTANCES_PER_DEPLOYMENT_{s}\": 0",
                   f"\"METRIC_LOAD_PER_DEPLOYMENT_{s}\": 0",
-                  f"""\"METRIC_AVERAGE_CLIENT_LOCATION_PER_DEPLOYMENT_{s}\": "{cellToken}" """]
+                  f"""\"METRIC_AVERAGE_CLIENT_LOCATION_PER_DEPLOYMENT_{s}\": "{cell_token}" """]
         for child in children:
             other += [f"\"METRIC_LOAD_PER_DEPLOYMENT_{s}_IN_CHILD_{child}\": 0"]
 
-    otherStrings = ",\n".join(other)
+    other_strings = ",\n".join(other)
 
     m = f"""{{
-        "METRIC_NODE_ADDR": "{nodeId}",
+        "METRIC_NODE_ADDR": "{node_id}",
         "METRIC_LOCATION": "{s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(loc["lat"], loc["lng"])).to_token()}",
         "METRIC_LOCATION_VICINITY": {{
-            {visibleNodesLocation}
+            {visible_nodes_location}
         }},
-        {otherStrings}
+        {other_strings}
     }}"""
 
     return m
@@ -128,211 +128,211 @@ def generateNodeMetrics(nodeId, loc, visibleNodes, children, nodesLocations, ser
 sortingLocation = {"lat": 0, "lng": 0}
 
 
-def calcDistInLatLng(loc1, loc2):
-    l1LatLng = s2sphere.LatLng.from_degrees(loc1["lat"], loc1["lng"])
-    l2LatLng = s2sphere.LatLng.from_degrees(loc2["lat"], loc2["lng"])
+def calc_dist_in_lat_lng(loc1, loc2):
+    l1_lat_lng = s2sphere.LatLng.from_degrees(loc1["lat"], loc1["lng"])
+    l2_lat_lng = s2sphere.LatLng.from_degrees(loc2["lat"], loc2["lng"])
 
-    return l1LatLng.get_distance(l2LatLng)
-
-
-def sortByDistance(n, nodesLocations):
-    return calcDistInLatLng(nodesLocations[n], sortingLocation)
+    return l1_lat_lng.get_distance(l2_lat_lng)
 
 
-def get_neighborhood(node, nodesLocations, neighSize):
+def sort_by_distance(n, nodes_locations):
+    return calc_dist_in_lat_lng(nodes_locations[n], sortingLocation)
+
+
+def get_neighborhood(node, nodes_locations, neigh_size):
     global nodes
     global sortingLocation
 
-    nodesCopy = nodes[:]
-    nodesCopy.remove(node)
-    sortingLocation = nodesLocations[node]
-    nodesCopy.sort(key=lambda elem: (sortByDistance(elem, nodesLocations)))
+    nodes_copy = nodes[:]
+    nodes_copy.remove(node)
+    sortingLocation = nodes_locations[node]
+    nodes_copy.sort(key=lambda elem: (sort_by_distance(elem, nodes_locations)))
 
-    return nodesCopy[:neighSize]
+    return nodes_copy[:neigh_size]
 
 
-def loadChildrenFromConfig(node, config):
+def load_children_from_config(node, config):
     global fromDummyToOriginal
     global fromOriginalToDummy
 
-    originalNode = fromDummyToOriginal[node]
-    originalChildren = config[originalNode]["neighbours"]
+    original_node = fromDummyToOriginal[node]
+    original_children = config[original_node]["neighbours"]
     children = []
-    for child in originalChildren:
+    for child in original_children:
         children.append(fromOriginalToDummy[child])
     return children
 
 
-def loadNodeLocationsFromConfig(config):
+def load_node_locations_from_config(config):
     global fromOriginalToDummy
 
     locations = {}
     for node, nodeConfig in config.items():
-        originalNode = fromOriginalToDummy[node]
+        original_node = fromOriginalToDummy[node]
         x = nodeConfig["coords"][0]
         y = nodeConfig["coords"][1]
-        locations[originalNode] = {"lat": x, "lng": y}
+        locations[original_node] = {"lat": x, "lng": y}
     return locations
 
 
-def calcMidNode(nodesLocations):
-    midNode = ""
-    minDistToMid = -1
+def calc_mid_node(nodes_locations):
+    mid_node = ""
+    min_dist_to_mid = -1
 
-    midPoint = {"lat": 0, "lng": 0}
+    mid_point = {"lat": 0, "lng": 0}
 
-    for node, location in nodesLocations.items():
-        dist = calcDistInLatLng(location, midPoint)
-        if minDistToMid == -1 or dist < minDistToMid:
-            midNode = node
-            minDistToMid = dist
-    return midNode
+    for node, location in nodes_locations.items():
+        dist = calc_dist_in_lat_lng(location, mid_point)
+        if min_dist_to_mid == -1 or dist < min_dist_to_mid:
+            mid_node = node
+            min_dist_to_mid = dist
+    return mid_node
 
 
-def generateLocations():
-    nodesLocations = {}
-    minLat, maxLat, minLong, maxLong = -90, 90, -180, 180
+def generate_locations():
+    nodes_locations = {}
+    min_lat, max_lat, min_long, max_long = -90, 90, -180, 180
 
-    midNode = ""
-    minDistToMid = -1
-    midPoint = {"lat": 0, "lng": 0}
+    mid_node = ""
+    min_dist_to_mid = -1
+    mid_point = {"lat": 0, "lng": 0}
     for node in nodes:
-        location = {"lat": random.randint(minLat, maxLat), "lng": random.randint(minLong, maxLong)}
-        nodesLocations[node] = location
-        dist = calcDistInLatLng(location, midPoint)
-        if minDistToMid == -1 or dist < minDistToMid:
-            midNode = node
-            minDistToMid = dist
+        location = {"lat": random.randint(min_lat, max_lat), "lng": random.randint(min_long, max_long)}
+        nodes_locations[node] = location
+        dist = calc_dist_in_lat_lng(location, mid_point)
+        if min_dist_to_mid == -1 or dist < min_dist_to_mid:
+            mid_node = node
+            min_dist_to_mid = dist
 
-    return nodesLocations, midNode
+    return nodes_locations, mid_node
 
 
-def gen_services(numServices):
+def gen_services():
     services = []
-    clientLocations = {}
-    processingTimes = {}
-    serviceLatencies = {}
+    client_locations = {}
+    processing_times = {}
+    service_latencies = {}
 
-    for idx in range(numServices):
-        carry = idx // len(alphabet)
-        alphaIdx = idx - carry * len(alphabet)
-        serviceName = alphabet[alphaIdx] + alphabet[alphaIdx] * carry
-        services.append(serviceName)
-        serviceLocation, processingTime, serviceLatency = generateDictsForServiceTree()
-        clientLocations[serviceName] = serviceLocation
-        print(f"service {serviceName} is at {serviceLocation}")
-        processingTimes[serviceName] = processingTime
-        serviceLatencies[serviceName] = serviceLatency
+    with open(f"{os.path.dirname(os.path.realpath(__file__))}/launch_config.json", "r") as config_fp:
+        configs = json.load(config_fp)
+        for config in configs:
+            service_name = config
+            services.append(service_name)
+            service_location, processing_time, service_latency = generate_dicts_for_service_tree()
+            client_locations[service_name] = service_location
+            print(f"service {service_name} is at {service_location}")
+            processing_times[service_name] = processing_time
+            service_latencies[service_name] = service_latency
 
-    return services, clientLocations, processingTimes, serviceLatencies
+    return services, client_locations, processing_times, service_latencies
 
 
-def loadServicesFromConfig(servicesConfig):
+def load_services_from_config(services_config):
     services = []
-    clientLocations, processingTimes, serviceLatencies = {}, {}, {}
+    client_locations, processing_times, service_latencies = {}, {}, {}
 
-    for serviceName in servicesConfig:
+    for serviceName in services_config:
         services.append(serviceName)
-        serviceLocation = servicesConfig[serviceName]["location"]
-        processingTime = generateServiceProcessingTime()
-        serviceLatency = generateServiceLatency()
-        clientLocations[serviceName] = serviceLocation
-        processingTimes[serviceName] = processingTime
-        serviceLatencies[serviceName] = serviceLatency
+        service_location = services_config[serviceName]["location"]
+        processing_time = generate_service_processing_time()
+        service_latency = generate_service_latency()
+        client_locations[serviceName] = service_location
+        processing_times[serviceName] = processing_time
+        service_latencies[serviceName] = service_latency
 
-    return services, clientLocations, processingTimes, serviceLatencies
+    return services, client_locations, processing_times, service_latencies
 
 
-def gen_trees(numServices, neighSize, config):
+def gen_trees(neigh_size, config):
     global nodes
 
     if config and config[nodes_config_name]:
-        nodesLocations = loadNodeLocationsFromConfig(config[nodes_config_name])
-        midNode = calcMidNode(nodesLocations)
+        nodes_locations = load_node_locations_from_config(config[nodes_config_name])
+        mid_node = calc_mid_node(nodes_locations)
     else:
-        nodesLocations, midNode = generateLocations()
+        nodes_locations, mid_node = generate_locations()
 
     if config and services_config_name in config:
-        services, clientLocations, processingTimes, serviceLatencies = loadServicesFromConfig(
+        services, client_locations, processing_times, service_latencies = load_services_from_config(
             config[services_config_name])
     else:
-        services, clientLocations, processingTimes, serviceLatencies = gen_services(numServices)
+        services, client_locations, processing_times, service_latencies = gen_services()
 
-    neighborhoods = {}
-    nodesChildren = {}
+    new_neighborhoods = {}
+    nodes_children = {}
     for node in nodes:
         if config:
-            nodesVisible = loadChildrenFromConfig(node, config[nodes_config_name])
+            nodes_visible = load_children_from_config(node, config[nodes_config_name])
         else:
-            nodesVisible = get_neighborhood(node, nodesLocations, neighSize)
-        neighborhoods[node] = nodesVisible
-        nodeChildren = nodesVisible
-        nodesChildren[node] = nodeChildren
+            nodes_visible = get_neighborhood(node, nodes_locations, neigh_size)
+        new_neighborhoods[node] = nodes_visible
+        node_children = nodes_visible
+        nodes_children[node] = node_children
 
-    trees = []
-    treeSizes = []
+    new_trees = []
+    tree_sizes = []
 
     if fallback_config_name in config:
-        fallback = fromOriginalToDummy[config[fallback_config_name]]
+        new_fallback = fromOriginalToDummy[config[fallback_config_name]]
     else:
-        fallback = midNode
-    print(f"fallback is {fallback}")
+        new_fallback = mid_node
+    print(f"fallback is {new_fallback}")
 
-    lastNodes = {}
+    last_nodes = {}
     for service in services:
-        tree, treeSize, lastNode = generateServiceTree(fallback, service, nodesChildren, nodesLocations,
-                                                       clientLocations)
-        print(f"{lastNode} is last node for service {service}")
-        trees.append(tree)
-        treeSizes.append(treeSize)
-        if lastNode in lastNodes:
-            lastNodes[lastNode].append(service)
+        tree, tree_size, last_node = generate_service_tree(fallback, service, nodes_children, nodes_locations,
+                                                           client_locations)
+        print(f"{last_node} is last node for service {service}")
+        new_trees.append(tree)
+        tree_sizes.append(tree_size)
+        if last_node in last_nodes:
+            last_nodes[last_node].append(service)
         else:
-            lastNodes[lastNode] = [service]
+            last_nodes[last_node] = [service]
 
     for node in nodes:
-        metrics = generateNodeMetrics(node, nodesLocations[node], neighborhoods[node], nodesChildren[node],
-                                      nodesLocations, services, serviceLatencies, processingTimes, clientLocations,
-                                      lastNodes[node] if node in lastNodes else [])
+        metrics = generate_node_metrics(node, nodes_locations[node], new_neighborhoods[node], nodes_children[node],
+                                        nodes_locations, services, service_latencies, processing_times,
+                                        client_locations)
         with open(f"{outputDir}{node}.met", 'w') as nodeFp:
             parsed = json.loads(metrics)
             metrics = json.dumps(parsed, indent=4, sort_keys=False)
             nodeFp.write(metrics)
 
-    return trees, treeSizes, fallback, nodesLocations, nodesChildren, clientLocations, neighborhoods
+    return new_trees, tree_sizes, new_fallback, nodes_locations, nodes_children, client_locations, new_neighborhoods
 
 
-def loadConfig(nodes, nodesConfig, servicesConfig):
-    fromOriginalToDummy = {}
-    fromDummyToOriginal = {}
-    loadedConfig = {}
-    if nodesConfig:
-        with open(nodesConfig, 'r') as configFp:
-            loadedConfig[nodes_config_name] = json.load(configFp)
-            print(f"config with {len(loadedConfig[nodes_config_name].keys())} nodes")
-            for nodeId, dummy in zip(loadedConfig[nodes_config_name].keys(), nodes):
+def load_config(nodes_config, services_config):
+    from_original_to_dummy = {}
+    from_dummy_to_original = {}
+    loaded_config = {}
+    if nodes_config:
+        with open(nodes_config, 'r') as configFp:
+            loaded_config[nodes_config_name] = json.load(configFp)
+            print(f"config with {len(loaded_config[nodes_config_name].keys())} nodes")
+            for nodeId, dummy in zip(loaded_config[nodes_config_name].keys(), nodes):
                 print(f"{nodeId} -> {dummy}")
-                fromOriginalToDummy[nodeId] = dummy
-                fromDummyToOriginal[dummy] = nodeId
-    if servicesConfig:
-        with open(servicesConfig, 'r') as configFp:
-            loadedConfig[services_config_name] = json.load(configFp)
-            print(f"config with {len(loadedConfig[services_config_name].keys())} services")
+                from_original_to_dummy[nodeId] = dummy
+                from_dummy_to_original[dummy] = nodeId
+    if services_config:
+        with open(services_config, 'r') as configFp:
+            loaded_config[services_config_name] = json.load(configFp)
+            print(f"config with {len(loaded_config[services_config_name].keys())} services")
 
-    return fromOriginalToDummy, fromDummyToOriginal, loadedConfig
+    return from_original_to_dummy, from_dummy_to_original, loaded_config
 
 
-def writeFinalTree(trees, clientLocations, nodesLocations, outputDir, fallback, neighborhoods):
-    treesString = "\n".join(trees)
+def write_final_tree(nodes_locations, output_dir):
+    trees_string = "\n".join(trees)
 
     print("------------------------------------------ FINAL TREES ------------------------------------------")
 
-    print(treesString)
+    print(trees_string)
 
-    with open(f"{outputDir}services.tree", 'w') as treeFp:
-        treeFp.write(treesString)
+    with open(f"{output_dir}services.tree", 'w') as treeFp:
+        treeFp.write(trees_string)
 
-    locations = {"services": clientLocations, "nodes": nodesLocations}
+    locations = {"services": clientLocations, "nodes": nodes_locations}
     with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/locations.json", 'w') as locFp:
         locs = json.dumps(locations, indent=4, sort_keys=False)
         locFp.write(locs)
@@ -413,7 +413,7 @@ nodes = []
 for i in range(numberOfNodes):
     nodes.append(prefix + str(i + 1))
 
-fromOriginalToDummy, fromDummyToOriginal, loadedConfig = loadConfig(nodes, nodesConfig, servicesConfig)
+fromOriginalToDummy, fromDummyToOriginal, loadedConfig = load_config(nodesConfig, servicesConfig)
 
 if fallbackConfig:
     loadedConfig[fallback_config_name] = fallbackConfig
@@ -423,8 +423,6 @@ print("Nodes: ", nodes)
 filelist = os.listdir(outputDir)
 for f in filelist:
     os.remove(os.path.join(outputDir, f))
-
-alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
 done = False
 trees = []
@@ -436,7 +434,7 @@ while True:
     print("-------------------------------- TREE --------------------------------")
 
     trees, treeSizes, fallback, nodesLocations, nodesChildren, \
-    clientLocations, neighborhoods = gen_trees(numServices, neighSize, loadedConfig)
+    clientLocations, neighborhoods = gen_trees(neighSize, loadedConfig)
 
     minMet = True
     atLeast = False
@@ -458,4 +456,4 @@ while True:
     if minMet and atLeast:
         break
 
-writeFinalTree(trees, clientLocations, nodesLocations, outputDir, fallback, neighborhoods)
+write_final_tree(nodesLocations, outputDir)
