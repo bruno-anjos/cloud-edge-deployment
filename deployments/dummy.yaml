@@ -1,43 +1,8 @@
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: dummy
-spec:
-  selector:
-    matchLabels:
-      app: dummy
-  replicas: 3
-  serviceName: dummy
-  template:
-    metadata:
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/path: "/metrics"
-        prometheus.io/port: {{quote $.Values.global.services.auth.port}}
-      labels:
-        app: dummy
-    spec:
-      initContainers:
-        - name: wait-trainers
-          image: radial/busyboxplus:curl
-          command: [ 'sh', '-c', "set -x; while [[ $(curl -sw '%{http_code}' 'trainers-service.default.svc.cluster.local:8009/trainers/status' -o /dev/null) -ne 200 ]]; do sleep 15; done" ]
-      containers:
-        - name: dummy
-          image: docker.io/brunoanjos/dummy-service:latest
-          command: [ "sh", "-c", "./executable -l -d" ]
-          securityContext:
-            capabilities:
-              add:
-                - NET_ADMIN
-          ports:
-            - containerPort: 8001
-          env:
-            - name: MONGODB_URL
-              value: "mongodb://novapokemon-usersdb:27017"
-            - name: TRAINERS_URL
-              value: "trainers:8009"
-          envFrom:
-            - configMapRef:
-                name: {{$.Values.global.api_configmap.name}}
-      nodeSelector:
-        serversnode: "true"
+replicas: 3
+serviceName: dummy
+containers:
+  - image: docker.io/brunoanjos/dummy-service:latest
+    command: [ "sh", "-c", "./executable -l -d" ]
+    ports:
+      - containerPort: 8001
+    static: True

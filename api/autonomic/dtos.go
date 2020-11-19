@@ -1,6 +1,7 @@
 package autonomic
 
 type deploymentConfig struct {
+	DepthFactor  float64
 	StrategyId   string
 	ExploringTTL int
 }

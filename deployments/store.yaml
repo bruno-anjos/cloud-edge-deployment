@@ -1,10 +1,11 @@
 replicas: 3
 serviceName: store
 containers:
-  image: docker.io/brunoanjos/store:latest
-  command: [ "sh", "-c", "./executable -l -d" ]
-  ports:
-    - containerPort: 8007
-  env:
-    - name: TRAINERS_URL
-      value: "trainers:8009"
+  - image: docker.io/brunoanjos/store:latest
+    command: [ "sh", "-c", "./executable -l -d" ]
+    ports:
+      - containerPort: 8007
+    env:
+      - name: TRAINERS_URL
+        value: "trainers:8009"
+    static: False

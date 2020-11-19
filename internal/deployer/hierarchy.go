@@ -28,13 +28,14 @@ const (
 
 type (
 	hierarchyEntry struct {
-		deploymentYAMLBytes []byte
 		parent              *utils.Node
 		grandparent         *utils.Node
 		children            sync.Map
 		numChildren         int32
 		static              int32
 		orphan              int32
+		deploymentYAMLBytes []byte
+		depthFactor         float64
 		newParentChan       chan<- string
 		*sync.RWMutex
 	}
@@ -235,7 +236,7 @@ func (t *hierarchyTable) updateDeployment(deploymentId string, parent *utils.Nod
 	return true
 }
 
-func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, exploringTTL int) bool {
+func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, depthFactor float64, exploringTTL int) bool {
 	var (
 		static int32
 	)
@@ -246,13 +247,13 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, exploringTTL int)
 	}
 
 	entry := &hierarchyEntry{
-		deploymentYAMLBytes: dto.DeploymentYAMLBytes,
 		parent:              dto.Parent,
 		grandparent:         dto.Grandparent,
 		children:            sync.Map{},
 		static:              static,
 		orphan:              notStaticValue,
 		newParentChan:       nil,
+		deploymentYAMLBytes: dto.DeploymentYAMLBytes,
 		RWMutex:             &sync.RWMutex{},
 	}
 
@@ -273,7 +274,7 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, exploringTTL int)
 		return false
 	}
 
-	autonomicClient.RegisterDeployment(dto.DeploymentId, autonomic.StrategyIdealLatencyId, exploringTTL)
+	autonomicClient.RegisterDeployment(dto.DeploymentId, autonomic.StrategyIdealLatencyId, depthFactor, exploringTTL)
 	if dto.Parent != nil {
 		autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent.Addr)
 		deplClient := deployer.NewDeployerClient(dto.Parent.Id + ":" + strconv.Itoa(deployer.Port))
@@ -454,14 +455,8 @@ func (t *hierarchyTable) deploymentToDTO(deploymentId string) (*api.DeploymentDT
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	var parent *utils.Node
-	if entry.hasParent() {
-		parentAux := entry.getParent()
-		parent = &parentAux
-	}
 
 	return &api.DeploymentDTO{
-		Parent:              parent,
 		DeploymentId:        deploymentId,
 		Static:              entry.isStatic(),
 		DeploymentYAMLBytes: entry.getDeploymentYAMLBytes(),

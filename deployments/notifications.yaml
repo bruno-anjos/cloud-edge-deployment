@@ -1,10 +1,11 @@
 replicas: 3
 serviceName: notifications
 containers:
-  image: docker.io/brunoanjos/notifications:latest
-  command: [ "sh", "-c", "./executable -l -d" ]
-  ports:
-    - containerPort: 8006
-  env:
-    - name: MONGODB_URL
-      value: "mongodb://novapokemon-notificationsdb:27017"
+  - image: docker.io/brunoanjos/notifications:latest
+    command: [ "sh", "-c", "./executable -l -d" ]
+    ports:
+      - containerPort: 8006
+    env:
+      - name: MONGODB_URL
+        value: "mongodb://novapokemon-notificationsdb:27017"
+    static: False

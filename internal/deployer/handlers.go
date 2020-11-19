@@ -285,7 +285,7 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	if alreadyHadDeployment {
 		hTable.updateDeployment(deploymentId, parent, deploymentDTO.Grandparent)
 	} else {
-		success := hTable.addDeployment(deploymentDTO, registerBody.ExploringTTL)
+		success := hTable.addDeployment(deploymentDTO, deploymentYAML.DepthFactor, registerBody.ExploringTTL)
 		if !success {
 			log.Debugf("failed adding deployment %s", deploymentId)
 			w.WriteHeader(http.StatusConflict)

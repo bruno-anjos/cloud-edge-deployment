@@ -1,12 +1,13 @@
 replicas: 3
 serviceName: trades
 containers:
-  image: docker.io/brunoanjos/trades:latest
-  command: [ "sh", "-c", "./executable -l -d" ]
-  ports:
-    - containerPort: 8008
-  env:
-    - name: NOTIFICATIONS_URL
-      value: "notifications:8006"
-    - name: TRAINERS_URL
-      value: "trainers:8009"
+  - image: docker.io/brunoanjos/trades:latest
+    command: [ "sh", "-c", "./executable -l -d" ]
+    ports:
+      - containerPort: 8008
+    env:
+      - name: NOTIFICATIONS_URL
+        value: "notifications:8006"
+      - name: TRAINERS_URL
+        value: "trainers:8009"
+    static: False

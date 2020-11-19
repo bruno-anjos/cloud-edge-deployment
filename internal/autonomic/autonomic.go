@@ -49,7 +49,7 @@ func newSystem() *system {
 	}
 }
 
-func (a *system) addDeployment(deploymentId, strategyId string, exploringTTL int) {
+func (a *system) addDeployment(deploymentId, strategyId string, depthFactor float64, exploringTTL int) {
 	if value, ok := a.deployments.Load(deploymentId); ok {
 		depl := value.(deploymentsMapValue)
 		if exploringTTL != deployer2.NotExploringTTL {
@@ -64,7 +64,7 @@ func (a *system) addDeployment(deploymentId, strategyId string, exploringTTL int
 
 	log.Debugf("new deployment %s has exploringTTL %d", deploymentId, exploringTTL)
 
-	s, err := deployment.New(deploymentId, strategyId, a.suspected, a.env)
+	s, err := deployment.New(deploymentId, strategyId, a.suspected, depthFactor, a.env)
 	if err != nil {
 		panic(err)
 	}

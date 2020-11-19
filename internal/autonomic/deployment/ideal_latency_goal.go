@@ -58,6 +58,7 @@ type idealLatency struct {
 	myLocation        s2.CellID
 	dependencies      []string
 	centroidsExtended map[s2.CellID]interface{}
+	depthFactor       float64
 }
 
 func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
@@ -81,6 +82,7 @@ func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
 		dependencies:      dependencies,
 		myLocation:        s2.CellIDFromToken(value.(string)),
 		centroidsExtended: map[s2.CellID]interface{}{},
+		depthFactor:       deployment.DepthFactor,
 	}
 
 	return goal
@@ -490,7 +492,7 @@ func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
 	heterogeneity := (2. / (accumulatedDiff + 1.)) - 1.
 
 	heterogeneityFactor := float64(numChildren) + 2. - (heterogeneity * float64(numChildren))
-	branchingFactor := childrenFactor * distanceFactor * heterogeneityFactor
+	branchingFactor := childrenFactor * distanceFactor * heterogeneityFactor * i.depthFactor
 	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
 
 	validBranch := branchingFactor > branchingCutoff

@@ -36,5 +36,7 @@ type (
 				Value string
 			}
 		}
+		DepthFactor float64
+		Static      bool
 	}
 )

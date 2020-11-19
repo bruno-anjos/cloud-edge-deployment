@@ -1,10 +1,9 @@
-A: dummy14 -> dummy47 -> dummy88 -> dummy6 -> dummy81 -> dummy4 -> dummy22
-B: dummy14 -> dummy37 -> dummy24 -> dummy1 -> dummy25
-C: dummy14 -> dummy72 -> dummy73 -> dummy33 -> dummy8 -> dummy51
-D: dummy14 -> dummy76 -> dummy97 -> dummy61
-E: dummy14 -> dummy37 -> dummy48 -> dummy80 -> dummy67 -> dummy56 -> dummy41 -> dummy20 -> dummy34 -> dummy52 -> dummy91
-F: dummy14 -> dummy72 -> dummy73 -> dummy33 -> dummy8 -> dummy59 -> dummy9 -> dummy28 -> dummy16
-G: dummy14 -> dummy57 -> dummy79 -> dummy2
-H: dummy14 -> dummy57 -> dummy79 -> dummy2 -> dummy70 -> dummy12 -> dummy59 -> dummy9 -> dummy28 -> dummy38
-I: dummy14 -> dummy72 -> dummy73 -> dummy33 -> dummy8 -> dummy26 -> dummy46
-J: dummy14 -> dummy37 -> dummy48 -> dummy80 -> dummy43
+B: dummy6 -> dummy90 -> dummy54 -> dummy41 -> dummy13 -> dummy70 -> dummy79 -> dummy49 -> dummy74 -> dummy18 -> dummy10 -> dummy86 -> dummy82
+C: dummy6 -> dummy36 -> dummy78 -> dummy55 -> dummy81
+D: dummy6 -> dummy36 -> dummy78 -> dummy55 -> dummy47
+E: dummy6 -> dummy90 -> dummy54 -> dummy50 -> dummy52 -> dummy70 -> dummy79 -> dummy49 -> dummy74 -> dummy18 -> dummy10 -> dummy86
+F: dummy6 -> dummy36 -> dummy78 -> dummy55 -> dummy47 -> dummy32
+G: dummy6 -> dummy90 -> dummy91
+H: dummy6 -> dummy90 -> dummy54 -> dummy50 -> dummy52
+I: dummy6 -> dummy36 -> dummy78 -> dummy55 -> dummy47 -> dummy2 -> dummy64 -> dummy85 -> dummy19 -> dummy57 -> dummy3
+J: dummy6 -> dummy36 -> dummy67 -> dummy63

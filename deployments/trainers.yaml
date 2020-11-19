@@ -1,10 +1,11 @@
 replicas: 3
 serviceName: trainers
 containers:
-  image: docker.io/brunoanjos/trainers:latest
-  command: [ "sh", "-c", "./executable -l -d" ]
-  ports:
-    - containerPort: 8009
-  env:
-    - name: MONGODB_URL
-      value: "mongodb://novapokemon-trainersdb:27017"
+  - image: docker.io/brunoanjos/trainers:latest
+    command: [ "sh", "-c", "./executable -l -d" ]
+    ports:
+      - containerPort: 8009
+    env:
+      - name: MONGODB_URL
+        value: "mongodb://novapokemon-trainersdb:27017"
+    static: False

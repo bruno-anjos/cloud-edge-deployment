@@ -18,10 +18,12 @@ func NewAutonomicClient(addr string) *Client {
 	}
 }
 
-func (c *Client) RegisterDeployment(deploymentId, strategyId string, exploringTTL int) (status int) {
+func (c *Client) RegisterDeployment(deploymentId, strategyId string, depthFactor float64,
+	exploringTTL int) (status int) {
 	reqBody := api.AddDeploymentRequestBody{
 		StrategyId:   strategyId,
 		ExploringTTL: exploringTTL,
+		DepthFactor:  depthFactor,
 	}
 
 	path := api.GetDeploymentPath(deploymentId)

@@ -29,7 +29,8 @@ func addDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	autonomicSystem.addDeployment(deploymentId, deploymentConfig.StrategyId, deploymentConfig.ExploringTTL)
+	autonomicSystem.addDeployment(deploymentId, deploymentConfig.StrategyId, deploymentConfig.DepthFactor,
+		deploymentConfig.ExploringTTL)
 
 	return
 }

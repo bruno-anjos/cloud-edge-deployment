@@ -38,6 +38,7 @@ type (
 		Environment  *environment.Environment
 		Blacklist    *sync.Map
 		Exploring    *sync.Map
+		DepthFactor  float64
 	}
 )
 
@@ -57,7 +58,7 @@ func init() {
 	}
 }
 
-func New(deploymentId, strategyId string, suspected *sync.Map,
+func New(deploymentId, strategyId string, suspected *sync.Map, depthFactor float64,
 	env *environment.Environment) (*Deployment, error) {
 	s := &Deployment{
 		Children:     &sync.Map{},
@@ -67,6 +68,7 @@ func New(deploymentId, strategyId string, suspected *sync.Map,
 		DeploymentId: deploymentId,
 		Blacklist:    &sync.Map{},
 		Exploring:    &sync.Map{},
+		DepthFactor:  depthFactor,
 	}
 
 	var strat strategy
