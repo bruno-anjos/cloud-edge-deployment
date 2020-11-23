@@ -1,4 +1,4 @@
-#!../venv/bin/python3
+#!/usr/bin/python3
 
 import json
 import os
@@ -208,21 +208,27 @@ def generate_locations():
 
 
 def gen_services():
+    services = []
     client_locations = {}
     processing_times = {}
     service_latencies = {}
 
-    for service_name in services:
-        service_location, processing_time, service_latency = generate_dicts_for_service_tree()
-        client_locations[service_name] = service_location
-        print(f"service {service_name} is at {service_location}")
-        processing_times[service_name] = processing_time
-        service_latencies[service_name] = service_latency
+    with open(f"{os.path.dirname(os.path.realpath(__file__))}/clients_config.json", "r") as config_fp:
+        configs = json.load(config_fp)
+        for config in configs:
+            service_name = config
+            services.append(service_name)
+            service_location, processing_time, service_latency = generate_dicts_for_service_tree()
+            client_locations[service_name] = service_location
+            print(f"service {service_name} is at {service_location}")
+            processing_times[service_name] = processing_time
+            service_latencies[service_name] = service_latency
 
-    return client_locations, processing_times, service_latencies
+    return services, client_locations, processing_times, service_latencies
 
 
 def load_services_from_config(services_config):
+    services = []
     client_locations, processing_times, service_latencies = {}, {}, {}
 
     for serviceName in services_config:
@@ -234,27 +240,29 @@ def load_services_from_config(services_config):
         processing_times[serviceName] = processing_time
         service_latencies[serviceName] = service_latency
 
-    return client_locations, processing_times, service_latencies
+    return services, client_locations, processing_times, service_latencies
 
 
-def gen_trees(neigh_size, loaded_config):
-    if loaded_config and loaded_config[nodes_config_name]:
-        nodes_locations = load_node_locations_from_config(loaded_config[nodes_config_name])
+def gen_trees(neigh_size, config):
+    global nodes
+
+    if config and config[nodes_config_name]:
+        nodes_locations = load_node_locations_from_config(config[nodes_config_name])
         mid_node = calc_mid_node(nodes_locations)
     else:
         nodes_locations, mid_node = generate_locations()
 
-    if loaded_config and services_config_name in loaded_config:
-        client_locations, processing_times, service_latencies = load_services_from_config(
-            loaded_config[services_config_name])
+    if config and services_config_name in config:
+        services, client_locations, processing_times, service_latencies = load_services_from_config(
+            config[services_config_name])
     else:
-        client_locations, processing_times, service_latencies = gen_services()
+        services, client_locations, processing_times, service_latencies = gen_services()
 
     new_neighborhoods = {}
     nodes_children = {}
     for node in nodes:
-        if loaded_config:
-            nodes_visible = load_children_from_config(node, loaded_config[nodes_config_name])
+        if config:
+            nodes_visible = load_children_from_config(node, config[nodes_config_name])
         else:
             nodes_visible = get_neighborhood(node, nodes_locations, neigh_size)
         new_neighborhoods[node] = nodes_visible
@@ -264,8 +272,8 @@ def gen_trees(neigh_size, loaded_config):
     new_trees = []
     tree_sizes = []
 
-    if fallback_config_name in loaded_config:
-        new_fallback = fromOriginalToDummy[loaded_config[fallback_config_name]]
+    if fallback_config_name in config:
+        new_fallback = fromOriginalToDummy[config[fallback_config_name]]
     else:
         new_fallback = mid_node
     print(f"fallback is {new_fallback}")
@@ -338,7 +346,7 @@ def write_final_tree(nodes_locations, output_dir):
 
 
 if len(sys.argv) < 4:
-    print("usage: python3 generate_metrics.py output_dir prefix number_of_nodes")
+    print("usage: python3 generate_metrics.py output_dir number_of_services prefix number_of_nodes")
     exit(1)
 
 args = sys.argv[1:]
@@ -394,8 +402,10 @@ print("At least one tree size:", atLeastOneTreeSize)
 outputDir = args[0]
 if not outputDir.endswith("/"):
     outputDir += "/"
-prefix = args[1]
-numberOfNodes = int(args[2])
+numServices = int(args[1])
+prefix = args[2]
+numberOfNodes = int(args[3])
+print("Number of services:", numServices)
 print("Prefix:", prefix)
 print("Number of Nodes:", numberOfNodes)
 
@@ -420,18 +430,11 @@ trees = []
 neighSize = int(len(nodes) / 20)
 print(f"neighborhood size: {neighSize}")
 
-services = []
-with open(f"{os.path.dirname(os.path.realpath(__file__))}/launch_config.json", "r") as config_fp:
-    configs = json.load(config_fp)
-    for config in configs:
-        service_name = config
-        services.append(service_name)
-
 while True:
     print("-------------------------------- TREE --------------------------------")
 
     trees, treeSizes, fallback, nodesLocations, nodesChildren, \
-        clientLocations, neighborhoods = gen_trees(neighSize, loadedConfig)
+    clientLocations, neighborhoods = gen_trees(neighSize, loadedConfig)
 
     minMet = True
     atLeast = False

@@ -12,4 +12,4 @@ containers:
         value: "location:8004"
       - name: TRAINERS_URL
         value: "trainers:8009"
-    static: False
+static: False

@@ -1,22 +1,7 @@
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: usersdb
-spec:
-  selector:
-    matchLabels:
-      app: usersdb
-  replicas: 1
-  serviceName: usersdb
-  template:
-    spec:
-      containers:
-        - name: usersdb
-          image: docker.io/library/mongo:latest
-          ports:
-            - containerPort: 27017
-          envFrom:
-            - configMapRef:
-                name: {{$.Values.global.api_configmap.name}}
-      nodeSelector:
-        serversnode: "true"
+replicas: 1
+serviceName: novapokemon-usersdb
+containers:
+  - image: docker.io/library/mongo:latest
+    ports:
+      - containerPort: 27017
+static: True

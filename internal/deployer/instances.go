@@ -48,6 +48,7 @@ func cleanUnresponsiveInstance(deploymentId, instanceId string, instanceDTO *arc
 
 		return
 	case <-unresponsiveTimer.C:
+		log.Debugf("%s for deployment %s never sent heartbeat", instanceId, deploymentId)
 		removeInstance(deploymentId, instanceId)
 	}
 }

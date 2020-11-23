@@ -13,12 +13,12 @@ PORT=""
 bash "$REL_PATH"/build_images.sh
 
 function run() {
-	docker run -d --network=scheduler-network --name=$SERVICE_NAME -p $PORT:$PORT \
+	docker run -d --network=nodes-network --name=$SERVICE_NAME -p $PORT:$PORT \
 		$OPTIONS --hostname "$HOSTNAME" brunoanjos/$SERVICE_NAME:latest
 }
 
 docker system prune -f
-docker network create scheduler-network
+docker network create nodes-network
 
 SERVICE_NAME="archimedes"
 PORT="50000"

@@ -1,4 +1,4 @@
-FROM frolvlad/alpine-glibc
+FROM dind:latest
 
 COPY ./archimedes /archimedes
 COPY ./deployer /deployer

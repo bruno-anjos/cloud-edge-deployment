@@ -3,14 +3,14 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -30,19 +30,27 @@ type (
 const (
 	stopContainerTimeout = 10
 
-	networkName = "scheduler-network"
+	networkName = "nodes-network"
 )
 
 var (
-	deployerClient      = deployer.NewDeployerClient(deployer.DefaultHostPort)
+	deplClient          = deployer.NewDeployerClient(deployer.DefaultHostPort)
 	dockerClient        *client.Client
 	networkId           string
 	instanceToContainer sync.Map
+	fallback            string
 
 	stopContainerTimeoutVar = stopContainerTimeout * time.Second
 )
 
 func InitHandlers() {
+	for {
+		var status int
+		fallback, status = deplClient.GetFallback()
+		if status != http.StatusOK {
+			break
+		}
+	}
 
 	log.SetLevel(log.DebugLevel)
 
@@ -135,40 +143,31 @@ func stopAllInstancesHandler(_ http.ResponseWriter, _ *http.Request) {
 func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	portBindings := generatePortBindings(containerInstance.Ports)
 
-	//
 	// Create container and get containers id in response
-	//
-	instanceId := containerInstance.DeploymentName + "-" + utils.RandomString(10)
+	instanceId := containerInstance.DeploymentName + "-" + utils.RandomString(10) + "-" + hostname
 
 	log.Debugf("instance %s has following portBindings: %+v", instanceId, portBindings)
 
 	deploymentIdEnvVar := utils.DeploymentEnvVarName + "=" + containerInstance.DeploymentName
 	instanceIdEnvVar := utils.InstanceEnvVarName + "=" + instanceId
+	fallbackEnvVar := archimedesHTTPClient.FallbackEnvVar + "=" + fallback
+	nodeEnvVar := "NODE" + "=" + hostname
 
-	envVars := []string{deploymentIdEnvVar, instanceIdEnvVar}
+	// TODO CHANGE THIS TO USE THE ACTUAL LOCATION TOKEN
+	locationEnvVar := utils.LocationEnvVarName + "=" + "0c"
+
+	envVars := []string{deploymentIdEnvVar, instanceIdEnvVar, locationEnvVar, fallbackEnvVar, nodeEnvVar}
 	envVars = append(envVars, containerInstance.EnvVars...)
 
-	out, err := dockerClient.ImagePull(context.Background(), containerInstance.ImageName, types.ImagePullOptions{})
-	if err != nil {
-		panic(err)
-	}
-
-	defer func() {
-		err = out.Close()
-		if err != nil {
-			panic(err)
-		}
-	}()
-
-	_, err = io.Copy(os.Stdout, out)
+	_, err := dockerClient.ImagePull(context.Background(), containerInstance.ImageName, types.ImagePullOptions{})
 	if err != nil {
 		panic(err)
 	}
 
 	containerConfig := container.Config{
-		Cmd:   containerInstance.Command,
-		Env:   envVars,
-		Image: containerInstance.ImageName,
+		Cmd:      containerInstance.Command,
+		Env:      envVars,
+		Image:    containerInstance.ImageName,
 	}
 
 	hostConfig := container.HostConfig{
@@ -188,25 +187,21 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 		panic(err)
 	}
 
-	//
-	// Add container instance to archimedes
-	//
-	status := deployerClient.RegisterDeploymentInstance(containerInstance.DeploymentName, instanceId,
-		containerInstance.Static,
-		portBindings, true)
+	log.Debugf("connecting %s to network %s", cont.ID, networkId)
 
+	// Add container instance to deployer
+	status := deplClient.RegisterDeploymentInstance(containerInstance.DeploymentName, instanceId,
+		containerInstance.Static, portBindings, true)
 	if status != http.StatusOK {
 		err = dockerClient.ContainerStop(context.Background(), cont.ID, &stopContainerTimeoutVar)
 		if err != nil {
 			log.Error(err)
 		}
-		log.Fatalf("got status code %d while adding instances to archimedes", status)
+		log.Fatalf("got status code %d while adding instances to deployer", status)
 		return
 	}
 
-	//
 	// Spin container up
-	//
 	err = dockerClient.ContainerStart(context.Background(), cont.ID, types.ContainerStartOptions{})
 	if err != nil {
 		panic(err)
@@ -250,10 +245,15 @@ func deleteAllInstances() {
 	}
 
 	for _, containerListed := range containers {
-		log.Warnf("deleting orphan container %s", containerListed.ID)
-		err = dockerClient.ContainerStop(context.Background(), containerListed.ID, &stopContainerTimeoutVar)
-		if err != nil {
-			log.Errorf("error stopping orphan container %s: %s", containerListed.ID, err)
+		for _, name := range containerListed.Names {
+			if strings.Contains(name, hostname) {
+				log.Warnf("deleting orphan container %s", containerListed.ID)
+				err = dockerClient.ContainerStop(context.Background(), containerListed.ID, &stopContainerTimeoutVar)
+				if err != nil {
+					log.Errorf("error stopping orphan container %s: %s", containerListed.ID, err)
+				}
+				break
+			}
 		}
 	}
 }

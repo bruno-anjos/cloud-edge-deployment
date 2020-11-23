@@ -1,11 +1,13 @@
 #!/bin/bash
 
-if [ "$CED_CLUSTER_NODES" = "" ]; then
-	echo "CED_CLUSTER_NODES is not set"
+CLUSTER_NODES=$(oarprint host)
+
+if [ "$CLUSTER_NODES" = "" ]; then
+	echo "Did not connect using oarsh, please try again."
 	exit
 fi
 
-IFS=';' read -ra NODES_ARRAY <<<"$CED_CLUSTER_NODES"
+IFS=';' read -ra NODES_ARRAY <<<"$CLUSTER_NODES"
 
 echo "------------------------------------- REMOVING STACKS -------------------------------------"
 for node in "${NODES_ARRAY[@]}"; do

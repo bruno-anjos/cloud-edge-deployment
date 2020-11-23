@@ -63,11 +63,11 @@ func (r *Manager) AddDeployment(deploymentId string) {
 	r.currBatch.LoadOrStore(deploymentId, newBatch)
 }
 
-func (r *Manager) UpdateNumRequests(deploymentId string, location s2.CellID, logEntry *log.Entry) {
+func (r *Manager) UpdateNumRequests(deploymentId string, location s2.CellID) {
 	r.updateEntry(deploymentId, location)
 	r.updateBatch(deploymentId, location)
 
-	r.cellManager.AddClientToDownmostCell(deploymentId, location, logEntry)
+	r.cellManager.AddClientToDownmostCell(deploymentId, location)
 }
 
 // Even though this is thread safe, this does not guarantee a perfectly accurate count
@@ -178,8 +178,6 @@ func (r *Manager) waitToRemove(deploymentId string, batch *batchValue) {
 		return
 	}
 	entry := value.(numReqsLastMinuteMapValue)
-
-	log.Debugf("removing %d requests", atomic.LoadInt64(&batch.NumReqs))
 
 	atomic.AddInt64(&entry.NumReqs, -atomic.LoadInt64(&batch.NumReqs))
 

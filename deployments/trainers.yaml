@@ -8,4 +8,4 @@ containers:
     env:
       - name: MONGODB_URL
         value: "mongodb://novapokemon-trainersdb:27017"
-    static: False
+static: False

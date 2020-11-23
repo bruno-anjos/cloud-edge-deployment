@@ -24,7 +24,7 @@ type (
 
 	DeploymentYAML struct {
 		Replicas       int
-		DeploymentName string `yaml:"serviceName"`
+		DeploymentName string
 		Containers     []struct {
 			Image   string
 			Command []string

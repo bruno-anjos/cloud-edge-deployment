@@ -81,7 +81,7 @@ for node in nodes:
     for log in logs:
         logs_per_node.append((node, log))
 
-with open(f"{os.path.dirname(os.path.realpath(__file__))}/launch_config.json") as services_config_fp:
+with open(f"{os.path.dirname(os.path.realpath(__file__))}/clients_config.json") as services_config_fp:
     service_configs = json.load(services_config_fp)
 
 service_clients = []

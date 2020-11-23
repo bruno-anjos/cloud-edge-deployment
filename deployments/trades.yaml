@@ -10,4 +10,4 @@ containers:
         value: "notifications:8006"
       - name: TRAINERS_URL
         value: "trainers:8009"
-    static: False
+static: False

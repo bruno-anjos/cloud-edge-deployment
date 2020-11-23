@@ -12,4 +12,4 @@ containers:
         value: "authentication:8001"
       - name: TRAINERS_URL
         value: "trainers:8009"
-    static: False
+static: False

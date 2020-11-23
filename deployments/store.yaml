@@ -8,4 +8,4 @@ containers:
     env:
       - name: TRAINERS_URL
         value: "trainers:8009"
-    static: False
+static: False

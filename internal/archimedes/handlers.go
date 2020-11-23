@@ -333,7 +333,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 			_, ok = value.(redirectingToMeMapValue).Load(lastRedirect)
 			canRedirect = !ok
 			if ok {
-				log.Debugf("%s is redirecting to me", lastRedirect)
+				reqLogger.Debugf("%s is redirecting to me", lastRedirect)
 			}
 		}
 	}
@@ -358,6 +358,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	deplClient := deployer.NewDeployerClient(publicUtils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
+
 	resolved, found := resolveLocally(reqBody.ToResolve, reqLogger)
 	if !found {
 		fallback, status := deplClient.GetFallback()
@@ -380,7 +381,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	reqLogger.Debug("updating num reqs")
-	clientsManager.UpdateNumRequests(reqBody.DeploymentId, reqBody.Location, reqLogger)
+	clientsManager.UpdateNumRequests(reqBody.DeploymentId, reqBody.Location)
 	reqLogger.Debug("updated num reqs")
 
 	var resp api.ResolveResponseBody
@@ -647,9 +648,6 @@ func getLoadHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
 	load := clientsManager.GetLoad(deploymentId)
-	log.WithField("REQ_ID", r.Header.Get(utils.ReqIdHeaderField)).Debugf("got load %d for deployment %s",
-		load, deploymentId)
-
 	utils.SendJSONReplyOK(w, load)
 }
 

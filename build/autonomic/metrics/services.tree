@@ -1,9 +1,1 @@
-B: dummy6 -> dummy90 -> dummy54 -> dummy41 -> dummy13 -> dummy70 -> dummy79 -> dummy49 -> dummy74 -> dummy18 -> dummy10 -> dummy86 -> dummy82
-C: dummy6 -> dummy36 -> dummy78 -> dummy55 -> dummy81
-D: dummy6 -> dummy36 -> dummy78 -> dummy55 -> dummy47
-E: dummy6 -> dummy90 -> dummy54 -> dummy50 -> dummy52 -> dummy70 -> dummy79 -> dummy49 -> dummy74 -> dummy18 -> dummy10 -> dummy86
-F: dummy6 -> dummy36 -> dummy78 -> dummy55 -> dummy47 -> dummy32
-G: dummy6 -> dummy90 -> dummy91
-H: dummy6 -> dummy90 -> dummy54 -> dummy50 -> dummy52
-I: dummy6 -> dummy36 -> dummy78 -> dummy55 -> dummy47 -> dummy2 -> dummy64 -> dummy85 -> dummy19 -> dummy57 -> dummy3
-J: dummy6 -> dummy36 -> dummy67 -> dummy63
+authentication: dummy3 -> dummy20 -> dummy8 -> dummy17 -> dummy4

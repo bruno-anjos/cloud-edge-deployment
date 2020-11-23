@@ -19,7 +19,7 @@ bash "$CLOUD_EDGE_DEPLOYMENT"/build/dummy_node/build_dummy_node.sh
 wait
 
 ALTERNATIVES_DIR="$CLOUD_EDGE_DEPLOYMENT/build/dummy_node/alternatives"
-OPTIONS="--mount type=bind,source=$ALTERNATIVES_DIR,target=/alternatives"
+OPTIONS="--mount type=bind,source=$ALTERNATIVES_DIR,target=/alternatives -v /var/run/docker.sock:/var/run/docker.sock"
 
 function run() {
 	docker run -d --network=nodes-network --ip "192.168.19$((3+CARRY)).$NODE" --name="$HOSTNAME" $OPTIONS --hostname "$HOSTNAME" brunoanjos/dummy_node:latest

@@ -5,4 +5,4 @@ containers:
     command: [ "sh", "-c", "./executable -l -d" ]
     ports:
       - containerPort: 8001
-    static: True
+static: True

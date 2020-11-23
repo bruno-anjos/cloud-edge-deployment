@@ -345,23 +345,11 @@ func checkChildren(parent *utils.Node, children ...*utils.Node) bool {
 func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	log.Debugf("deleting deployment %s", deploymentId)
-
-	parent := hTable.getParent(deploymentId)
-	if parent != nil {
-		client := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
-		status := client.ChildDeletedDeployment(deploymentId, myself.Id)
-		if status != http.StatusOK {
-			log.Errorf("got status %d from child deleted deployment", status)
-			w.WriteHeader(status)
-			return
-		}
-		pTable.decreaseParentCount(parent.Id)
+	success, status := deleteDeployment(deploymentId)
+	if !success {
+		w.WriteHeader(status)
+		return
 	}
-
-	hTable.removeDeployment(deploymentId)
-
-	go deleteDeploymentAsync(deploymentId)
 }
 
 func addNodeHandler(_ http.ResponseWriter, r *http.Request) {
@@ -401,7 +389,7 @@ func getNodeCloserTo(locations []s2.CellID, maxHopsToLookFor int,
 }
 
 func addDeploymentAsync(deployment *Deployment, deploymentId string) {
-	log.Debugf("adding deployment %s", deploymentId)
+	log.Debugf("adding deployment %s (ni: %d, s: %t)", deploymentId, deployment.NumberOfInstances, deployment.Static)
 
 	status := archimedesClient.RegisterDeployment(deploymentId, deployment.Ports)
 	if status != http.StatusOK {
@@ -530,5 +518,28 @@ func getParentAlternatives(parentId string) (alternatives map[string]*utils.Node
 		alternatives[alternative.Id] = alternative
 	}
 
+	return
+}
+
+func deleteDeployment(deploymentId string) (success bool, parentStatus int) {
+	log.Debugf("deleting deployment %s", deploymentId)
+	success = true
+
+	parent := hTable.getParent(deploymentId)
+	if parent != nil {
+		client := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
+		status := client.ChildDeletedDeployment(deploymentId, myself.Id)
+		if status != http.StatusOK {
+			log.Errorf("got status %d from child deleted deployment", status)
+			success = false
+			parentStatus = status
+			return
+		}
+		pTable.decreaseParentCount(parent.Id)
+	}
+
+	hTable.removeDeployment(deploymentId)
+
+	go deleteDeploymentAsync(deploymentId)
 	return
 }

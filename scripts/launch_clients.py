@@ -62,7 +62,7 @@ def build_and_run_config(config_id, service, client_config, top_output_dir, loca
 
 args = sys.argv[1:]
 if len(args) != 1:
-    print("usage: python3 launch_clients.py launch_config.json")
+    print("usage: python3 launch_clients.py clients_config.json")
     exit(1)
 
 launch_config_filename = args[0]

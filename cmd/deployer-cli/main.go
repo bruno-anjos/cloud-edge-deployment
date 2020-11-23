@@ -12,6 +12,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -37,24 +38,11 @@ func main() {
 						log.Fatal("add: deployment_name yaml_file")
 					}
 
-					addDeployment(c.Args().First(), c.Args().Get(1), false)
+					addDeployment(c.Args().First(), c.Args().Get(1))
 
 					return nil
 				},
 				Subcommands: []*cli.Command{
-					{
-						Name:  "static",
-						Usage: "add a new static deployment",
-						Action: func(c *cli.Context) error {
-							if c.Args().Len() != 2 {
-								log.Fatal("add static: deployment_name yaml_file")
-							}
-
-							addDeployment(c.Args().First(), c.Args().Get(1), true)
-
-							return nil
-						},
-					},
 					{
 						Name:  "node",
 						Usage: "add a new node",
@@ -100,13 +88,19 @@ func addNode(addr string) {
 	}
 }
 
-func addDeployment(deploymentId, filename string, static bool) {
+func addDeployment(deploymentId, filename string) {
 	fileBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		log.Fatal("error reading file: ", err)
 	}
 
-	status := deployerClient.RegisterDeployment(deploymentId, static, fileBytes, nil, nil, nil,
+	var deploymentYAML deployer2.DeploymentYAML
+	err = yaml.Unmarshal(fileBytes, &deploymentYAML)
+	if err != nil {
+		panic(err)
+	}
+
+	status := deployerClient.RegisterDeployment(deploymentId, deploymentYAML.Static, fileBytes, nil, nil, nil,
 		deployer2.NotExploringTTL)
 	if status != http.StatusOK {
 		log.Fatalf("got status %d from deployer", status)

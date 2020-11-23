@@ -3,6 +3,7 @@ package utils
 const (
 	DeploymentEnvVarName = "DEPLOYMENT_ID"
 	InstanceEnvVarName   = "INSTANCE_ID"
+	LocationEnvVarName   = "LOCATION"
 )
 
 const (

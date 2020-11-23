@@ -72,21 +72,18 @@ func (cm *Manager) GetDeploymentCentroids(deploymentId string) (centroids []s2.C
 	return
 }
 
-func (cm *Manager) AddClientToDownmostCell(deploymentId string, clientCellId s2.CellID, logEntry *log.Entry) {
+func (cm *Manager) AddClientToDownmostCell(deploymentId string, clientCellId s2.CellID) {
 	deployment := cm.getDeploymentCells(deploymentId)
 	topCellId, topCell := cm.getTopCell(deploymentId, deployment, clientCellId)
 
-	downmostId, downmost := cm.findDownmostCellAndRLock(topCellId, topCell, clientCellId, deployment.cells, logEntry)
-	logEntry.Debugf("add client to downmost cell %s", downmostId.ToToken())
+	downmostId, downmost := cm.findDownmostCellAndRLock(topCellId, topCell, clientCellId, deployment.cells)
 	numClients := downmost.AddClientAndReturnCurrent(clientCellId)
-	logEntry.Debug("RUnlocking deployment cells")
 	deployment.cells.RUnlock()
-	logEntry.Debug("RUnlocked")
 
 	if numClients > maxCellLevel {
 		_, loaded := cm.splittedCells.LoadOrStore(downmostId, nil)
 		if !loaded {
-			go cm.splitMaxedCell(deploymentId, deployment.cells, downmostId, downmost, logEntry)
+			go cm.splitMaxedCell(deploymentId, deployment.cells, downmostId, downmost)
 		}
 	}
 }
@@ -105,8 +102,7 @@ func (cm *Manager) RemoveClientsFromCells(deploymentId string, locations *sync.M
 
 		topCellId, topCell = cm.getTopCell(deploymentId, deploymentCells, cellId)
 
-		_, downmostCell := cm.findDownmostCellAndRLock(topCellId, topCell, cellId,
-			deploymentCells.cells, log.WithField("REMOVING", true))
+		_, downmostCell := cm.findDownmostCellAndRLock(topCellId, topCell, cellId, deploymentCells.cells)
 
 		downmostCell.RemoveClients(cellId, int(atomic.LoadInt64(amount)))
 		deploymentCells.cells.RUnlock()
@@ -116,14 +112,12 @@ func (cm *Manager) RemoveClientsFromCells(deploymentId string, locations *sync.M
 }
 
 func (cm *Manager) findDownmostCellAndRLock(topCellId s2.CellID, topCell *Cell, clientCellId s2.CellID,
-	deploymentCells *Collection, logEntry *log.Entry) (downmostCellId s2.CellID, downmostCell *Cell) {
+	deploymentCells *Collection) (downmostCellId s2.CellID, downmostCell *Cell) {
 	level := topCellId.Level()
 	downmostCellId = topCellId
 	downmostCell = topCell
 
-	logEntry.Debug("RLocking deployment cells")
 	deploymentCells.RLock()
-	logEntry.Debug("RLocked")
 
 	for {
 		if level == maxCellLevel {
@@ -138,7 +132,7 @@ func (cm *Manager) findDownmostCellAndRLock(topCellId s2.CellID, topCell *Cell, 
 			if childId.Contains(clientCellId) {
 				cell, ok := deploymentCells.LoadCell(childId)
 				if !ok {
-					logEntry.Fatalf("%s should have child %s", downmostCellId, childId)
+					log.Fatalf("%s should have child %s", downmostCellId, childId)
 				}
 				downmostCellId = childId
 				downmostCell = cell
@@ -173,24 +167,18 @@ func (cm *Manager) getDeploymentCells(deploymentId string) (deployment *cellsByD
 	return
 }
 
-func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collection, cellId s2.CellID,
-	cell *Cell, logEntry *log.Entry) {
+func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collection, cellId s2.CellID, cell *Cell) {
 	toSplitIds := []s2.CellID{cellId}
 	toSplitCells := []*Cell{cell}
 
-	logEntry.Debug("Locking deployment cells in SPLIT")
 	deploymentCells.Lock()
-	logEntry.Debug("Locked")
 	defer func() {
-		logEntry.Debug("Unlocking deployment cells in SPLIT")
 		deploymentCells.Unlock()
-		logEntry.Debug("Unlocked")
 	}()
 
 	var ok bool
 	cell, ok = deploymentCells.LoadCell(cellId)
 	if !ok || len(cell.Children) > 0 || cell.GetNumClientsNoLock() < maxClientsToSplit {
-		logEntry.Debug("realised split was already done")
 		return
 	}
 
@@ -201,7 +189,7 @@ func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collecti
 		toSplitIds = toSplitIds[1:]
 		toSplitCells = toSplitCells[1:]
 
-		logEntry.Debugf("splitting cell %d", splittingCellId)
+		log.Debugf("splitting cell %d", splittingCellId)
 
 		newCells := map[s2.CellID]*Cell{}
 
