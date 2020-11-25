@@ -1,42 +1,40 @@
 #!/bin/bash
 
-BUILD_DIR=$CLOUD_EDGE_DEPLOYMENT/build/dummy_node
+BUILD_DIR="$CLOUD_EDGE_DEPLOYMENT"/build
 
-bash "$CLOUD_EDGE_DEPLOYMENT"/scripts/build_binaries.sh
+# Clear previous build directories and files
+rm "$BUILD_DIR"/dummy_node/fallback.txt
+rm -rf "$BUILD_DIR"/dummy_node/metrics
+rm -rf "$BUILD_DIR"/dummy_node/deployments
+rm -rf "$BUILD_DIR"/dummy_node/build_dirs
+rm -rf "$BUILD_DIR"/dummy_node/images
 
-env CGO_ENABLED=1 go build -o "$CLOUD_EDGE_DEPLOYMENT/build/dummy_node/deployer-cli" \
-	"${CLOUD_EDGE_DEPLOYMENT}/cmd/deployer-cli/main.go"
+set -e
 
-rm -rf "$CLOUD_EDGE_DEPLOYMENT"/build/dummy_node/alternatives
-mkdir "$CLOUD_EDGE_DEPLOYMENT"/build/dummy_node/alternatives
+bash "$BUILD_DIR"/build_binaries.sh &
+bash "$BUILD_DIR"/build_client.sh &
 
-function del_bin() {
-	rm -f "$CLOUD_EDGE_DEPLOYMENT"/build/dummy_node/"$SERVICE_NAME"
-}
+wait
 
-function cp_bin() {
-	cp "$CLOUD_EDGE_DEPLOYMENT"/build/"$SERVICE_NAME"/"$SERVICE_NAME" "$BUILD_DIR"
-}
+# Deployer dependencies
+cp "$BUILD_DIR"/deployer/fallback.txt "$BUILD_DIR"/dummy_node/
 
-SERVICE_NAME="archimedes"
-del_bin
-cp_bin
+# Autonomic dependencies
+cp -r "$BUILD_DIR"/autonomic/metrics "$BUILD_DIR"/dummy_node/
 
-SERVICE_NAME="deployer"
-del_bin
-cp_bin
+# Client dependencies
+cp -r "$CLOUD_EDGE_DEPLOYMENT"/deployments "$BUILD_DIR"/dummy_node/
 
-SERVICE_NAME="scheduler"
-del_bin
-cp_bin
+mkdir "$BUILD_DIR"/dummy_node/build_dirs
+cp -r "$BUILD_DIR"/archimedes/ "$BUILD_DIR"/dummy_node/build_dirs/
+cp -r "$BUILD_DIR"/autonomic/ "$BUILD_DIR"/dummy_node/build_dirs/
+cp -r "$BUILD_DIR"/deployer/ "$BUILD_DIR"/dummy_node/build_dirs/
+cp -r "$BUILD_DIR"/scheduler/ "$BUILD_DIR"/dummy_node/build_dirs/
 
-SERVICE_NAME="autonomic"
-del_bin
-cp_bin
+mkdir "$BUILD_DIR"/dummy_node/images
+cp /home/b.anjos/go/src/github.com/NOVAPokemon/images/* "$BUILD_DIR"/dummy_node/images/
 
-cp -r "$CLOUD_EDGE_DEPLOYMENT"/build/autonomic/metrics "$BUILD_DIR"/
-cp "$CLOUD_EDGE_DEPLOYMENT"/build/deployer/fallback.txt "$BUILD_DIR"/
-rm -rf "$CLOUD_EDGE_DEPLOYMENT"/build/dummy_node/deployments
-cp -r "$CLOUD_EDGE_DEPLOYMENT"/deployments "$CLOUD_EDGE_DEPLOYMENT"/build/dummy_node/
+echo "Building final dummy node image..."
+docker build -t brunoanjos/dummy_node:latest "$BUILD_DIR/dummy_node"
 
-docker build -t brunoanjos/dummy_node:latest "$BUILD_DIR"
+rm -rf "$BUILD_DIR"/dummy_node/deployments

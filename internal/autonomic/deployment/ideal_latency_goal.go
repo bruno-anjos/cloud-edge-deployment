@@ -99,7 +99,7 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 		return
 	}
 
-	archClient := archimedes.NewArchimedesClient("localhost:" + strconv.Itoa(archimedes.Port))
+	archClient := archimedes.NewArchimedesClient(archimedes.DefaultHostPort)
 	centroids, status := archClient.GetClientCentroids(i.deployment.DeploymentId)
 	if status == http.StatusNotFound {
 		return

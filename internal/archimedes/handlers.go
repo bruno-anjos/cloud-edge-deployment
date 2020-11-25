@@ -71,7 +71,7 @@ func init() {
 	var (
 		locationId s2.CellID
 		status     int
-		autoClient = autonomic.NewAutonomicClient("localhost:" + strconv.Itoa(autonomic.Port))
+		autoClient = autonomic.NewAutonomicClient(autonomic.DefaultHostPort)
 	)
 	for status != http.StatusOK {
 		locationId, status = autoClient.GetLocation()
@@ -307,7 +307,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reqLogger := log.WithField("REQ_ID", reqBody.Id)
+	reqLogger := log.WithField(utils.ReqIdHeaderField, reqBody.Id)
 	reqLogger.Level = log.DebugLevel
 
 	defer reqLogger.Debugf("took %f to answer", time.Since(start).Seconds())

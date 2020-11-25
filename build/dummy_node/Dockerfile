@@ -1,21 +1,22 @@
-FROM dind:latest
+FROM docker:19.03-dind
 
-COPY ./archimedes /archimedes
-COPY ./deployer /deployer
-COPY ./autonomic /autonomic
-COPY ./scheduler /scheduler
-COPY ./deployer-cli /deployer-cli
+COPY deploy_services.sh /
 
-COPY ./fallback.txt /fallback.txt
+# Client
+COPY deployer-cli /
+COPY deployments/ /deployments
 
-RUN mkdir /metrics
-COPY ./metrics/* /metrics/
+# Autonomic image dependencies
+COPY metrics/ /metrics
 
-COPY ./deployments /deployments
+# Deployer image dependencies
+COPY fallback.txt /
 
-COPY ./run_all.sh /run_all.sh
-RUN chmod +x /run_all.sh
+COPY load_images.sh /
+COPY build_dirs /build_dirs
 
-RUN mkdir /logs
+COPY images/ /images
 
-CMD sh /run_all.sh
+RUN chmod +x deploy_services.sh deployer-cli load_images.sh
+
+ENTRYPOINT ["dockerd-entrypoint.sh"]

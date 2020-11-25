@@ -683,7 +683,7 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 		)
 		locations, status = archimedesClient.GetClientCentroids(deploymentId)
 		if status == http.StatusNotFound {
-			autoClient := autonomic.NewAutonomicClient("localhost:" + strconv.Itoa(autonomic.Port))
+			autoClient := autonomic.NewAutonomicClient(autonomic.DefaultHostPort)
 			var myLoc s2.CellID
 			myLoc, status = autoClient.GetLocation()
 			if status != http.StatusOK {

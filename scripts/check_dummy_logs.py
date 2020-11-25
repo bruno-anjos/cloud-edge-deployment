@@ -1,17 +1,15 @@
 #!/usr/bin/python3
 
+import json
 import os
 import subprocess
 import sys
 from multiprocessing import Pool
-import json
 
-logsPrefix = "logs/"
-
-archimedesLogs = "archimedes_logs"
-autonomicLogs = "autonomic_logs"
-deployerLogs = "deployer_logs"
-schedulerLogs = "scheduler_logs"
+archimedesLogs = "archimedes"
+autonomicLogs = "autonomic"
+deployerLogs = "deployer"
+schedulerLogs = "scheduler"
 
 logs = [archimedesLogs, autonomicLogs, deployerLogs, schedulerLogs]
 
@@ -45,7 +43,7 @@ for f in files:
 def process_node_logs(data):
     node_to_process, log_to_process = data
 
-    inside_docker_cmd = ["cat", logsPrefix + log_to_process]
+    inside_docker_cmd = ["docker", "logs", "2>&1", log_to_process]
     inside_docker_cmd.extend(filterSuffix)
     cmd = dockerExecCmd + [node_to_process] + [" ".join(inside_docker_cmd)]
     out = subprocess.getoutput(" ".join(cmd))
@@ -53,6 +51,7 @@ def process_node_logs(data):
         return False, f"[ERROR] {node_to_process} {log_to_process}", out
 
     return True, f"[OK] {node_to_process} {log_to_process}", ""
+
 
 def process_client_logs(data):
     client_to_process = data

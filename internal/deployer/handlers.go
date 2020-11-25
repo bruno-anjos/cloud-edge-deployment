@@ -179,7 +179,7 @@ func childDeletedDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	hTable.removeChild(deploymentId, childId)
 	children.Delete(childId)
 
-	autoClient := autonomic.NewAutonomicClient("localhost:" + strconv.Itoa(autonomic.Port))
+	autoClient := autonomic.NewAutonomicClient(autonomic.DefaultHostPort)
 	autoClient.BlacklistNodes(deploymentId, myself.Id, childId)
 }
 

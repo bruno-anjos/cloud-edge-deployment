@@ -316,7 +316,7 @@ func (l *deploymentLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 		return false
 	}
 
-	archClient := archimedes.NewArchimedesClient("localhost:" + strconv.Itoa(archimedes.Port))
+	archClient := archimedes.NewArchimedesClient(archimedes.DefaultHostPort)
 	load, status := archClient.GetLoad(l.deployment.DeploymentId)
 	if status != http.StatusOK {
 		log.Errorf("got status %d when asking for load for deployment %s", status, l.deployment.DeploymentId)

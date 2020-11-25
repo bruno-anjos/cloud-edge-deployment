@@ -17,7 +17,6 @@ function run() {
 		$OPTIONS --hostname "$HOSTNAME" brunoanjos/$SERVICE_NAME:latest
 }
 
-docker system prune -f
 docker network create nodes-network
 
 SERVICE_NAME="archimedes"

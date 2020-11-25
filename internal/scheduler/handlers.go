@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
@@ -30,7 +31,7 @@ type (
 const (
 	stopContainerTimeout = 10
 
-	networkName = "nodes-network"
+	networkName = "services-network"
 )
 
 var (
@@ -159,7 +160,17 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	envVars := []string{deploymentIdEnvVar, instanceIdEnvVar, locationEnvVar, fallbackEnvVar, nodeEnvVar}
 	envVars = append(envVars, containerInstance.EnvVars...)
 
-	_, err := dockerClient.ImagePull(context.Background(), containerInstance.ImageName, types.ImagePullOptions{})
+	reader, err := dockerClient.ImagePull(context.Background(), containerInstance.ImageName, types.ImagePullOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = ioutil.ReadAll(reader)
+	if err != nil {
+		panic(err)
+	}
+
+	err = reader.Close()
 	if err != nil {
 		panic(err)
 	}
@@ -178,7 +189,6 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	cont, err := dockerClient.ContainerCreate(context.Background(), &containerConfig, &hostConfig,
 		nil, instanceId)
 	if err != nil {
-		log.Error(dockerClient.ClientVersion())
 		panic(err)
 	}
 
