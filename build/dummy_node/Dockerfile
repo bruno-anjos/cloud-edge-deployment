@@ -13,7 +13,6 @@ COPY metrics/ /metrics
 COPY fallback.txt /
 
 COPY load_images.sh /
-COPY build_dirs /build_dirs
 
 COPY images/ /images
 

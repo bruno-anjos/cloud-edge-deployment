@@ -24,6 +24,16 @@ import (
 type (
 	deploymentsMapKey   = string
 	deploymentsMapValue = *deployment.Deployment
+
+	VicinityMetric struct {
+		Nodes     map[string]*utils.Node
+		Locations map[string]string
+	}
+
+	Vicinity struct {
+		Nodes     map[string]*utils.Node
+		Locations map[string]s2.CellID
+	}
 )
 
 type (
@@ -44,8 +54,8 @@ func newSystem() *system {
 		exitChans:        &sync.Map{},
 		env:              environment.NewEnvironment(),
 		suspected:        &sync.Map{},
-		deployerClient:   deployer.NewDeployerClient(deployer.DefaultHostPort),
-		archimedesClient: archimedes.NewArchimedesClient(archimedes.DefaultHostPort),
+		deployerClient:   deployer.NewDeployerClient(deployer.LocalHostPort),
+		archimedesClient: archimedes.NewArchimedesClient(archimedes.LocalHostPort),
 	}
 }
 
@@ -98,7 +108,7 @@ func (a *system) removeDeployment(deploymentId string) {
 	a.deployments.Delete(deploymentId)
 }
 
-func (a *system) addDeploymentChild(deploymentId, childId string) {
+func (a *system) addDeploymentChild(deploymentId string, child *utils.Node) {
 	value, ok := a.deployments.Load(deploymentId)
 	if !ok {
 		return
@@ -111,19 +121,19 @@ func (a *system) addDeploymentChild(deploymentId, childId string) {
 		return
 	}
 
-	locations := value.(map[string]interface{})
-	cellValue, ok := locations[childId]
+	locations := value.(VicinityMetric)
+	cellValue, ok := locations.Locations[child.Id]
 	if !ok {
-		log.Errorf("no location for child %s", childId)
+		log.Errorf("no location for child %s", child.Id)
 		return
 	}
 
-	log.Debugf("adding child %s", childId)
+	log.Debugf("adding child %s", child.Id)
 
-	location := s2.CellIDFromToken(cellValue.(string))
+	location := s2.CellIDFromToken(cellValue)
 
-	a.suspected.Delete(childId)
-	s.AddChild(childId, location)
+	a.suspected.Delete(child.Id)
+	s.AddChild(child, location)
 }
 
 func (a *system) removeDeploymentChild(deploymentId, childId string) {
@@ -141,14 +151,14 @@ func (a *system) removeDeploymentChild(deploymentId, childId string) {
 	s.RemoveChild(childId)
 }
 
-func (a *system) setDeploymentParent(deploymentId, parentId string) {
+func (a *system) setDeploymentParent(deploymentId string, parent *utils.Node) {
 	value, ok := a.deployments.Load(deploymentId)
 	if !ok {
 		return
 	}
 
 	s := value.(deploymentsMapValue)
-	s.SetParent(parentId)
+	s.SetParent(parent)
 }
 
 func (a *system) getDeployments() (deployments map[string]*deployment.Deployment) {
@@ -168,22 +178,22 @@ func (a *system) getDeployments() (deployments map[string]*deployment.Deployment
 
 func (a *system) isNodeInVicinity(nodeId string) bool {
 	vicinity := a.getVicinity()
-	_, ok := vicinity[nodeId]
+	_, ok := vicinity.Nodes[nodeId]
 
 	return ok
 }
 
-func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]interface{}) (nodeId string) {
+func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]interface{}) *utils.Node {
 	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
-		return ""
+		return nil
 	}
 
-	vicinity := value.(map[string]interface{})
-	var ordered []string
+	vicinity := value.(VicinityMetric)
+	var ordered []*utils.Node
 
-	for node := range vicinity {
-		if _, ok = toExclude[node]; ok {
+	for nodeId, node := range vicinity.Nodes {
+		if _, ok = toExclude[nodeId]; ok {
 			continue
 		}
 		ordered = append(ordered, node)
@@ -195,8 +205,8 @@ func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]inter
 	}
 
 	sort.Slice(ordered, func(i, j int) bool {
-		iId := s2.CellIDFromToken(vicinity[ordered[i]].(string))
-		jId := s2.CellIDFromToken(vicinity[ordered[j]].(string))
+		iId := s2.CellIDFromToken(vicinity.Locations[ordered[i].Id])
+		jId := s2.CellIDFromToken(vicinity.Locations[ordered[j].Id])
 
 		iCell := s2.CellFromCellID(iId)
 		jCell := s2.CellFromCellID(jId)
@@ -212,22 +222,25 @@ func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]inter
 	})
 
 	if len(ordered) < 1 {
-		return ""
+		return nil
 	}
 
 	return ordered[0]
 }
 
-func (a *system) getVicinity() map[string]s2.CellID {
+func (a *system) getVicinity() *Vicinity {
 	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		return nil
 	}
 
-	vicinityTokens := value.(map[string]interface{})
-	vicinity := map[string]s2.CellID{}
-	for nodeId, cellValue := range vicinityTokens {
-		vicinity[nodeId] = s2.CellIDFromToken(cellValue.(string))
+	vicinityMetric := value.(VicinityMetric)
+	vicinity := &Vicinity{
+		Nodes: vicinityMetric.Nodes,
+		Locations: map[string]s2.CellID{},
+	}
+	for nodeId, cellToken := range vicinityMetric.Locations {
+		vicinity.Locations[nodeId] = s2.CellIDFromToken(cellToken)
 	}
 
 	return vicinity

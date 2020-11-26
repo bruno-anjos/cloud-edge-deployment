@@ -15,7 +15,6 @@ const (
 	registerDeploymentInstanceName = "REGISTER_DEPLOYMENT_INSTANCE"
 	deleteDeploymentName           = "DELETE_DEPLOYMENT"
 	whoAreYouName                  = "WHO_ARE_YOU"
-	addNodeName                    = "ADD_NODE"
 	setAlternativesName            = "SET_ALTERNATIVES"
 	deadChildName                  = "DEAD_CHILD"
 	deleteDeploymentChildName      = "DELETE_DEPLOYMENT_CHILD"
@@ -48,14 +47,13 @@ var (
 
 	deploymentsRoute           = deployer.DeploymentsPath
 	deploymentRoute            = fmt.Sprintf(deployer.DeploymentPath, _deploymentIdPathVarFormatted)
-	addNodeRoute               = deployer.AddNodePath
 	whoAreYouRoute             = deployer.WhoAreYouPath
 	setAlternativesRoute       = fmt.Sprintf(deployer.SetAlternativesPath, _deployerIdPathVarFormatted)
 	deadChildRoute             = fmt.Sprintf(deployer.DeadChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
 	deploymentChildRoute       = fmt.Sprintf(deployer.DeploymentChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
 	iAmYourParentRoute         = fmt.Sprintf(deployer.IAmYourParentPath, _deploymentIdPathVarFormatted)
 	hierarchyTableRoute        = deployer.HierarchyTablePath
-	extendDeploymentToRoute    = fmt.Sprintf(deployer.ExtendDeploymentToPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	extendDeploymentToRoute    = fmt.Sprintf(deployer.ExtendDeploymentToPath, _deploymentIdPathVarFormatted)
 	setGrandparentRoute             = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
 	fallbackRoute                   = fmt.Sprintf(deployer.FallbackPath, _deploymentIdPathVarFormatted)
 	getFallbackRoute                = deployer.GetFallbackIdPath
@@ -168,13 +166,6 @@ var Routes = []utils.Route{
 		Method:      http.MethodDelete,
 		Pattern:     deploymentRoute,
 		HandlerFunc: deleteDeploymentHandler,
-	},
-
-	{
-		Name:        addNodeName,
-		Method:      http.MethodPost,
-		Pattern:     addNodeRoute,
-		HandlerFunc: addNodeHandler,
 	},
 
 	{

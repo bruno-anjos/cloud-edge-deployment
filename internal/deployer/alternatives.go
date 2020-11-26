@@ -42,8 +42,8 @@ func loadAlternativesPeriodically() {
 			continue
 		}
 
-		for neighbor := range vicinity {
-			onNodeUp(neighbor)
+		for _, neighbor := range vicinity.Nodes {
+			onNodeUp(neighbor.Id, neighbor.Addr)
 		}
 	}
 }
@@ -78,7 +78,7 @@ func sendAlternatives() {
 
 func sendAlternativesTo(neighbor *utils.Node, alternatives []*utils.Node) {
 	depClient := deployer.NewDeployerClient(neighbor.Addr + ":" + strconv.Itoa(deployer.Port))
-	status := depClient.SendAlternatives(myself.Id, alternatives)
+	status := depClient.SendAlternatives(myself.Addr, alternatives)
 	if status != http.StatusOK {
 		log.Errorf("got status %d while sending alternatives to %s", status, neighbor.Addr)
 	}

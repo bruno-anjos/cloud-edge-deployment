@@ -12,8 +12,8 @@ const (
 
 	DeploymentsPath      = "/deployments"
 	DeploymentPath       = "/deployments/%s"
-	DeploymentChildPath  = "/deployments/%s/child/%s"
-	DeploymentParentPath = "/deployments/%s/parent/%s"
+	DeploymentChildPath  = "/deployments/%s/child"
+	DeploymentParentPath = "/deployments/%s/parent"
 	IsNodeInVicinityPath = "/vicinity/%s"
 	ClosestNodePath      = "/closest"
 	VicinityPath         = "/vicinity"
@@ -31,12 +31,12 @@ func GetDeploymentPath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(DeploymentPath, deploymentId)
 }
 
-func GetDeploymentChildPath(deploymentId, childId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentChildPath, deploymentId, childId)
+func GetDeploymentChildPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentChildPath, deploymentId)
 }
 
-func GetDeploymentParentPath(deploymentId, parentId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentParentPath, deploymentId, parentId)
+func GetDeploymentParentPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentParentPath, deploymentId)
 }
 
 func GetIsNodeInVicinityPath(nodeId string) string {

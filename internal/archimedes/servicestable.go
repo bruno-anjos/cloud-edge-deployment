@@ -51,8 +51,7 @@ func (se *deploymentsTableEntry) toChangedDTO() *api.DeploymentsTableEntryDTO {
 	})
 
 	return &api.DeploymentsTableEntryDTO{
-		Host:         se.Host.Id,
-		HostAddr:     se.Host.Addr,
+		Host:         se.Host,
 		Deployment:   se.Deployment,
 		Instances:    instances,
 		NumberOfHops: se.NumberOfHops,
@@ -76,8 +75,7 @@ func (se *deploymentsTableEntry) toDTO() *api.DeploymentsTableEntryDTO {
 	})
 
 	return &api.DeploymentsTableEntryDTO{
-		Host:         se.Host.Id,
-		HostAddr:     se.Host.Addr,
+		Host:         se.Host,
 		Deployment:   se.Deployment,
 		Instances:    instances,
 		NumberOfHops: se.NumberOfHops,
@@ -135,7 +133,7 @@ func (st *deploymentsTable) updateDeployment(deploymentId string, newEntry *api.
 	defer entry.EntryLock.Unlock()
 
 	// message is fresher, comes from the closest neighbor or closer and it has new information
-	entry.Host = utils.NewNode(newEntry.Host, newEntry.HostAddr)
+	entry.Host = newEntry.Host
 	entry.Deployment = newEntry.Deployment
 
 	entry.Instances.Range(func(key, value interface{}) bool {
@@ -186,7 +184,7 @@ func (st *deploymentsTable) addDeployment(deploymentId string, newEntry *api.Dep
 	st.deploymentsMap.Store(deploymentId, newTableEntry)
 	st.addLock.Unlock()
 
-	newTableEntry.Host = utils.NewNode(newEntry.Host, newEntry.HostAddr)
+	newTableEntry.Host = newEntry.Host
 	newTableEntry.Deployment = newEntry.Deployment
 
 	newInstancesMap := &sync.Map{}
@@ -370,36 +368,6 @@ func (st *deploymentsTable) deleteInstance(deploymentId, instanceId string) {
 	}
 
 	st.instancesMap.Delete(instanceId)
-}
-
-func (st *deploymentsTable) updateTableWithDiscoverMessage(neighbor string,
-	discoverMsg *api.DiscoverMsg) (changed bool) {
-	log.Debugf("updating table from message %s", discoverMsg.MessageId.String())
-
-	changed = false
-
-	for deploymentId, entry := range discoverMsg.Entries {
-		log.Debugf("%s has deployment %s", neighbor, deploymentId)
-
-		if entry.Host == archimedesId {
-			continue
-		}
-
-		_, ok := st.deploymentsMap.Load(deploymentId)
-		if ok {
-			log.Debugf("deployment %s already existed, updating", deploymentId)
-			updated := st.updateDeployment(deploymentId, entry)
-			if updated {
-				changed = true
-			}
-			continue
-		}
-
-		st.addDeployment(deploymentId, entry)
-		changed = true
-	}
-
-	return changed
 }
 
 func (st *deploymentsTable) toChangedDiscoverMsg() *api.DiscoverMsg {

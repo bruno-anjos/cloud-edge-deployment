@@ -29,7 +29,7 @@ type (
 	AlternativesRequestBody               = []*utils.Node
 	SetGrandparentRequestBody             = utils.Node
 	FallbackRequestBody                   struct {
-		OrphanId       string
+		Orphan       *utils.Node
 		OrphanLocation s2.CellID
 	}
 	ExtendDeploymentConfig struct {
@@ -38,6 +38,7 @@ type (
 		ToExclude map[string]interface{}
 	}
 	ExtendDeploymentRequestBody struct {
+		Node         *utils.Node
 		ExploringTTL int
 		Config       *ExtendDeploymentConfig
 	}

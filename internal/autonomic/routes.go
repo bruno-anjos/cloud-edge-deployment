@@ -36,15 +36,12 @@ const (
 var (
 	_deploymentIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, deploymentIdPathVar)
 	_childIdPathVarFormatted      = fmt.Sprintf(utils.PathVarFormat, childIdPathVar)
-	_parentIdPathVarFormatted     = fmt.Sprintf(utils.PathVarFormat, parentIdPathVar)
 	_nodeIdPathVarFormatted       = fmt.Sprintf(utils.PathVarFormat, nodeIdPathVar)
 
 	deploymentsRoute     = autonomic.DeploymentsPath
 	deploymentRoute      = fmt.Sprintf(autonomic.DeploymentPath, _deploymentIdPathVarFormatted)
-	deploymentChildRoute = fmt.Sprintf(autonomic.DeploymentChildPath, _deploymentIdPathVarFormatted,
-		_childIdPathVarFormatted)
-	deploymentParentRoute = fmt.Sprintf(autonomic.DeploymentParentPath, _deploymentIdPathVarFormatted,
-		_parentIdPathVarFormatted)
+	deploymentChildRoute = fmt.Sprintf(autonomic.DeploymentChildPath, _deploymentIdPathVarFormatted)
+	deploymentParentRoute = fmt.Sprintf(autonomic.DeploymentParentPath, _deploymentIdPathVarFormatted)
 	isNodeInVicinityRoute     = fmt.Sprintf(autonomic.IsNodeInVicinityPath, _nodeIdPathVarFormatted)
 	closestNodeRoute          = autonomic.ClosestNodePath
 	getVicinityRoute          = autonomic.VicinityPath

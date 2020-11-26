@@ -1,7 +1,6 @@
 package deployment
 
 import (
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -23,7 +22,7 @@ const (
 
 type (
 	nodeWithLocation struct {
-		NodeId   string
+		Node   *utils.Node
 		Location s2.CellID
 	}
 
@@ -33,7 +32,7 @@ type (
 		DeploymentId string
 		Strategy     strategy
 		Children     *sync.Map
-		ParentId     string
+		Parent       *utils.Node
 		Suspected    *sync.Map
 		Environment  *environment.Environment
 		Blacklist    *sync.Map
@@ -47,22 +46,14 @@ var (
 )
 
 func init() {
-	hostname, err := os.Hostname()
-	if err != nil {
-		panic(err)
-	}
-
-	Myself = &utils.Node{
-		Id:   hostname,
-		Addr: hostname,
-	}
+	Myself = utils.NodeFromEnv()
 }
 
 func New(deploymentId, strategyId string, suspected *sync.Map, depthFactor float64,
 	env *environment.Environment) (*Deployment, error) {
 	s := &Deployment{
 		Children:     &sync.Map{},
-		ParentId:     "",
+		Parent:       nil,
 		Suspected:    suspected,
 		Environment:  env,
 		DeploymentId: deploymentId,
@@ -93,12 +84,12 @@ func New(deploymentId, strategyId string, suspected *sync.Map, depthFactor float
 	return s, nil
 }
 
-func (a *Deployment) AddChild(childId string, location s2.CellID) {
+func (a *Deployment) AddChild(child *utils.Node, location s2.CellID) {
 	node := &nodeWithLocation{
-		NodeId:   childId,
+		Node: child,
 		Location: location,
 	}
-	a.Children.Store(childId, node)
+	a.Children.Store(child.Id, node)
 }
 
 func (a *Deployment) RemoveChild(childId string) {
@@ -118,8 +109,8 @@ func (a *Deployment) removeSuspectedChild(childId string) {
 	a.Suspected.Delete(childId)
 }
 
-func (a *Deployment) SetParent(parentId string) {
-	a.ParentId = parentId
+func (a *Deployment) SetParent(parent *utils.Node) {
+	a.Parent = parent
 }
 
 func (a *Deployment) GenerateAction() actions.Action {
@@ -138,7 +129,7 @@ func (a *Deployment) ToDTO() *autonomic.DeploymentDTO {
 		DeploymentId: a.DeploymentId,
 		StrategyId:   a.Strategy.GetId(),
 		Children:     children,
-		ParentId:     a.ParentId,
+		Parent:       a.Parent,
 	}
 }
 
@@ -159,8 +150,8 @@ func (a *Deployment) BlacklistNodes(origin string, nodes ...string) {
 		a.Blacklist.Store(node, nil)
 	}
 
-	autoClient := public.NewAutonomicClient(a.ParentId + ":" + strconv.Itoa(public.Port))
-	if a.ParentId != "" && origin != a.ParentId {
+	autoClient := public.NewAutonomicClient(a.Parent.Addr + ":" + strconv.Itoa(public.Port))
+	if a.Parent != nil && origin != a.Parent.Id {
 		autoClient.BlacklistNodes(a.DeploymentId, Myself.Id, nodes...)
 	}
 	a.Children.Range(func(key, value interface{}) bool {
@@ -169,7 +160,8 @@ func (a *Deployment) BlacklistNodes(origin string, nodes ...string) {
 			return true
 		}
 		log.Debugf("telling %s to blacklist %+v for %s", childId, nodes, a.DeploymentId)
-		autoClient.SetHostPort(childId + ":" + strconv.Itoa(public.Port))
+		nodeWithLoc := value.(nodeWithLocation)
+		autoClient.SetHostPort(nodeWithLoc.Node.Addr + ":" + strconv.Itoa(public.Port))
 		autoClient.BlacklistNodes(a.DeploymentId, Myself.Id, nodes...)
 		return true
 	})

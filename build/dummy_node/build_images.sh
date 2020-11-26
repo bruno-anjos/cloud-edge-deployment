@@ -4,7 +4,8 @@ set -e
 
 build_image() {
 	echo "Building $service image..."
-	docker build -t brunoanjos/"$service":latest /build_dirs/"$service"
+	docker build -t brunoanjos/"$service":latest $CLOUD_EDGE_DEPLOYMENT/build/"$service"
+	docker save brunoanjos/"$service":latest > "$CLOUD_EDGE_DEPLOYMENT"/build/dummy_node/images/"$service".tar
 }
 
 service="archimedes"

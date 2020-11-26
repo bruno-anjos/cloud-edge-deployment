@@ -11,8 +11,6 @@ const (
 	DeploymentsPath = "/deployments"
 	DeploymentPath  = "/deployments/%s"
 
-	AddNodePath = "/node"
-
 	WhoAreYouPath = "/who"
 
 	SetAlternativesPath = "/alternatives/%s"
@@ -22,7 +20,7 @@ const (
 	HierarchyTablePath         = "/table"
 	ParentAlivePath            = "/parent/%s/up"
 	DeploymentChildPath        = "/deployments/%s/child/%s"
-	ExtendDeploymentToPath     = "/deployments/%s/extend/%s"
+	ExtendDeploymentToPath     = "/deployments/%s/extend"
 	SetGrandparentPath         = "/deployments/%s/grandparent"
 	FallbackPath               = "/deployments/%s/fallback"
 	GetFallbackIdPath          = "/deployments/fallback"
@@ -43,10 +41,6 @@ func GetDeploymentPath(deploymentId string) string {
 
 func GetImYourParentPath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(IAmYourParentPath, deploymentId)
-}
-
-func GetAddNodePath() string {
-	return PrefixPath + AddNodePath
 }
 
 func GetParentAlivePath(parentId string) string {
@@ -77,8 +71,8 @@ func GetDeploymentChildPath(deploymentId, childId string) string {
 	return PrefixPath + fmt.Sprintf(DeploymentChildPath, deploymentId, childId)
 }
 
-func GetExtendDeploymentPath(deploymentId, targetId string) string {
-	return PrefixPath + fmt.Sprintf(ExtendDeploymentToPath, deploymentId, targetId)
+func GetExtendDeploymentPath(deploymentId string) string {
+	return PrefixPath + fmt.Sprintf(ExtendDeploymentToPath, deploymentId)
 }
 
 func GetSetGrandparentPath(deploymentId string) string {

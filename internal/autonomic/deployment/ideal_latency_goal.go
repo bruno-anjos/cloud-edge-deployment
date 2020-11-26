@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	deployerAPI "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -44,6 +45,8 @@ const (
 type (
 	deploymentChildrenMapKey   = string
 	deploymentChildrenMapValue = *nodeWithLocation
+
+	centroidToNodesType = map[s2.CellID][]*utils.Node
 
 	nodeWithDistance struct {
 		NodeId             string
@@ -99,7 +102,7 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 		return
 	}
 
-	archClient := archimedes.NewArchimedesClient(archimedes.DefaultHostPort)
+	archClient := archimedes.NewArchimedesClient(archimedes.LocalHostPort)
 	centroids, status := archClient.GetClientCentroids(i.deployment.DeploymentId)
 	if status == http.StatusNotFound {
 		return
@@ -122,13 +125,13 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 		var (
 			minPercentage = -1.
 		)
-		for _, criteria := range sortingCriteria[node].(sortingCriteriaType) {
+		for _, criteria := range sortingCriteria[node.Id].(sortingCriteriaType) {
 			if criteria.DistancePercentage < minPercentage || minPercentage == -1 {
 				minPercentage = criteria.DistancePercentage
 			}
 		}
 
-		nodeMinDistances[node] = minPercentage
+		nodeMinDistances[node.Id] = minPercentage
 	}
 
 	log.Debugf("%s filtered result %+v", idealLatencyGoalId, filtered)
@@ -152,7 +155,7 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 	if !isAlreadyMax {
 		optRange, isAlreadyMax = i.filterBlacklisted(optRange)
 		if !isAlreadyMax {
-			centroidsToNodes := map[s2.CellID][]string{}
+			centroidsToNodes := centroidToNodesType{}
 
 			for _, node := range ordered {
 				for _, cellId := range centroids {
@@ -167,8 +170,8 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 					nodeI := centroidsToNodes[cellId][i]
 					nodeJ := centroidsToNodes[cellId][j]
 
-					distIToCell := sortingCriteria[nodeI].(sortingCriteriaType)[cellId].DistancePercentage
-					distJToCell := sortingCriteria[nodeJ].(sortingCriteriaType)[cellId].DistancePercentage
+					distIToCell := sortingCriteria[nodeI.Id].(sortingCriteriaType)[cellId].DistancePercentage
+					distJToCell := sortingCriteria[nodeJ.Id].(sortingCriteriaType)[cellId].DistancePercentage
 
 					return distIToCell < distJToCell
 				})
@@ -201,7 +204,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 		return nil, nil, false
 	}
 
-	locationsInVicinity := value.(map[string]interface{})
+	vicinity := value.(autonomic.VicinityMetric)
 
 	centroids := arg.([]s2.CellID)
 
@@ -216,9 +219,9 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 		centroidCells[centroid] = centroidCell
 	}
 
-	log.Debugf("nodes in vicinity: %+v", locationsInVicinity)
+	log.Debugf("nodes in vicinity: %+v", vicinity)
 	info = map[string]interface{}{}
-	for nodeId, cellValue := range locationsInVicinity {
+	for nodeId, cellValue := range vicinity.Locations {
 		_, okC := i.deployment.Children.Load(nodeId)
 		_, okS := i.deployment.Suspected.Load(nodeId)
 		if okC || okS || nodeId == Myself.Id {
@@ -226,14 +229,14 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 			continue
 		}
 
-		location := s2.CellIDFromToken(cellValue.(string))
+		location := s2.CellIDFromToken(cellValue)
 
 		// create node map for centroids and respective distances
-		if nodeId == i.deployment.ParentId {
+		if nodeId == i.deployment.Parent {
 			info[hiddenParentId] = sortingCriteriaType{}
 		} else {
 			info[nodeId] = sortingCriteriaType{}
-			domain = append(domain, nodeId)
+			domain = append(domain, vicinity.Nodes[nodeId])
 		}
 
 		var (
@@ -242,7 +245,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 		for _, centroidId := range centroids {
 			delta := utils.ChordAngleToKM(s2.CellFromCellID(location).DistanceToCell(centroidCells[centroidId]))
 
-			if nodeId == i.deployment.ParentId {
+			if nodeId == i.deployment.Parent {
 				nodeCentroidsMap = info[hiddenParentId].(sortingCriteriaType)
 			} else {
 				nodeCentroidsMap = info[nodeId].(sortingCriteriaType)
@@ -262,7 +265,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 func (i *idealLatency) Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range) {
 	ordered = candidates
 	sort.Slice(ordered, func(i, j int) bool {
-		return sortingCriteria[ordered[i]].(float64) < sortingCriteria[ordered[j]].(float64)
+		return sortingCriteria[ordered[i].Id].(float64) < sortingCriteria[ordered[j].Id].(float64)
 	})
 
 	return
@@ -278,10 +281,10 @@ func (i *idealLatency) Cutoff(candidates Domain, candidatesCriteria map[string]i
 
 	candidateClient := deployer.NewDeployerClient("")
 	for _, candidate := range candidates {
-		percentage := candidatesCriteria[candidate].(float64)
+		percentage := candidatesCriteria[candidate.Id].(float64)
 		log.Debugf("candidate %s distance percentage (me) %f", candidate, percentage)
 		if percentage < maximumDistancePercentage {
-			candidateClient.SetHostPort(candidate + ":" + strconv.Itoa(deployer.Port))
+			candidateClient.SetHostPort(candidate.Addr + ":" + strconv.Itoa(deployer.Port))
 			has, _ := candidateClient.HasDeployment(i.deployment.DeploymentId)
 			if has {
 				log.Debugf("candidate %s already has deployment %s", candidate, i.deployment.DeploymentId)
@@ -297,45 +300,45 @@ func (i *idealLatency) Cutoff(candidates Domain, candidatesCriteria map[string]i
 	return
 }
 
-func (i *idealLatency) GenerateAction(targets []string, args ...interface{}) actions.Action {
+func (i *idealLatency) GenerateAction(targets Range, args ...interface{}) actions.Action {
 	log.Debugf("generating action %s", (args[ilActionTypeArgIndex]).(string))
 
 	switch args[ilActionTypeArgIndex].(string) {
 	case actions.MultipleExtendDeploymentId:
-		centroidsToNodes := args[ilCentroidDistancesToNodesIndex].(map[s2.CellID][]string)
+		centroidsToNodes := args[ilCentroidDistancesToNodesIndex].(centroidToNodesType)
 		nodeCells := map[string][]s2.CellID{}
 		var (
-			nodesToExtendTo  []string
+			nodesToExtendTo  []*utils.Node
 			targetsExploring = map[string]int{}
 		)
 
 		for cellId, nodesOrdered := range centroidsToNodes {
-			var selectedNode string
+			var selectedNode *utils.Node
 			for _, node := range nodesOrdered {
 				for _, target := range targets {
-					if target == node {
-						selectedNode = target
+					if target.Id == node.Id {
+						selectedNode = node
 						break
 					}
 				}
 
-				if selectedNode != "" {
+				if selectedNode != nil {
 					break
 				}
 			}
 
-			if selectedNode == "" {
+			if selectedNode == nil {
 				panic(fmt.Sprintf("could not find a suitable node for cell %d, had %+v %+v", cellId,
 					nodesOrdered, targets))
 			}
 
-			cells, ok := nodeCells[selectedNode]
+			cells, ok := nodeCells[selectedNode.Id]
 			if !ok {
 				cells = []s2.CellID{cellId}
-				nodeCells[selectedNode] = cells
+				nodeCells[selectedNode.Id] = cells
 				nodesToExtendTo = append(nodesToExtendTo, selectedNode)
 			} else {
-				nodeCells[selectedNode] = append(nodeCells[selectedNode], cellId)
+				nodeCells[selectedNode.Id] = append(nodeCells[selectedNode.Id], cellId)
 			}
 		}
 
@@ -501,9 +504,9 @@ func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
 	return validBranch
 }
 
-func (i *idealLatency) filterBlacklisted(o Range) (Range, bool) {
-	var newRange []string
-	for _, node := range o {
+func (i *idealLatency) filterBlacklisted(original Range) (Range, bool) {
+	var newRange Range
+	for _, node := range original {
 		if _, ok := i.deployment.Blacklist.Load(node); !ok {
 			newRange = append(newRange, node)
 		}

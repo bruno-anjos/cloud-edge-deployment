@@ -19,14 +19,14 @@ set -e
 bash "$CLOUD_EDGE_DEPLOYMENT"/build/dummy_node/build_dummy_node.sh
 
 function run() {
-	docker run -d --network=dummies-network --privileged --ip "192.168.19$((3 + CARRY)).$NODE" --name=$HOSTNAME \
-		--hostname $HOSTNAME brunoanjos/dummy_node:latest
+	docker run -d --network=dummies-network --privileged --ip "192.168.19$((3 + CARRY)).$NODE" --name=$DUMMY_NAME \
+		--hostname $DUMMY_NAME brunoanjos/dummy_node:latest
 }
 
 docker network create --subnet=192.168.192.1/20 dummies-network
 
 for ((c = 1; c <= $1; c++)); do
-	HOSTNAME="dummy$c"
+	DUMMY_NAME="dummy$c"
 	NODE=$((c % 255))
 	CARRY=$((c / 255))
 	echo "node: $NODE, carry: $CARRY"
@@ -37,13 +37,13 @@ done
 wait
 
 function start() {
-	docker exec "$HOSTNAME" ./deploy_services.sh
+	docker exec "$DUMMY_NAME" ./deploy_services.sh
 }
 
 for ((c = 1; c <= $1; c++)); do
-	HOSTNAME="dummy$c"
+	DUMMY_NAME="dummy$c"
 	echo "LAUNCHING SERVICES in dummy$c"
-	start
+	start &
 done
 
 wait

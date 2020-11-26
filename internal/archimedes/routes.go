@@ -18,7 +18,6 @@ const (
 	getAllDeploymentInstancesName  = "GET_ALL_DEPLOYMENT_INSTANCES"
 	getDeploymentInstanceName      = "GET_DEPLOYMENT_INSTANCE"
 	getInstanceName                = "GET_INSTANCE"
-	discoverName                   = "DISCOVER"
 	whoAreYouName                  = "WHO_ARE_YOU"
 	getTableName                   = "GET_TABLE"
 	resolveName                    = "RESOLVE"
@@ -52,7 +51,6 @@ var (
 	deploymentInstanceRoute = fmt.Sprintf(archimedes.DeploymentInstancePath, _deploymentIdPathVarFormatted,
 		_instanceIdPathVarFormatted)
 	instanceRoute                   = fmt.Sprintf(archimedes.InstancePath, _instanceIdPathVarFormatted)
-	discoverRoute                   = archimedes.DiscoverPath
 	whoAreYouRoute                  = archimedes.WhoAreYouPath
 	tableRoute                      = archimedes.TablePath
 	resolveRoute                    = archimedes.ResolvePath
@@ -200,13 +198,6 @@ var Routes = []utils.Route{
 		Method:      http.MethodGet,
 		Pattern:     deploymentInstanceRoute,
 		HandlerFunc: getDeploymentInstanceHandler,
-	},
-
-	{
-		Name:        discoverName,
-		Method:      http.MethodPost,
-		Pattern:     discoverRoute,
-		HandlerFunc: discoverHandler,
 	},
 
 	{

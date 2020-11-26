@@ -1,13 +1,16 @@
 package archimedes
 
 import (
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/golang/geo/s2"
 )
 
 type (
-	RegisterDeploymentRequestBody         = deploymentDTO
+	RegisterDeploymentRequestBody struct {
+		Deployment *DeploymentDTO
+		Host       *utils.Node
+	}
 	RegisterDeploymentInstanceRequestBody = InstanceDTO
-	DiscoverRequestBody                   = DiscoverMsg
 	ResolveRequestBody                    struct {
 		ToResolve    *ToResolveDTO
 		DeploymentId string

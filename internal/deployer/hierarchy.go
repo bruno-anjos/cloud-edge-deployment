@@ -225,7 +225,7 @@ func (t *hierarchyTable) updateDeployment(deploymentId string, parent *utils.Nod
 
 	if parent != nil {
 		autonomicClient.SetDeploymentParent(deploymentId, parent.Id)
-		deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
+		deplClient := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
 		status := deplClient.PropagateLocationToHorizon(deploymentId, myself.Id, location.ID(), 0, api.Add)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while trying to propagate location to %s for deployment %s", status,
@@ -277,7 +277,7 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, depthFactor float
 	autonomicClient.RegisterDeployment(dto.DeploymentId, autonomic.StrategyIdealLatencyId, depthFactor, exploringTTL)
 	if dto.Parent != nil {
 		autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent.Addr)
-		deplClient := deployer.NewDeployerClient(dto.Parent.Id + ":" + strconv.Itoa(deployer.Port))
+		deplClient := deployer.NewDeployerClient(dto.Parent.Addr + ":" + strconv.Itoa(deployer.Port))
 		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself.Id, location.ID(), 0, api.Add)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while trying to propagate location to %s for deployment %s", status,
@@ -327,7 +327,7 @@ func (t *hierarchyTable) removeDeployment(deploymentId string) {
 
 		parent := t.getParent(deploymentId)
 		if parent != nil {
-			deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
+			deplClient := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
 			status = deplClient.PropagateLocationToHorizon(deploymentId, myself.Id, location.ID(), 0, api.Remove)
 			if status != http.StatusOK {
 				log.Errorf("got status %d while propagating location to %s for deployment %s", status, parent.Id,
@@ -361,8 +361,8 @@ func (t *hierarchyTable) setDeploymentParent(deploymentId string, parent *utils.
 	auxChildren := t.getChildren(deploymentId)
 	if len(auxChildren) > 0 {
 		deplClient := deployer.NewDeployerClient("")
-		for childId := range auxChildren {
-			deplClient.SetHostPort(childId + ":" + strconv.Itoa(deployer.Port))
+		for _, child := range auxChildren {
+			deplClient.SetHostPort(child.Addr + ":" + strconv.Itoa(deployer.Port))
 			deplClient.SetGrandparent(deploymentId, parent)
 		}
 	}
@@ -666,10 +666,10 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 		}
 		log.Debugf("my grandparent for %s is %s", deploymentId, grandparentId)
 		if grandparent == nil {
-			deplClient := deployer.NewDeployerClient(fallback + ":" + strconv.Itoa(deployer.Port))
-			status := deplClient.Fallback(deploymentId, myself.Id, location.ID())
+			deplClient := deployer.NewDeployerClient(fallback.Addr + ":" + strconv.Itoa(deployer.Port))
+			status := deplClient.Fallback(deploymentId, myself, location.ID())
 			if status != http.StatusOK {
-				log.Debugf("tried to fallback to %s, got %d", fallback, status)
+				log.Debugf("tried to fallback to %s, got %d", fallback.Id, status)
 				hTable.removeDeployment(deploymentId)
 			}
 			continue
@@ -683,7 +683,7 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 		)
 		locations, status = archimedesClient.GetClientCentroids(deploymentId)
 		if status == http.StatusNotFound {
-			autoClient := autonomic.NewAutonomicClient(autonomic.DefaultHostPort)
+			autoClient := autonomic.NewAutonomicClient(autonomic.LocalHostPort)
 			var myLoc s2.CellID
 			myLoc, status = autoClient.GetLocation()
 			if status != http.StatusOK {
@@ -714,8 +714,8 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 	select {
 	case <-waitingTimer.C:
 		log.Debugf("falling back to %s", fallback)
-		deplClient := deployer.NewDeployerClient(fallback + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.Fallback(deploymentId, myself.Id, location.ID())
+		deplClient := deployer.NewDeployerClient(fallback.Addr + ":" + strconv.Itoa(deployer.Port))
+		status := deplClient.Fallback(deploymentId, myself, location.ID())
 		if status != http.StatusOK {
 			log.Debugf("tried to fallback to %s, got %d", fallback, status)
 			return
@@ -727,7 +727,7 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 	}
 }
 
-func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentConfig, maxHops int,
+func attemptToExtend(deploymentId string, targetNode *utils.Node, config *api.ExtendDeploymentConfig, maxHops int,
 	alternatives map[string]*utils.Node, exploringTTL int) {
 	var extendTimer *time.Timer
 
@@ -744,32 +744,36 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 		return true
 	})
 
-	log.Debugf("attempting to extend %s to %s excluding %+v", deploymentId, target, toExclude)
+	targetId := ""
+	if targetNode != nil {
+		targetId = targetNode.Id
+	}
+
+	log.Debugf("attempting to extend %s to %s excluding %+v", deploymentId, targetId, toExclude)
 
 	var (
 		success        bool
 		tries          = 0
-		nodeToExtendTo = utils.NewNode(target, target)
+		nodeToExtendTo = targetNode
 	)
 	for {
-		hasTarget := target != ""
-		if !hasTarget {
-			target = getAlternative(alternatives, config.Locations, maxHops, toExclude)
-			hasTarget = target != ""
+		if targetNode == nil {
+			targetNode = getAlternative(alternatives, config.Locations, maxHops, toExclude)
 		}
 
-		if hasTarget {
-			nodeToExtendTo = utils.NewNode(target, target)
+		if targetNode != nil {
+			nodeToExtendTo = targetNode
 			success = extendDeployment(deploymentId, nodeToExtendTo, config.Children, exploringTTL)
 			if success {
 				break
 			}
+
 			toExclude[nodeToExtendTo.Id] = nil
 		}
 
 		if tries == 5 {
 			log.Debugf("failed to extend deployment %s", deploymentId)
-			target = myself.Id
+			targetNode = myself
 			for _, child := range config.Children {
 				extendDeployment(deploymentId, child, nil, exploringTTL)
 			}
@@ -782,12 +786,12 @@ func attemptToExtend(deploymentId, target string, config *api.ExtendDeploymentCo
 	}
 
 	if len(config.Locations) > 0 {
-		archClient := archimedes.NewArchimedesClient(nodeToExtendTo.Id + ":" + strconv.Itoa(archimedes.Port))
+		archClient := archimedes.NewArchimedesClient(nodeToExtendTo.Addr + ":" + strconv.Itoa(archimedes.Port))
 		archClient.SetExploringCells(deploymentId, config.Locations)
 	}
 
 	if len(toExclude) > 0 {
-		autoClient := autonomic.NewAutonomicClient(nodeToExtendTo.Id + ":" + strconv.Itoa(autonomic.Port))
+		autoClient := autonomic.NewAutonomicClient(nodeToExtendTo.Addr + ":" + strconv.Itoa(autonomic.Port))
 		toExcludeArr := make([]string, len(toExclude))
 		i := 0
 		for node := range toExclude {
@@ -808,7 +812,7 @@ func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children 
 	dto.Grandparent = hTable.getParent(deploymentId)
 	dto.Parent = myself
 	dto.Children = children
-	depClient := deployer.NewDeployerClient(nodeToExtendTo.Id + ":" + strconv.Itoa(deployer.Port))
+	depClient := deployer.NewDeployerClient(nodeToExtendTo.Addr + ":" + strconv.Itoa(deployer.Port))
 
 	log.Debugf("extending deployment %s to %s", deploymentId, nodeToExtendTo.Id)
 	status := depClient.RegisterDeployment(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Grandparent,
@@ -841,20 +845,17 @@ func loadFallbackHostname(filename string) string {
 }
 
 func getAlternative(alternatives map[string]*utils.Node, targetLocations []s2.CellID, maxHops int,
-	toExclude map[string]interface{}) (result string) {
-	if len(alternatives) > 0 {
-		for alternative := range alternatives {
-			result = alternative
-			break
-		}
-		delete(alternatives, result)
+	toExclude map[string]interface{}) (alternative *utils.Node) {
+	for nodeId, node := range alternatives {
+		delete(alternatives, nodeId)
+		alternative = node
 		return
 	}
 
 	var found bool
-	result, found = getNodeCloserTo(targetLocations, maxHops, toExclude)
+	alternative, found = getNodeCloserTo(targetLocations, maxHops, toExclude)
 	if found {
-		log.Debugf("trying %s", result)
+		log.Debugf("trying %s", alternative)
 	}
 
 	return

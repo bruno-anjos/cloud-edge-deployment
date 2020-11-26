@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -15,7 +14,6 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/clients"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/golang/geo/s2"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
@@ -46,7 +44,6 @@ const (
 var (
 	sTable              *deploymentsTable
 	redirectServicesMap sync.Map
-	messagesReceived    sync.Map
 	redirectingToMe     sync.Map
 	clientsManager      *clients.Manager
 
@@ -54,7 +51,7 @@ var (
 	exploringNodes  *explorersPerDeployment
 
 	archimedesId string
-	myself       string
+	myself       *utils.Node
 	myLocation   s2.Cell
 )
 
@@ -62,16 +59,12 @@ func init() {
 	sTable = newDeploymentsTable()
 	clientsManager = clients.NewManager()
 
-	var err error
-	myself, err = os.Hostname()
-	if err != nil {
-		panic(err)
-	}
+	myself = utils.NodeFromEnv()
 
 	var (
 		locationId s2.CellID
 		status     int
-		autoClient = autonomic.NewAutonomicClient(autonomic.DefaultHostPort)
+		autoClient = autonomic.NewAutonomicClient(autonomic.LocalHostPort)
 	)
 	for status != http.StatusOK {
 		locationId, status = autoClient.GetLocation()
@@ -93,15 +86,15 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	req := api.RegisterDeploymentRequestBody{}
-	err := json.NewDecoder(r.Body).Decode(&req)
+	reqBody := api.RegisterDeploymentRequestBody{}
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
 		log.Error(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	deploymentDTO := req
+	deploymentDTO := reqBody.Deployment
 
 	deployment := &api.Deployment{
 		Id:    deploymentId,
@@ -115,8 +108,7 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newTableEntry := &api.DeploymentsTableEntryDTO{
-		Host:         archimedesId,
-		HostAddr:     archimedes.DefaultHostPort,
+		Host:         reqBody.Host,
 		Deployment:   deployment,
 		Instances:    map[string]*api.Instance{},
 		NumberOfHops: 0,
@@ -341,14 +333,14 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	if canRedirect {
 		redirectTo := checkForClosestNodeRedirection(reqBody.DeploymentId, reqBody.Location)
 
-		switch redirectTo {
-		case myself:
+		switch redirectTo.Id {
+		case myself.Id:
 			reqLogger.Debugf("im the node to redirect to")
 		default:
 			reqLogger.Debugf("redirecting to %s from %s", redirectTo, reqBody.Location)
 			targetUrl = url.URL{
 				Scheme: "http",
-				Host:   redirectTo + ":" + strconv.Itoa(archimedes.Port),
+				Host:   redirectTo.Addr + ":" + strconv.Itoa(archimedes.Port),
 				Path:   api.GetResolvePath(),
 			}
 			clientsManager.RemoveFromExploring(reqBody.DeploymentId)
@@ -357,7 +349,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	deplClient := deployer.NewDeployerClient(publicUtils.DeployerServiceName + ":" + strconv.Itoa(deployer.Port))
+	deplClient := deployer.NewDeployerClient(deployer.LocalHostPort)
 
 	resolved, found := resolveLocally(reqBody.ToResolve, reqLogger)
 	if !found {
@@ -461,42 +453,6 @@ func resolveLocally(toResolve *api.ToResolveDTO, reqLogger *log.Entry) (resolved
 	return
 }
 
-func discoverHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("handling request in discoverDeployment handler")
-
-	req := api.DiscoverRequestBody{}
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Error(err)
-		return
-	}
-
-	discoverMsg := req
-
-	_, ok := messagesReceived.Load(discoverMsg.MessageId)
-	if ok {
-		log.Debugf("repeated message %s, ignoring...", discoverMsg.MessageId)
-		return
-	}
-
-	log.Debugf("got discover message %+v", discoverMsg)
-
-	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		panic(err)
-	}
-
-	preprocessMessage(remoteAddr, &discoverMsg)
-
-	sTable.updateTableWithDiscoverMessage(discoverMsg.NeighborSent, &discoverMsg)
-
-	messagesReceived.Store(discoverMsg.MessageId, struct{}{})
-
-	postprocessMessage(&discoverMsg)
-	broadcastMsgWithHorizon(&discoverMsg, maxHops)
-}
-
 func redirectServiceHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
@@ -570,7 +526,7 @@ func willRedirectToYouHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("%s redirecting %s to me", nodeId, deploymentId)
 }
 
-func stoppedRedirectingToYouHandler(w http.ResponseWriter, r *http.Request) {
+func stoppedRedirectingToYouHandler(_ http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	nodeId := utils.ExtractPathVar(r, nodeIdPathVar)
 
@@ -661,31 +617,6 @@ func getClientCentroidsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func preprocessMessage(remoteAddr string, discoverMsg *api.DiscoverMsg) {
-	for _, entry := range discoverMsg.Entries {
-		if entry.Host == discoverMsg.NeighborSent {
-			entry.HostAddr = remoteAddr
-			for _, instance := range entry.Instances {
-				instance.Ip = remoteAddr
-			}
-		}
-	}
-}
-
-func postprocessMessage(discoverMsg *api.DiscoverMsg) {
-	var deploymentsToDelete []string
-
-	for deploymentId, entry := range discoverMsg.Entries {
-		if entry.NumberOfHops > maxHops {
-			deploymentsToDelete = append(deploymentsToDelete, deploymentId)
-		}
-	}
-
-	for _, deploymentToDelete := range deploymentsToDelete {
-		delete(discoverMsg.Entries, deploymentToDelete)
-	}
-}
-
 func sendDeploymentsTable() {
 	discoverMsg := sTable.toChangedDiscoverMsg()
 	if discoverMsg == nil {
@@ -702,7 +633,7 @@ func resolveInstance(originalPort nat.Port, instance *api.Instance) (*api.Resolv
 	}
 
 	return &api.ResolvedDTO{
-		Host: myself,
+		Host: myself.Addr,
 		Port: portNatResolved[0].HostPort,
 	}, true
 }
@@ -712,7 +643,7 @@ func broadcastMsgWithHorizon(discoverMsg *api.DiscoverMsg, hops int) {
 	return
 }
 
-func checkForClosestNodeRedirection(deploymentId string, clientLocation s2.CellID) (redirectTo string) {
+func checkForClosestNodeRedirection(deploymentId string, clientLocation s2.CellID) (redirectTo *utils.Node) {
 	redirectTo = myself
 
 	var (
@@ -720,12 +651,12 @@ func checkForClosestNodeRedirection(deploymentId string, clientLocation s2.CellI
 		status   int
 	)
 
-	redirectTargets.rangeOver(deploymentId, func(nodeId string, nodeLocId s2.CellID) bool {
+	redirectTargets.rangeOver(deploymentId, func(node *utils.Node, nodeLocId s2.CellID) bool {
 		auxLocation := s2.CellFromCellID(nodeLocId)
 		currDiff := utils.ChordAngleToKM(auxLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
 		if currDiff < bestDiff {
 			bestDiff = currDiff
-			redirectTo = nodeId
+			redirectTo = node
 		}
 
 		return true
@@ -733,14 +664,14 @@ func checkForClosestNodeRedirection(deploymentId string, clientLocation s2.CellI
 
 	log.Debugf("best node in vicinity to redirect client from %+v to is %s", clientLocation, redirectTo)
 
-	if redirectTo != myself {
+	if redirectTo.Id != myself.Id {
 		log.Debugf("will redirect client at %d to %s", clientLocation, redirectTo)
 
 		// TODO this can be change by a load and delete probably
-		has := exploringNodes.checkAndDelete(deploymentId, redirectTo)
+		has := exploringNodes.checkAndDelete(deploymentId, redirectTo.Id)
 		if has {
-			childAutoClient := autonomic.NewAutonomicClient(myself + ":" + strconv.Itoa(autonomic.Port))
-			status = childAutoClient.SetExploredSuccessfully(deploymentId, redirectTo)
+			autoClient := autonomic.NewAutonomicClient(myself.Addr + ":" + strconv.Itoa(autonomic.Port))
+			status = autoClient.SetExploredSuccessfully(deploymentId, redirectTo.Id)
 			if status != http.StatusOK {
 				log.Errorf("got status %d when setting %s exploration as success", status, redirectTo)
 			}

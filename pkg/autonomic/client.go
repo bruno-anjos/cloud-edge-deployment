@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/golang/geo/s2"
 )
@@ -94,7 +95,7 @@ func (c *Client) IsNodeInVicinity(nodeId string) (isInVicinity bool) {
 	return
 }
 
-func (c *Client) GetClosestNode(locations []s2.CellID, toExclude map[string]interface{}) (closest string) {
+func (c *Client) GetClosestNode(locations []s2.CellID, toExclude map[string]interface{}) (closest *utils.Node) {
 	reqBody := api.ClosestNodeRequestBody{
 		Locations: locations,
 		ToExclude: toExclude,
@@ -102,15 +103,22 @@ func (c *Client) GetClosestNode(locations []s2.CellID, toExclude map[string]inte
 	path := api.GetClosestNodePath()
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, reqBody)
 
-	utils.DoRequest(c.Client, req, &closest)
+	respBody := api.ClosestNodeResponseBody{}
+	utils.DoRequest(c.Client, req, &respBody)
+
+	closest = &respBody
+
 	return
 }
 
-func (c *Client) GetVicinity() (vicinity map[string]s2.CellID, status int) {
+func (c *Client) GetVicinity() (vicinity *autonomic.Vicinity, status int) {
 	path := api.GetVicinityPath()
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
-	status = utils.DoRequest(c.Client, req, &vicinity)
+	respBody := api.GetVicinityResponseBody{}
+	status = utils.DoRequest(c.Client, req, &respBody)
+
+	vicinity = &respBody
 
 	return
 }

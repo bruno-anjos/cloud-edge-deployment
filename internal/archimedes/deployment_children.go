@@ -3,12 +3,15 @@ package archimedes
 import (
 	"sync"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/golang/geo/s2"
 )
 
 type (
-	deploymentNodesMapKey = string
-	deploymentNodesMapValue = s2.CellID
+	deploymentNodesMapValue struct {
+		Location s2.CellID
+		Node *utils.Node
+	}
 
 	deploymentNodes struct {
 		sync.Map
@@ -39,7 +42,7 @@ func (nd *nodesPerDeployment) delete(deploymentId, nodeId string) {
 	nodes.Delete(nodeId)
 }
 
-func (nd *nodesPerDeployment) rangeOver(deploymentId string, f func(nodeId string, nodeLoc s2.CellID) bool) {
+func (nd *nodesPerDeployment) rangeOver(deploymentId string, f func(node *utils.Node, nodeLoc s2.CellID) bool) {
 	value, ok := nd.nodes.Load(deploymentId)
 	if !ok {
 		return
@@ -47,6 +50,7 @@ func (nd *nodesPerDeployment) rangeOver(deploymentId string, f func(nodeId strin
 
 	nodes := value.(nodesPerDeploymentMapValue)
 	nodes.Range(func(key, value interface{}) bool {
-		return f(key.(deploymentNodesMapKey), value.(deploymentNodesMapValue))
+		depValue := value.(deploymentNodesMapValue)
+		return f(depValue.Node, depValue.Location)
 	})
 }

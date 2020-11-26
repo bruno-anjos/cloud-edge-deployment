@@ -5,10 +5,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strconv"
 
 	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
@@ -16,7 +14,7 @@ import (
 )
 
 var (
-	deployerClient = deployer.NewDeployerClient(utils.LocalhostAddr + ":" + strconv.Itoa(deployer.Port))
+	deployerClient = deployer.NewDeployerClient(deployer.LocalHostPort)
 )
 
 func main() {
@@ -42,21 +40,6 @@ func main() {
 
 					return nil
 				},
-				Subcommands: []*cli.Command{
-					{
-						Name:  "node",
-						Usage: "add a new node",
-						Action: func(c *cli.Context) error {
-							if c.Args().Len() != 1 {
-								log.Fatal("add node: node_addr")
-							}
-
-							addNode(c.Args().First())
-
-							return nil
-						},
-					},
-				},
 			},
 			{
 				Name:    "del",
@@ -78,13 +61,6 @@ func main() {
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Fatal(err)
-	}
-}
-
-func addNode(addr string) {
-	status := deployerClient.AddNode(addr)
-	if status != http.StatusOK {
-		log.Fatalf("got status code %d while adding node to deployer", status)
 	}
 }
 

@@ -17,7 +17,7 @@ type RedirectAction struct {
 	ErrorRedirectingCallback func()
 }
 
-func NewRedirectAction(deploymentId, from, to string, amount int) *RedirectAction {
+func NewRedirectAction(deploymentId string, from, to *utils.Node, amount int) *RedirectAction {
 	return &RedirectAction{
 		actionWithDeploymentOriginTarget: newActionWithDeploymentOriginTarget(RedirectClientsId, deploymentId, from, to,
 			amount),
@@ -38,14 +38,14 @@ func (r *RedirectAction) getErrorRedirectingCallback() func() {
 
 func (r *RedirectAction) Execute(client utils.Client) {
 	assertedClient := client.(*archimedes.Client)
-	assertedClient.SetHostPort(r.GetTarget() + ":" + strconv.Itoa(archimedes.Port))
-	status := assertedClient.WillRedirectToYou(r.GetDeploymentId(), r.GetOrigin())
+	assertedClient.SetHostPort(r.GetTarget().Addr + ":" + strconv.Itoa(archimedes.Port))
+	status := assertedClient.WillRedirectToYou(r.GetDeploymentId(), r.GetOrigin().Id)
 	if status != http.StatusOK {
 		return
 	}
 
-	assertedClient.SetHostPort(r.GetOrigin() + ":" + strconv.Itoa(archimedes.Port))
-	status = assertedClient.Redirect(r.GetDeploymentId(), r.GetTarget(), r.GetAmount())
+	assertedClient.SetHostPort(r.GetOrigin().Addr + ":" + strconv.Itoa(archimedes.Port))
+	status = assertedClient.Redirect(r.GetDeploymentId(), r.GetTarget().Addr, r.GetAmount())
 	if status != http.StatusOK {
 		r.getErrorRedirectingCallback()()
 	}

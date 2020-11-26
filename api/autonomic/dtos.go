@@ -1,5 +1,9 @@
 package autonomic
 
+import (
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+)
+
 type deploymentConfig struct {
 	DepthFactor  float64
 	StrategyId   string
@@ -10,5 +14,5 @@ type DeploymentDTO struct {
 	DeploymentId string
 	StrategyId   string
 	Children     []string
-	ParentId     string
+	Parent       *utils.Node
 }

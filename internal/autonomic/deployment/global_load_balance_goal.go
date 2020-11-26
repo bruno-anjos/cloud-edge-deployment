@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -76,21 +77,21 @@ func (nl *nodeLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, inf
 		return nil, nil, false
 	}
 
-	locationsInVicinity := value.(map[string]interface{})
+	vicinity := value.(autonomic.VicinityMetric)
 
 	info = map[string]interface{}{}
 	deplClient := deployer.NewDeployerClient("")
 
-	for nodeId := range locationsInVicinity {
+	for nodeId, node := range vicinity.Nodes {
 		_, okS := nl.deployment.Suspected.Load(nodeId)
-		if okS || nodeId == Myself.Id || nodeId == nl.deployment.ParentId {
+		if okS || nodeId == Myself.Id || nodeId == nl.deployment.Parent {
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}
 
-		domain = append(domain, nodeId)
+		domain = append(domain, node)
 
-		deplClient.SetHostPort(nodeId + ":" + strconv.Itoa(deployer.Port))
+		deplClient.SetHostPort(node.Addr + ":" + strconv.Itoa(deployer.Port))
 		deployments, status := deplClient.GetDeployments()
 		if status != http.StatusOK {
 			info[nodeId] = &nodeCriteria{Deployments: []string{}}
@@ -113,8 +114,8 @@ func (nl *nodeLoadBalanceGoal) Filter(candidates, domain Domain) (filtered Range
 func (nl *nodeLoadBalanceGoal) Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range) {
 	ordered = candidates
 	sort.Slice(ordered, func(i, j int) bool {
-		loadI := len(sortingCriteria[ordered[i]].(*nodeCriteria).Deployments)
-		loadJ := len(sortingCriteria[ordered[j]].(*nodeCriteria).Deployments)
+		loadI := len(sortingCriteria[ordered[i].Id].(*nodeCriteria).Deployments)
+		loadJ := len(sortingCriteria[ordered[j].Id].(*nodeCriteria).Deployments)
 		return loadI < loadJ
 	})
 
@@ -133,10 +134,10 @@ func (nl *nodeLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria map[
 	}
 
 	leastBusy := candidates[0]
-	leastAmountOfDeployments := len(candidatesCriteria[leastBusy].(*nodeCriteria).Deployments)
+	leastAmountOfDeployments := len(candidatesCriteria[leastBusy.Id].(*nodeCriteria).Deployments)
 
 	for _, candidate := range candidates {
-		if len(candidatesCriteria[candidate].(*nodeCriteria).Deployments) < (leastAmountOfDeployments+1)*2 {
+		if len(candidatesCriteria[candidate.Id].(*nodeCriteria).Deployments) < (leastAmountOfDeployments+1)*2 {
 			cutoff = append(cutoff, candidate)
 		} else {
 			maxed = false
@@ -146,7 +147,7 @@ func (nl *nodeLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria map[
 	return
 }
 
-func (nl *nodeLoadBalanceGoal) GenerateAction(target string, args ...interface{}) actions.Action {
+func (nl *nodeLoadBalanceGoal) GenerateAction(_ Range, _ ...interface{}) actions.Action {
 	return nil
 }
 

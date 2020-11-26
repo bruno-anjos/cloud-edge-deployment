@@ -17,6 +17,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/pkg/errors"
@@ -35,11 +36,12 @@ const (
 )
 
 var (
-	deplClient          = deployer.NewDeployerClient(deployer.DefaultHostPort)
+	deplClient          = deployer.NewDeployerClient(deployer.LocalHostPort)
 	dockerClient        *client.Client
 	networkId           string
 	instanceToContainer sync.Map
 	fallback            string
+	myself *utils.Node
 
 	stopContainerTimeoutVar = stopContainerTimeout * time.Second
 )
@@ -54,6 +56,8 @@ func InitHandlers() {
 	}
 
 	log.SetLevel(log.DebugLevel)
+
+	myself = utils.NodeFromEnv()
 
 	var err error
 	dockerClient, err = client.NewEnvClient()
@@ -72,9 +76,9 @@ func InitHandlers() {
 	networks, err := dockerClient.NetworkList(context.Background(), types.NetworkListOptions{})
 
 	exists := false
-	for _, network := range networks {
-		if network.Name == networkName {
-			networkId = network.ID
+	for _, netVal := range networks {
+		if netVal.Name == networkName {
+			networkId = netVal.ID
 			exists = true
 			break
 		}
@@ -176,9 +180,9 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	}
 
 	containerConfig := container.Config{
-		Cmd:      containerInstance.Command,
-		Env:      envVars,
-		Image:    containerInstance.ImageName,
+		Cmd:   containerInstance.Command,
+		Env:   envVars,
+		Image: containerInstance.ImageName,
 	}
 
 	hostConfig := container.HostConfig{
@@ -186,13 +190,17 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 		PortBindings: portBindings,
 	}
 
-	cont, err := dockerClient.ContainerCreate(context.Background(), &containerConfig, &hostConfig,
-		nil, instanceId)
-	if err != nil {
-		panic(err)
+	networkConfig := network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			"bridge": {
+				Aliases:   []string{instanceId},
+				NetworkID: networkId,
+			},
+		},
 	}
 
-	err = dockerClient.NetworkConnect(context.Background(), networkId, cont.ID, nil)
+	cont, err := dockerClient.ContainerCreate(context.Background(), &containerConfig, &hostConfig, &networkConfig,
+		instanceId)
 	if err != nil {
 		panic(err)
 	}
@@ -329,7 +337,7 @@ func generatePortBindings(containerPorts nat.PortSet) (portMap nat.PortMap) {
 	for containerPort := range containerPorts {
 
 		hostBinding := nat.PortBinding{
-			HostIP:   utils.LocalhostAddr,
+			HostIP:   myself.Addr,
 			HostPort: getFreePort(containerPort.Proto()),
 		}
 		portMap[containerPort] = []nat.PortBinding{hostBinding}

@@ -56,7 +56,7 @@ type actionWithDeploymentTarget struct {
 	*actionWithDeployment
 }
 
-func newActionWithDeploymentTarget(actionId, deploymentId, target string,
+func newActionWithDeploymentTarget(actionId, deploymentId string, target *utils.Node,
 	args ...interface{}) *actionWithDeploymentTarget {
 	newArgs := []interface{}{target}
 	newArgs = append(newArgs, args...)
@@ -66,15 +66,15 @@ func newActionWithDeploymentTarget(actionId, deploymentId, target string,
 	}
 }
 
-func (a *actionWithDeploymentTarget) GetTarget() string {
-	return a.Args[1].(string)
+func (a *actionWithDeploymentTarget) GetTarget() *utils.Node {
+	return a.Args[1].(*utils.Node)
 }
 
 type actionWithDeploymentTargets struct {
 	*actionWithDeployment
 }
 
-func newActionWithDeploymentTargets(actionId, deploymentId string, targets []string,
+func newActionWithDeploymentTargets(actionId, deploymentId string, targets []*utils.Node,
 	args ...interface{}) *actionWithDeploymentTargets {
 	newArgs := []interface{}{targets}
 	newArgs = append(newArgs, args...)
@@ -84,15 +84,15 @@ func newActionWithDeploymentTargets(actionId, deploymentId string, targets []str
 	}
 }
 
-func (a *actionWithDeploymentTargets) GetTargets() []string {
-	return a.Args[1].([]string)
+func (a *actionWithDeploymentTargets) GetTargets() []*utils.Node {
+	return a.Args[1].([]*utils.Node)
 }
 
 type actionWithDeploymentOriginTarget struct {
 	*actionWithDeploymentTarget
 }
 
-func newActionWithDeploymentOriginTarget(actionId, deploymentId, origin, target string,
+func newActionWithDeploymentOriginTarget(actionId, deploymentId string, origin, target *utils.Node,
 	args ...interface{}) *actionWithDeploymentOriginTarget {
 	newArgs := make([]interface{}, len(args)+1)
 	newArgs[0] = origin
@@ -105,6 +105,6 @@ func newActionWithDeploymentOriginTarget(actionId, deploymentId, origin, target 
 	}
 }
 
-func (a *actionWithDeploymentOriginTarget) GetOrigin() string {
-	return a.Args[2].(string)
+func (a *actionWithDeploymentOriginTarget) GetOrigin() *utils.Node {
+	return a.Args[2].(*utils.Node)
 }

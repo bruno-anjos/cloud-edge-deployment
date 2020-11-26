@@ -43,7 +43,7 @@ func deadChildHandler(_ http.ResponseWriter, r *http.Request) {
 		ToExclude: nil,
 	}
 
-	go attemptToExtend(deploymentId, "", config, 0, body.Alternatives, api.NotExploringTTL)
+	go attemptToExtend(deploymentId, nil, config, 0, body.Alternatives, api.NotExploringTTL)
 }
 
 func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
@@ -55,7 +55,7 @@ func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	log.Debugf("node %s is falling back from %f with deployment %s", reqBody.OrphanId, reqBody.OrphanLocation,
+	log.Debugf("node %s is falling back from %f with deployment %s", reqBody.Orphan.Id, reqBody.OrphanLocation,
 		deploymentId)
 
 	config := &api.ExtendDeploymentConfig{
@@ -64,7 +64,7 @@ func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
 		ToExclude: nil,
 	}
 
-	go attemptToExtend(deploymentId, reqBody.OrphanId, config, maxHopsToLookFor, nil, api.NotExploringTTL)
+	go attemptToExtend(deploymentId, reqBody.Orphan, config, maxHopsToLookFor, nil, api.NotExploringTTL)
 }
 
 func setGrandparentHandler(_ http.ResponseWriter, r *http.Request) {

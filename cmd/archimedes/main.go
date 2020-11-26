@@ -12,6 +12,5 @@ const (
 )
 
 func main() {
-	utils.StartServer(serviceName, archimedes.DefaultHostPort, archimedes.Port, archimedes2.PrefixPath,
-		internal.Routes)
+	utils.StartServer(serviceName, archimedes.Port, archimedes2.PrefixPath, internal.Routes)
 }

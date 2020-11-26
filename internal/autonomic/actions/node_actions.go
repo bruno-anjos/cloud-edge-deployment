@@ -39,7 +39,7 @@ type ExtendDeploymentAction struct {
 	*actionWithDeploymentTarget
 }
 
-func NewExtendDeploymentAction(deploymentId, target string, exploringTTL int, children []*utils.Node,
+func NewExtendDeploymentAction(deploymentId string, target *utils.Node, exploringTTL int, children []*utils.Node,
 	location s2.CellID, toExclude map[string]interface{},
 	setNodeExploringCallback func(nodeId string)) *ExtendDeploymentAction {
 	return &ExtendDeploymentAction{
@@ -72,7 +72,7 @@ func (m *ExtendDeploymentAction) Execute(client utils.Client) {
 	log.Debugf("executing %s to %s", m.ActionId, m.GetTarget())
 	deployerClient := client.(*deployer.Client)
 
-	targetClient := deployer.NewDeployerClient(m.GetTarget() + ":" + strconv.Itoa(deployer.Port))
+	targetClient := deployer.NewDeployerClient(m.GetTarget().Addr + ":" + strconv.Itoa(deployer.Port))
 	has, _ := targetClient.HasDeployment(m.GetDeploymentId())
 	if has {
 		log.Debugf("%s already has deployment %s", m.GetTarget(), m.GetDeploymentId())
@@ -91,7 +91,7 @@ func (m *ExtendDeploymentAction) Execute(client utils.Client) {
 	}
 
 	if m.exploringTTL() != api.NotExploringTTL {
-		m.getSetNodeAsExploringCallback()(m.GetTarget())
+		m.getSetNodeAsExploringCallback()(m.GetTarget().Id)
 	}
 }
 
@@ -99,7 +99,7 @@ type MultipleExtendDeploymentAction struct {
 	*actionWithDeploymentTargets
 }
 
-func NewMultipleExtendDeploymentAction(deploymentId string, targets []string, locations map[string][]s2.CellID,
+func NewMultipleExtendDeploymentAction(deploymentId string, targets []*utils.Node, locations map[string][]s2.CellID,
 	targetsExploring map[string]int, centroidsExtendedCallback func(centroid s2.CellID),
 	toExclude map[string]interface{}, setNodeExploringCallback func(nodeId string)) *MultipleExtendDeploymentAction {
 	return &MultipleExtendDeploymentAction{
@@ -137,7 +137,7 @@ func (m *MultipleExtendDeploymentAction) Execute(client utils.Client) {
 	toExclude := m.getToExclude()
 
 	for _, target := range m.GetTargets() {
-		targetClient := deployer.NewDeployerClient(target + ":" + strconv.Itoa(deployer.Port))
+		targetClient := deployer.NewDeployerClient(target.Addr + ":" + strconv.Itoa(deployer.Port))
 		has, _ := targetClient.HasDeployment(m.GetDeploymentId())
 		if has {
 			log.Debugf("%s already has deployment %s", target, m.GetDeploymentId())
@@ -146,21 +146,21 @@ func (m *MultipleExtendDeploymentAction) Execute(client utils.Client) {
 
 		config := &api.ExtendDeploymentConfig{
 			Children:  nil,
-			Locations: locations[target],
+			Locations: locations[target.Id],
 			ToExclude: toExclude,
 		}
 
-		status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), target, targetsExploring[target], config)
+		status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), target, targetsExploring[target.Id], config)
 		if status != http.StatusOK {
 			log.Errorf("got status code %d while extending deployment", status)
 			return
 		}
 
-		if targetsExploring[target] != api.NotExploringTTL {
-			m.getSetNodeAsExploringCallback()(target)
+		if targetsExploring[target.Id] != api.NotExploringTTL {
+			m.getSetNodeAsExploringCallback()(target.Id)
 		}
 
-		for _, centroid := range locations[target] {
+		for _, centroid := range locations[target.Id] {
 			extendedCentroidCallback(centroid)
 		}
 	}

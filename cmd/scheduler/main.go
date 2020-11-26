@@ -15,10 +15,10 @@ const (
 
 func main() {
 	debug := flag.Bool("d", false, "add debug logs")
-	listenAddr := flag.String("l", utils.LocalhostAddr, "address to listen on")
+	listenAddr := flag.String("l", utils.localhostAddr, "address to listen on")
 	flag.Parse()
 
 	internal.InitHandlers()
-	utils.StartServerWithoutDefaultFlags(serviceName, scheduler.DefaultHostPort, scheduler.Port, api.PrefixPath,
-		internal.Routes, debug, listenAddr)
+	utils.StartServerWithoutDefaultFlags(serviceName, scheduler.Port, api.PrefixPath, internal.Routes, debug,
+		listenAddr)
 }

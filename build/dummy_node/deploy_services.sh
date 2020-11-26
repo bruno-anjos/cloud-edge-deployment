@@ -21,8 +21,10 @@ HOSTNAME=$(hostname)
 
 ./load_images.sh
 
+docker network create --subnet=181.168.192.1/20 services-network
+
 run() {
-	docker run -d --network=host --name=$SERVICE_NAME -p $PORT:$PORT \
+	docker run -d --network=services-network --name=$SERVICE_NAME --net-alias=$SERVICE_NAME -p $PORT:$PORT \
 		$OPTIONS --hostname "$HOSTNAME" brunoanjos/$SERVICE_NAME:latest
 }
 

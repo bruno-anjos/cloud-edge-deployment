@@ -61,14 +61,15 @@ func (c *Client) RegisterDeployment(deploymentId string, static bool, deployment
 	return
 }
 
-func (c *Client) ExtendDeploymentTo(deploymentId, targetId string, exploringTTL int,
+func (c *Client) ExtendDeploymentTo(deploymentId string, node *utils.Node, exploringTTL int,
 	config *api.ExtendDeploymentConfig) (status int) {
 	reqBody := api.ExtendDeploymentRequestBody{
+		Node:         node,
 		ExploringTTL: exploringTTL,
 		Config:       config,
 	}
 
-	path := api.GetExtendDeploymentPath(deploymentId, targetId)
+	path := api.GetExtendDeploymentPath(deploymentId)
 	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status = utils.DoRequest(c.Client, req, nil)
@@ -189,18 +190,6 @@ func (c *Client) SetParentAlive(parentId string) (status int) {
 	return
 }
 
-func (c *Client) AddNode(nodeAddr string) (status int) {
-	var reqBody api.AddNodeRequestBody
-	reqBody = nodeAddr
-
-	path := api.GetAddNodePath()
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
-
-	status = utils.DoRequest(c.Client, req, nil)
-
-	return
-}
-
 func (c *Client) SendInstanceHeartbeatToDeployerPeriodically() {
 	deploymentId := os.Getenv(utils.DeploymentEnvVarName)
 	instanceId := os.Getenv(utils.InstanceEnvVarName)
@@ -242,9 +231,9 @@ func (c *Client) SendAlternatives(myId string, alternatives []*utils.Node) (stat
 	return
 }
 
-func (c *Client) Fallback(deploymentId, orphanId string, orphanLocation s2.CellID) (status int) {
+func (c *Client) Fallback(deploymentId string, orphan *utils.Node, orphanLocation s2.CellID) (status int) {
 	var reqBody api.FallbackRequestBody
-	reqBody.OrphanId = orphanId
+	reqBody.Orphan = orphan
 	reqBody.OrphanLocation = orphanLocation
 
 	path := api.GetFallbackPath(deploymentId)

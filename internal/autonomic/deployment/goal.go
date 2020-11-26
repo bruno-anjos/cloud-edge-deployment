@@ -2,16 +2,17 @@ package deployment
 
 import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 )
 
 type (
-	Domain = []string
-	Range  = []string
+	Domain = []*utils.Node
+	Range  = []*utils.Node
 )
 
 type Goal interface {
 	Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range, actionArgs []interface{})
-	GenerateAction(targets []string, args ...interface{}) actions.Action
+	GenerateAction(targets Range, args ...interface{}) actions.Action
 	GenerateDomain(arg interface{}) (domain Domain, info map[string]interface{}, success bool)
 	Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range)
 	Filter(candidates, domain Domain) (filtered Range)
@@ -28,12 +29,12 @@ func DefaultFilter(candidates, domain Domain) (filtered Range) {
 
 	mappedCandidates := map[string]struct{}{}
 	for _, d := range candidates {
-		mappedCandidates[d] = struct{}{}
+		mappedCandidates[d.Id] = struct{}{}
 	}
 
-	for _, nodeId := range domain {
-		if _, ok := mappedCandidates[nodeId]; ok {
-			filtered = append(filtered, nodeId)
+	for _, node := range domain {
+		if _, ok := mappedCandidates[node.Id]; ok {
+			filtered = append(filtered, node)
 		}
 	}
 

@@ -1,6 +1,7 @@
 package archimedes
 
 import (
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
 )
@@ -10,7 +11,7 @@ type ResolvedDTO struct {
 	Port string
 }
 
-type deploymentDTO struct {
+type DeploymentDTO struct {
 	Ports nat.PortSet
 }
 
@@ -21,12 +22,12 @@ type InstanceDTO struct {
 }
 
 type DeploymentsTableEntryDTO struct {
-	Host, HostAddr string
-	Deployment     *Deployment
-	Instances      map[string]*Instance
-	NumberOfHops   int
-	MaxHops        int
-	Version        int
+	Host         *utils.Node
+	Deployment   *Deployment
+	Instances    map[string]*Instance
+	NumberOfHops int
+	MaxHops      int
+	Version      int
 }
 
 type DiscoverMsg struct {

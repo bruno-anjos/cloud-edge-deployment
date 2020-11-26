@@ -12,5 +12,5 @@ const (
 )
 
 func main() {
-	utils.StartServer(serviceName, autonomic.DefaultHostPort, autonomic.Port, autonomic2.PrefixPath, internal.Routes)
+	utils.StartServer(serviceName, autonomic.Port, autonomic2.PrefixPath, internal.Routes)
 }

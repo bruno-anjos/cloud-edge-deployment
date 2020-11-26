@@ -12,5 +12,5 @@ const (
 )
 
 func main() {
-	utils.StartServer(serviceName, deployer.DefaultHostPort, deployer.Port, deployer2.PrefixPath, internal.Routes)
+	utils.StartServer(serviceName, deployer.Port, deployer2.PrefixPath, internal.Routes)
 }

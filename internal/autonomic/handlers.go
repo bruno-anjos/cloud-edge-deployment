@@ -52,7 +52,8 @@ func getAllDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
 
 func addDeploymentChildHandler(_ http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-	childId := utils.ExtractPathVar(r, childIdPathVar)
+
+	// TODO missing child in body
 
 	autonomicSystem.addDeploymentChild(deploymentId, childId)
 }
@@ -66,10 +67,11 @@ func removeDeploymentChildHandler(_ http.ResponseWriter, r *http.Request) {
 
 func setDeploymentParentHandler(_ http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-	parentId := utils.ExtractPathVar(r, parentIdPathVar)
+
+	// TODO missing parent in body
 
 	log.Debugf("setting %s as parent for deployment %s", parentId, deploymentId)
-	autonomicSystem.setDeploymentParent(deploymentId, parentId)
+	autonomicSystem.setDeploymentParent(deploymentId, parent)
 }
 
 func isNodeInVicinityHandler(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +92,7 @@ func closestNodeToHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	closest := autonomicSystem.closestNodeTo(reqBody.Locations, reqBody.ToExclude)
-	if closest == "" {
+	if closest == nil {
 		utils.SendJSONReplyStatus(w, http.StatusNotFound, closest)
 		return
 	}
@@ -106,7 +108,7 @@ func getVicinityHandler(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	var respBody api.GetVicinityResponseBody
-	respBody = vicinity
+	respBody = *vicinity
 
 	utils.SendJSONReplyOK(w, respBody)
 }

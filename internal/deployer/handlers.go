@@ -2,11 +2,8 @@ package deployer
 
 import (
 	"encoding/json"
-	"net"
 	"net/http"
-	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -47,15 +44,14 @@ const (
 )
 
 var (
-	autonomicClient  = autonomic.NewAutonomicClient(autonomic.DefaultHostPort)
-	archimedesClient = archimedes.NewArchimedesClient(archimedes.DefaultHostPort)
-	schedulerClient  = scheduler.NewSchedulerClient(scheduler.DefaultHostPort)
+	autonomicClient  = autonomic.NewAutonomicClient(autonomic.LocalHostPort)
+	archimedesClient = archimedes.NewArchimedesClient(archimedes.LocalHostPort)
+	schedulerClient  = scheduler.NewSchedulerClient(scheduler.LocalHostPort)
 )
 
 var (
-	hostname string
 	location s2.Cell
-	fallback string
+	fallback *utils.Node
 	myself   *utils.Node
 
 	myAlternatives       sync.Map
@@ -75,13 +71,7 @@ var (
 )
 
 func init() {
-	var err error
-	hostname, err = os.Hostname()
-	if err != nil {
-		panic(err)
-	}
-
-	myself = utils.NewNode(hostname, hostname)
+	myself = utils.NodeFromEnv()
 
 	myAlternatives = sync.Map{}
 	nodeAlternatives = map[string][]*utils.Node{}
@@ -144,7 +134,7 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deplClient := deployer.NewDeployerClient(parent.Id + ":" + strconv.Itoa(deployer.Port))
+	deplClient := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
 	log.Debugf("propagating %s location for deployments %+v to %s", reqBody.ChildId, deploymentId, parent.Id)
 	deplClient.PropagateLocationToHorizon(deploymentId, reqBody.ChildId, reqBody.Location, reqBody.TTL+1,
 		reqBody.Operation)
@@ -152,15 +142,6 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 
 func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-	targetAddr := utils.ExtractPathVar(r, nodeIdPathVar)
-
-	log.Debugf("handling request to extend deployment %s to %s", deploymentId, targetAddr)
-
-	if !hTable.hasDeployment(deploymentId) {
-		log.Debugf("deployment %s does not exist, ignoring extension request", deploymentId)
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
 
 	var reqBody api.ExtendDeploymentRequestBody
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -168,7 +149,19 @@ func extendDeploymentToHandler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	go attemptToExtend(deploymentId, targetAddr, reqBody.Config, 0, nil, reqBody.ExploringTTL)
+	nodeId := ""
+	if reqBody.Node != nil {
+		nodeId = reqBody.Node.Id
+	}
+	log.Debugf("handling request to extend deployment %s to %s", deploymentId, nodeId)
+
+	if !hTable.hasDeployment(deploymentId) {
+		log.Debugf("deployment %s does not exist, ignoring extension request", deploymentId)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	go attemptToExtend(deploymentId, reqBody.Node, reqBody.Config, 0, nil, reqBody.ExploringTTL)
 }
 
 func childDeletedDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
@@ -179,8 +172,7 @@ func childDeletedDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	hTable.removeChild(deploymentId, childId)
 	children.Delete(childId)
 
-	autoClient := autonomic.NewAutonomicClient(autonomic.DefaultHostPort)
-	autoClient.BlacklistNodes(deploymentId, myself.Id, childId)
+	autonomicClient.BlacklistNodes(deploymentId, myself.Id, childId)
 }
 
 func getDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
@@ -314,7 +306,7 @@ func takeChildren(deploymentId string, parent *utils.Node, children ...*utils.No
 	deplClient := deployer.NewDeployerClient("")
 
 	for _, child := range children {
-		deplClient.SetHostPort(child.Id + ":" + strconv.Itoa(deployer.Port))
+		deplClient.SetHostPort(child.Addr + ":" + strconv.Itoa(deployer.Port))
 		status := deplClient.WarnThatIAmParent(deploymentId, myself, parent)
 		if status == http.StatusConflict {
 			log.Debugf("can not be %s parent since it already has a live parent", child.Id)
@@ -352,16 +344,6 @@ func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func addNodeHandler(_ http.ResponseWriter, r *http.Request) {
-	var nodeAddr string
-	err := json.NewDecoder(r.Body).Decode(&nodeAddr)
-	if err != nil {
-		panic(err)
-	}
-
-	onNodeUp(nodeAddr)
-}
-
 func whoAreYouHandler(w http.ResponseWriter, _ *http.Request) {
 	utils.SendJSONReplyOK(w, myself.Id)
 }
@@ -382,16 +364,16 @@ func hasDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 
 // TODO function simulating lower API
 func getNodeCloserTo(locations []s2.CellID, maxHopsToLookFor int,
-	excludeNodes map[string]interface{}) (closest string, found bool) {
+	excludeNodes map[string]interface{}) (closest *utils.Node, found bool) {
 	closest = autonomicClient.GetClosestNode(locations, excludeNodes)
-	found = closest != ""
+	found = closest != nil
 	return
 }
 
 func addDeploymentAsync(deployment *Deployment, deploymentId string) {
 	log.Debugf("adding deployment %s (ni: %d, s: %t)", deploymentId, deployment.NumberOfInstances, deployment.Static)
 
-	status := archimedesClient.RegisterDeployment(deploymentId, deployment.Ports)
+	status := archimedesClient.RegisterDeployment(deploymentId, deployment.Ports, myself)
 	if status != http.StatusOK {
 		log.Errorf("got status code %d from archimedes", status)
 		return
@@ -487,20 +469,8 @@ func addNode(nodeDeployerId, addr string) bool {
 
 // TODO function simulation lower API
 // Node up is only triggered for nodes that appeared one hop away
-func onNodeUp(addr string) {
-	var (
-		id  string
-		err error
-	)
-	if strings.Contains(addr, ":") {
-		id, _, err = net.SplitHostPort(addr)
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		id = addr
-	}
-	addNode(id, id)
+func onNodeUp(id, addr string) {
+	addNode(id, addr)
 	sendAlternatives()
 	if !timer.Stop() {
 		<-timer.C
