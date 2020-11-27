@@ -12,6 +12,6 @@ type (
 	ResolveInArchimedesResponseBody       = archimedes.ResolvedDTO
 	ResolveUpTheTreeResponseBody          = archimedes.ResolvedDTO
 	RedirectClientDownTheTreeResponseBody = string
-	GetFallbackResponseBody               = string
+	GetFallbackResponseBody               = utils.Node
 	IAmYourChildResponseBody              = utils.Node
 )

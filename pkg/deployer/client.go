@@ -244,7 +244,7 @@ func (c *Client) Fallback(deploymentId string, orphan *utils.Node, orphanLocatio
 	return
 }
 
-func (c *Client) GetFallback() (fallback string, status int) {
+func (c *Client) GetFallback() (fallback *utils.Node, status int) {
 	path := api.GetGetFallbackIdPath()
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
@@ -253,7 +253,7 @@ func (c *Client) GetFallback() (fallback string, status int) {
 	)
 	status = utils.DoRequest(c.Client, req, &respBody)
 
-	fallback = respBody
+	fallback = &respBody
 
 	return
 }

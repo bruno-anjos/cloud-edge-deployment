@@ -10,17 +10,18 @@ const (
 
 	PrefixPath = "/autonomic"
 
-	DeploymentsPath      = "/deployments"
-	DeploymentPath       = "/deployments/%s"
-	DeploymentChildPath  = "/deployments/%s/child"
-	DeploymentParentPath = "/deployments/%s/parent"
-	IsNodeInVicinityPath = "/vicinity/%s"
-	ClosestNodePath      = "/closest"
-	VicinityPath         = "/vicinity"
-	MyLocationPath       = "/location"
-	LoadPath             = "/load/%s"
-	ExplorePath          = "/explored/%s/%s"
-	BlacklistPath        = "/blacklist/%s"
+	DeploymentsPath              = "/deployments"
+	DeploymentPath               = "/deployments/%s"
+	DeploymentChildPath          = "/deployments/%s/child"
+	DeploymentChildWithChildPath = "/deployments/%s/child/%s"
+	DeploymentParentPath         = "/deployments/%s/parent"
+	IsNodeInVicinityPath         = "/vicinity/%s"
+	ClosestNodePath              = "/closest"
+	VicinityPath                 = "/vicinity"
+	MyLocationPath               = "/location"
+	LoadPath                     = "/load/%s"
+	ExplorePath                  = "/explored/%s/%s"
+	BlacklistPath                = "/blacklist/%s"
 )
 
 func GetDeploymentsPath() string {
@@ -33,6 +34,10 @@ func GetDeploymentPath(deploymentId string) string {
 
 func GetDeploymentChildPath(deploymentId string) string {
 	return PrefixPath + fmt.Sprintf(DeploymentChildPath, deploymentId)
+}
+
+func GetDeploymentChildWithChildPath(deploymentId, childId string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentChildWithChildPath, deploymentId, childId)
 }
 
 func GetDeploymentParentPath(deploymentId string) string {

@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	// localhostAddr contains the default interface address
-	localhostAddr = "0.0.0.0"
+	// LocalhostAddr contains the default interface address
+	LocalhostAddr = "0.0.0.0"
 )
 
 // StartServer seeds the random generator and starts a server on the
@@ -21,7 +21,7 @@ func StartServer(deploymentName string, port int, prefixPath string, routes []Ro
 	rand.Seed(time.Now().UnixNano())
 
 	debug := flag.Bool("d", false, "add debug logs")
-	listenAddr := flag.String("l", localhostAddr, "address to listen on")
+	listenAddr := flag.String("l", LocalhostAddr, "address to listen on")
 	flag.Parse()
 
 	if *debug {
@@ -35,7 +35,7 @@ func StartServer(deploymentName string, port int, prefixPath string, routes []Ro
 	if *listenAddr != "" {
 		listenAddrPort = *listenAddr + ":" + strconv.Itoa(port)
 	} else {
-		listenAddrPort = localhostAddr
+		listenAddrPort = LocalhostAddr
 	}
 
 	log.Infof("%s server listening at %s...\n", deploymentName, listenAddrPort)
@@ -57,7 +57,7 @@ func StartServerWithoutDefaultFlags(deploymentName string, port int, prefixPath 
 	if *listenAddr != "" {
 		listenAddrPort = *listenAddr + ":" + strconv.Itoa(port)
 	} else {
-		listenAddrPort = localhostAddr
+		listenAddrPort = LocalhostAddr
 	}
 
 	log.Infof("%s server listening at %s...\n", deploymentName, listenAddrPort)

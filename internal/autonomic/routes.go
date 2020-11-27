@@ -29,7 +29,6 @@ const (
 const (
 	deploymentIdPathVar = "deploymentId"
 	childIdPathVar      = "childId"
-	parentIdPathVar     = "parentId"
 	nodeIdPathVar       = "nodeId"
 )
 
@@ -38,17 +37,18 @@ var (
 	_childIdPathVarFormatted      = fmt.Sprintf(utils.PathVarFormat, childIdPathVar)
 	_nodeIdPathVarFormatted       = fmt.Sprintf(utils.PathVarFormat, nodeIdPathVar)
 
-	deploymentsRoute     = autonomic.DeploymentsPath
-	deploymentRoute      = fmt.Sprintf(autonomic.DeploymentPath, _deploymentIdPathVarFormatted)
-	deploymentChildRoute = fmt.Sprintf(autonomic.DeploymentChildPath, _deploymentIdPathVarFormatted)
-	deploymentParentRoute = fmt.Sprintf(autonomic.DeploymentParentPath, _deploymentIdPathVarFormatted)
-	isNodeInVicinityRoute     = fmt.Sprintf(autonomic.IsNodeInVicinityPath, _nodeIdPathVarFormatted)
-	closestNodeRoute          = autonomic.ClosestNodePath
-	getVicinityRoute          = autonomic.VicinityPath
-	getMyLocationRoute        = autonomic.MyLocationPath
-	getLoadRoute              = fmt.Sprintf(autonomic.LoadPath, _deploymentIdPathVarFormatted)
-	exploredSuccessfullyRoute = fmt.Sprintf(autonomic.ExplorePath, _deploymentIdPathVarFormatted, _childIdPathVarFormatted)
-	blacklistRoute            = fmt.Sprintf(autonomic.BlacklistPath, _deploymentIdPathVarFormatted)
+	deploymentsRoute              = autonomic.DeploymentsPath
+	deploymentRoute               = fmt.Sprintf(autonomic.DeploymentPath, _deploymentIdPathVarFormatted)
+	deploymentChildRoute          = fmt.Sprintf(autonomic.DeploymentChildPath, _deploymentIdPathVarFormatted)
+	deploymentChildWithChildRoute = fmt.Sprintf(autonomic.DeploymentChildPath, _deploymentIdPathVarFormatted, _childIdPathVarFormatted)
+	deploymentParentRoute         = fmt.Sprintf(autonomic.DeploymentParentPath, _deploymentIdPathVarFormatted)
+	isNodeInVicinityRoute         = fmt.Sprintf(autonomic.IsNodeInVicinityPath, _nodeIdPathVarFormatted)
+	closestNodeRoute              = autonomic.ClosestNodePath
+	getVicinityRoute              = autonomic.VicinityPath
+	getMyLocationRoute            = autonomic.MyLocationPath
+	getLoadRoute                  = fmt.Sprintf(autonomic.LoadPath, _deploymentIdPathVarFormatted)
+	exploredSuccessfullyRoute     = fmt.Sprintf(autonomic.ExplorePath, _deploymentIdPathVarFormatted, _childIdPathVarFormatted)
+	blacklistRoute                = fmt.Sprintf(autonomic.BlacklistPath, _deploymentIdPathVarFormatted)
 )
 
 var Routes = []utils.Route{
@@ -118,7 +118,7 @@ var Routes = []utils.Route{
 	{
 		Name:        removeDeploymentChildName,
 		Method:      http.MethodDelete,
-		Pattern:     deploymentChildRoute,
+		Pattern:     deploymentChildWithChildRoute,
 		HandlerFunc: removeDeploymentChildHandler,
 	},
 

@@ -10,7 +10,7 @@ COPY deployments/ /deployments
 COPY metrics/ /metrics
 
 # Deployer image dependencies
-COPY fallback.txt /
+COPY fallback.json /
 
 COPY load_images.sh /
 

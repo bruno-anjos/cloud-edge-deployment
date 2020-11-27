@@ -112,7 +112,7 @@ func (l *deploymentLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax boo
 			l.overloadedCycles = 0
 			log.Debugf("resetting overloaded cycles")
 		}
-	} else if l.deployment.Parent != "" {
+	} else if l.deployment.Parent != nil {
 		remove := l.checkIfShouldBeRemoved()
 		if remove {
 			isAlreadyMax = false
@@ -153,7 +153,7 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain
 
 	for nodeId, node := range locationsInVicinity.Nodes {
 		_, okS := l.deployment.Suspected.Load(nodeId)
-		if okS || nodeId == l.deployment.Parent {
+		if okS || (l.deployment.Parent != nil && nodeId == l.deployment.Parent.Id) {
 			log.Debugf("ignoring %s", nodeId)
 			continue
 		}

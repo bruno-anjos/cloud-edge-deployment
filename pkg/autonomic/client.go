@@ -52,9 +52,13 @@ func (c *Client) GetDeployments() (deployments map[string]*api.DeploymentDTO, st
 	return
 }
 
-func (c *Client) AddDeploymentChild(deploymentId, childId string) (status int) {
-	path := api.GetDeploymentChildPath(deploymentId, childId)
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
+func (c *Client) AddDeploymentChild(deploymentId string, child *utils.Node) (status int) {
+	path := api.GetDeploymentChildPath(deploymentId)
+
+	var reqBody api.AddDeploymentChildRequestBody
+	reqBody = *child
+
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status = utils.DoRequest(c.Client, req, nil)
 
@@ -62,7 +66,7 @@ func (c *Client) AddDeploymentChild(deploymentId, childId string) (status int) {
 }
 
 func (c *Client) RemoveDeploymentChild(deploymentId, childId string) (status int) {
-	path := api.GetDeploymentChildPath(deploymentId, childId)
+	path := api.GetDeploymentChildWithChildPath(deploymentId, childId)
 	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status = utils.DoRequest(c.Client, req, nil)
@@ -70,9 +74,12 @@ func (c *Client) RemoveDeploymentChild(deploymentId, childId string) (status int
 	return
 }
 
-func (c *Client) SetDeploymentParent(deploymentId, parentId string) (status int) {
-	path := api.GetDeploymentParentPath(deploymentId, parentId)
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
+func (c *Client) SetDeploymentParent(deploymentId string, parent *utils.Node) (status int) {
+	path := api.GetDeploymentParentPath(deploymentId)
+
+	var reqBody api.SetDeploymentParentRequestBody
+	reqBody = *parent
+	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
 	status = utils.DoRequest(c.Client, req, nil)
 

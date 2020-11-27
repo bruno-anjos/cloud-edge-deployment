@@ -1,6 +1,6 @@
 FROM frolvlad/alpine-glibc
 COPY ./deployer /deployer
-COPY ./fallback.txt /fallback.txt
+COPY ./fallback.json /fallback.json
 
 EXPOSE 50002
 

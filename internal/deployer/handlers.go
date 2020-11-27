@@ -37,7 +37,7 @@ const (
 )
 
 const (
-	fallbackFilename = "fallback.txt"
+	fallbackFilename = "fallback.json"
 	maxHopsToLookFor = 5
 
 	maxHopslocationHorizon = 3
@@ -350,7 +350,7 @@ func whoAreYouHandler(w http.ResponseWriter, _ *http.Request) {
 
 func getFallbackHandler(w http.ResponseWriter, _ *http.Request) {
 	var respBody api.GetFallbackResponseBody
-	respBody = fallback
+	respBody = *fallback
 
 	utils.SendJSONReplyOK(w, respBody)
 }

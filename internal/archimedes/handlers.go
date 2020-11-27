@@ -364,7 +364,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 		fallbackURL := url.URL{
 			Scheme: "http",
-			Host:   fallback + ":" + strconv.Itoa(archimedes.Port),
+			Host:   fallback.Addr + ":" + strconv.Itoa(archimedes.Port),
 			Path:   api.GetResolvePath(),
 		}
 		clientsManager.RemoveFromExploring(reqBody.DeploymentId)

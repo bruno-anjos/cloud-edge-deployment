@@ -91,11 +91,33 @@ def generate_dicts_for_service_tree():
     return service_location, processing_time, service_latency
 
 
+def get_vicinity_metric(visible_nodes, nodes_locations):
+    print(f"Vicinity: {visible_nodes}")
+
+    vicinity_nodes = {}
+    for nodeid in visible_nodes:
+        vicinity_nodes[nodeid] = ids_to_nodes[nodeid]
+
+    locations = {}
+    for nodeid in visible_nodes:
+        location = s2sphere.CellId.from_lat_lng(
+            s2sphere.LatLng.from_degrees(
+                nodes_locations[nodeid]["lat"],
+                nodes_locations[nodeid]["lng"]
+            )
+        ).to_token()
+        locations[nodeid] = location
+
+    vicinity = {"Nodes": vicinity_nodes, "Locations": locations}
+    return vicinity
+
+
 def generate_node_metrics(node_id, loc, visible_nodes, children, nodes_locations, services, service_latencies,
                           processing_times, client_locations):
-    visible_nodes_location = ",\n".join([
-        f""""{nodeId}": "{s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(nodes_locations[nodeId]["lat"], nodes_locations[nodeId]["lng"])).to_token()}" """
-        for nodeId in visible_nodes])
+    print(f"Generating metrics for {node_id}")
+
+    vicinity = get_vicinity_metric(visible_nodes, nodes_locations)
+    print(vicinity)
 
     other = []
     for s in services:
@@ -115,10 +137,11 @@ def generate_node_metrics(node_id, loc, visible_nodes, children, nodes_locations
 
     m = f"""{{
         "METRIC_NODE_ADDR": "{node_id}",
-        "METRIC_LOCATION": "{s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(loc["lat"], loc["lng"])).to_token()}",
-        "METRIC_LOCATION_VICINITY": {{
-            {visible_nodes_location}
-        }},
+        "METRIC_LOCATION": "{s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(loc["lat"], loc["lng"]))
+        .to_token()}",
+        "METRIC_LOCATION_VICINITY":
+            {json.dumps(vicinity)}
+        ,
         {other_strings}
     }}"""
 
@@ -273,15 +296,15 @@ def gen_trees(neigh_size, config):
     tree_sizes = []
 
     if fallback_config_name in config:
-        new_fallback = fromOriginalToDummy[config[fallback_config_name]]
+        new_fallback = ids_to_nodes[fromOriginalToDummy[config[fallback_config_name]]]
     else:
-        new_fallback = mid_node
+        new_fallback = ids_to_nodes[mid_node]
     print(f"fallback is {new_fallback}")
 
     last_nodes = {}
     for service in services:
-        tree, tree_size, last_node = generate_service_tree(new_fallback, service, nodes_children, nodes_locations,
-                                                           client_locations)
+        tree, tree_size, last_node = generate_service_tree(
+            new_fallback["Id"], service, nodes_children, nodes_locations, client_locations)
         print(f"{last_node} is last node for service {service}")
         new_trees.append(tree)
         tree_sizes.append(tree_size)
@@ -337,8 +360,8 @@ def write_final_tree(nodes_locations, output_dir):
         locs = json.dumps(locations, indent=4, sort_keys=False)
         locFp.write(locs)
 
-    with open(f"{os.path.dirname(os.path.realpath(__file__))}/../build/deployer/fallback.txt", 'w') as fallbackFp:
-        fallbackFp.write(fallback)
+    with open(f"{os.path.dirname(os.path.realpath(__file__))}/../build/deployer/fallback.json", 'w') as fallbackFp:
+        json.dump(fallback, fallbackFp)
 
     with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/neighborhoods.json", 'w') as neighsFp:
         neighs = json.dumps(neighborhoods, indent=4, sort_keys=False)
@@ -419,6 +442,14 @@ if fallbackConfig:
     loadedConfig[fallback_config_name] = fallbackConfig
 
 print("Nodes: ", nodes)
+
+ids_to_nodes = {}
+for i, aux_node_id in enumerate(nodes):
+    node_num = (i + 1) % 255
+    carry = (i + 1) // 255
+    ip = f"192.168.19{3 + carry}.{node_num}"
+    aux_node = {"Id": aux_node_id, "Addr": ip}
+    ids_to_nodes[aux_node_id] = aux_node
 
 filelist = os.listdir(outputDir)
 for f in filelist:

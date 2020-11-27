@@ -52,10 +52,16 @@ func getAllDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
 
 func addDeploymentChildHandler(_ http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-
 	// TODO missing child in body
 
-	autonomicSystem.addDeploymentChild(deploymentId, childId)
+	reqBody := api.AddDeploymentChildRequestBody{}
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		panic(err)
+	}
+
+	child := &reqBody
+	autonomicSystem.addDeploymentChild(deploymentId, child)
 }
 
 func removeDeploymentChildHandler(_ http.ResponseWriter, r *http.Request) {
@@ -68,9 +74,15 @@ func removeDeploymentChildHandler(_ http.ResponseWriter, r *http.Request) {
 func setDeploymentParentHandler(_ http.ResponseWriter, r *http.Request) {
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 
-	// TODO missing parent in body
+	reqBody := api.SetDeploymentParentRequestBody{}
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		panic(err)
+	}
 
-	log.Debugf("setting %s as parent for deployment %s", parentId, deploymentId)
+	parent := &reqBody
+
+	log.Debugf("setting %s as parent for deployment %s", parent.Id, deploymentId)
 	autonomicSystem.setDeploymentParent(deploymentId, parent)
 }
 

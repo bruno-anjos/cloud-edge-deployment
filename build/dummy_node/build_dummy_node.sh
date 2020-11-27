@@ -3,7 +3,7 @@
 BUILD_DIR="$CLOUD_EDGE_DEPLOYMENT"/build
 
 # Clear previous build directories and files
-rm "$BUILD_DIR"/dummy_node/fallback.txt
+rm "$BUILD_DIR"/dummy_node/fallback.json
 rm -rf "$BUILD_DIR"/dummy_node/metrics
 rm -rf "$BUILD_DIR"/dummy_node/deployments
 rm -rf "$BUILD_DIR"/dummy_node/images
@@ -19,7 +19,7 @@ mkdir "$BUILD_DIR"/dummy_node/images
 bash "$BUILD_DIR"/dummy_node/build_images.sh
 
 # Deployer dependencies
-cp "$BUILD_DIR"/deployer/fallback.txt "$BUILD_DIR"/dummy_node/
+cp "$BUILD_DIR"/deployer/fallback.json "$BUILD_DIR"/dummy_node/
 
 # Autonomic dependencies
 cp -r "$BUILD_DIR"/autonomic/metrics "$BUILD_DIR"/dummy_node/

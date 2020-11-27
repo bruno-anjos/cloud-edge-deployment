@@ -1,8 +1,9 @@
 package deployer
 
 import (
-	"io/ioutil"
+	"encoding/json"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -224,7 +225,7 @@ func (t *hierarchyTable) updateDeployment(deploymentId string, parent *utils.Nod
 	log.Debugf("deployment %s updated with parent %s and grandparent %s", deploymentId, parentId, grandparentId)
 
 	if parent != nil {
-		autonomicClient.SetDeploymentParent(deploymentId, parent.Id)
+		autonomicClient.SetDeploymentParent(deploymentId, parent)
 		deplClient := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
 		status := deplClient.PropagateLocationToHorizon(deploymentId, myself.Id, location.ID(), 0, api.Add)
 		if status != http.StatusOK {
@@ -276,7 +277,7 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, depthFactor float
 
 	autonomicClient.RegisterDeployment(dto.DeploymentId, autonomic.StrategyIdealLatencyId, depthFactor, exploringTTL)
 	if dto.Parent != nil {
-		autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent.Addr)
+		autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent)
 		deplClient := deployer.NewDeployerClient(dto.Parent.Addr + ":" + strconv.Itoa(deployer.Port))
 		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself.Id, location.ID(), 0, api.Add)
 		if status != http.StatusOK {
@@ -404,8 +405,8 @@ func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node, explor
 	entry := value.(typeHierarchyEntriesMapValue)
 	entry.addChild(*child)
 	children.LoadOrStore(child.Id, child)
-	autonomicClient.AddDeploymentChild(deploymentId, child.Id)
-	archimedesClient.AddDeploymentNode(deploymentId, child.Id, nodeLocCache.get(child.Id), exploring)
+	autonomicClient.AddDeploymentChild(deploymentId, child)
+	archimedesClient.AddDeploymentNode(deploymentId, child.Id, nodeLocCache.get(child), exploring)
 	return
 }
 
@@ -835,13 +836,19 @@ func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children 
 	}
 }
 
-func loadFallbackHostname(filename string) string {
-	fileBytes, err := ioutil.ReadFile(filename)
+func loadFallbackHostname(filename string) *utils.Node {
+	filePtr, err := os.Open(filename)
 	if err != nil {
 		panic(err)
 	}
 
-	return string(fileBytes)
+	var node utils.Node
+	err = json.NewDecoder(filePtr).Decode(&node)
+	if err != nil {
+		panic(err)
+	}
+
+	return &node
 }
 
 func getAlternative(alternatives map[string]*utils.Node, targetLocations []s2.CellID, maxHops int,

@@ -232,7 +232,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 		location := s2.CellIDFromToken(cellValue)
 
 		// create node map for centroids and respective distances
-		if nodeId == i.deployment.Parent {
+		if i.deployment.Parent != nil && nodeId == i.deployment.Parent.Id {
 			info[hiddenParentId] = sortingCriteriaType{}
 		} else {
 			info[nodeId] = sortingCriteriaType{}
@@ -245,7 +245,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 		for _, centroidId := range centroids {
 			delta := utils.ChordAngleToKM(s2.CellFromCellID(location).DistanceToCell(centroidCells[centroidId]))
 
-			if nodeId == i.deployment.Parent {
+			if i.deployment.Parent != nil && nodeId == i.deployment.Parent.Id {
 				nodeCentroidsMap = info[hiddenParentId].(sortingCriteriaType)
 			} else {
 				nodeCentroidsMap = info[nodeId].(sortingCriteriaType)

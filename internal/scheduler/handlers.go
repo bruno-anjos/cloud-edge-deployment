@@ -40,7 +40,7 @@ var (
 	dockerClient        *client.Client
 	networkId           string
 	instanceToContainer sync.Map
-	fallback            string
+	fallback            *utils.Node
 	myself *utils.Node
 
 	stopContainerTimeoutVar = stopContainerTimeout * time.Second
@@ -155,7 +155,7 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 
 	deploymentIdEnvVar := utils.DeploymentEnvVarName + "=" + containerInstance.DeploymentName
 	instanceIdEnvVar := utils.InstanceEnvVarName + "=" + instanceId
-	fallbackEnvVar := archimedesHTTPClient.FallbackEnvVar + "=" + fallback
+	fallbackEnvVar := archimedesHTTPClient.FallbackEnvVar + "=" + fallback.Addr
 	nodeEnvVar := "NODE" + "=" + hostname
 
 	// TODO CHANGE THIS TO USE THE ACTUAL LOCATION TOKEN

@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
 
-	publicUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
@@ -18,23 +16,6 @@ import (
 const (
 	ReqIdHeaderField = "REQ_ID"
 )
-
-func resolve(toResolve string) (resolved string) {
-	host, port, err := net.SplitHostPort(toResolve)
-	if err != nil {
-		panic(err)
-	}
-
-	resolved = toResolve
-
-	switch host {
-	case publicUtils.ArchimedesServiceName, publicUtils.DeployerServiceName, publicUtils.SchedulerServiceName,
-		publicUtils.AutonomicServiceName:
-		resolved = "localhost" + ":" + port
-	}
-
-	return
-}
 
 func BuildRequest(method, host, path string, body interface{}) *http.Request {
 	hostUrl := url.URL{
@@ -71,8 +52,6 @@ func BuildRequest(method, host, path string, body interface{}) *http.Request {
 }
 
 func DoRequest(httpClient *http.Client, request *http.Request, responseBody interface{}) int {
-	request.URL.Host = resolve(request.URL.Host)
-
 	log.Debugf("Doing request: %s %s", request.Method, request.URL.String())
 
 	if httpClient == nil {
