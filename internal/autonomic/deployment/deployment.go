@@ -22,7 +22,7 @@ const (
 
 type (
 	nodeWithLocation struct {
-		Node   *utils.Node
+		Node     *utils.Node
 		Location s2.CellID
 	}
 
@@ -86,7 +86,7 @@ func New(deploymentId, strategyId string, suspected *sync.Map, depthFactor float
 
 func (a *Deployment) AddChild(child *utils.Node, location s2.CellID) {
 	node := &nodeWithLocation{
-		Node: child,
+		Node:     child,
 		Location: location,
 	}
 	a.Children.Store(child.Id, node)

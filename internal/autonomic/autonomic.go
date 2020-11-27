@@ -236,7 +236,7 @@ func (a *system) getVicinity() *Vicinity {
 
 	vicinityMetric := value.(VicinityMetric)
 	vicinity := &Vicinity{
-		Nodes: vicinityMetric.Nodes,
+		Nodes:     vicinityMetric.Nodes,
 		Locations: map[string]s2.CellID{},
 	}
 	for nodeId, cellToken := range vicinityMetric.Locations {

@@ -49,7 +49,7 @@ func NewNode(id, addr string) *Node {
 	}
 }
 
-func GetLocalHostPort(port int) string{
+func GetLocalHostPort(port int) string {
 	nodeIP, exists := os.LookupEnv(NodeIPEnvVarName)
 	if !exists {
 		panic("no NODE_IP set in environment")

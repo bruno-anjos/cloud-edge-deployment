@@ -10,7 +10,7 @@ import (
 type (
 	deploymentNodesMapValue struct {
 		Location s2.CellID
-		Node *utils.Node
+		Node     *utils.Node
 	}
 
 	deploymentNodes struct {

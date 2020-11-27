@@ -29,7 +29,7 @@ type (
 	AlternativesRequestBody               = []*utils.Node
 	SetGrandparentRequestBody             = utils.Node
 	FallbackRequestBody                   struct {
-		Orphan       *utils.Node
+		Orphan         *utils.Node
 		OrphanLocation s2.CellID
 	}
 	ExtendDeploymentConfig struct {

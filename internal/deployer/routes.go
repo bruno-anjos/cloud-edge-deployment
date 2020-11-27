@@ -45,15 +45,15 @@ var (
 	_instanceIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, instanceIdPathVar)
 	_deployerIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, nodeIdPathVar)
 
-	deploymentsRoute           = deployer.DeploymentsPath
-	deploymentRoute            = fmt.Sprintf(deployer.DeploymentPath, _deploymentIdPathVarFormatted)
-	whoAreYouRoute             = deployer.WhoAreYouPath
-	setAlternativesRoute       = fmt.Sprintf(deployer.SetAlternativesPath, _deployerIdPathVarFormatted)
-	deadChildRoute             = fmt.Sprintf(deployer.DeadChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
-	deploymentChildRoute       = fmt.Sprintf(deployer.DeploymentChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
-	iAmYourParentRoute         = fmt.Sprintf(deployer.IAmYourParentPath, _deploymentIdPathVarFormatted)
-	hierarchyTableRoute        = deployer.HierarchyTablePath
-	extendDeploymentToRoute    = fmt.Sprintf(deployer.ExtendDeploymentToPath, _deploymentIdPathVarFormatted)
+	deploymentsRoute                = deployer.DeploymentsPath
+	deploymentRoute                 = fmt.Sprintf(deployer.DeploymentPath, _deploymentIdPathVarFormatted)
+	whoAreYouRoute                  = deployer.WhoAreYouPath
+	setAlternativesRoute            = fmt.Sprintf(deployer.SetAlternativesPath, _deployerIdPathVarFormatted)
+	deadChildRoute                  = fmt.Sprintf(deployer.DeadChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	deploymentChildRoute            = fmt.Sprintf(deployer.DeploymentChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
+	iAmYourParentRoute              = fmt.Sprintf(deployer.IAmYourParentPath, _deploymentIdPathVarFormatted)
+	hierarchyTableRoute             = deployer.HierarchyTablePath
+	extendDeploymentToRoute         = fmt.Sprintf(deployer.ExtendDeploymentToPath, _deploymentIdPathVarFormatted)
 	setGrandparentRoute             = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
 	fallbackRoute                   = fmt.Sprintf(deployer.FallbackPath, _deploymentIdPathVarFormatted)
 	getFallbackRoute                = deployer.GetFallbackIdPath

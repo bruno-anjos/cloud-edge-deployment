@@ -41,7 +41,7 @@ var (
 	networkId           string
 	instanceToContainer sync.Map
 	fallback            *utils.Node
-	myself *utils.Node
+	myself              *utils.Node
 
 	stopContainerTimeoutVar = stopContainerTimeout * time.Second
 )

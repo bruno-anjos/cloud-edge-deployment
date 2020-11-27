@@ -25,10 +25,10 @@ const (
 )
 
 type config struct {
-	Deployment      string `json:"service"`
-	RequestTimeout  int    `json:"request_timeout"`
-	MaxRequests     int    `json:"max_requests"`
-	NumberOfClients int    `json:"number_of_clients"`
+	Deployment      string      `json:"service"`
+	RequestTimeout  int         `json:"request_timeout"`
+	MaxRequests     int         `json:"max_requests"`
+	NumberOfClients int         `json:"number_of_clients"`
 	Fallback        *utils.Node `json:"fallback"`
 	Location        struct {
 		Lat float64

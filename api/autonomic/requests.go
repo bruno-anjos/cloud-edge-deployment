@@ -15,6 +15,6 @@ type (
 		Origin string
 		Nodes  []string
 	}
-	AddDeploymentChildRequestBody = utils.Node
+	AddDeploymentChildRequestBody  = utils.Node
 	SetDeploymentParentRequestBody = utils.Node
 )
