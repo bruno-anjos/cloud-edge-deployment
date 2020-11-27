@@ -43,7 +43,7 @@ func main() {
 	flag.Parse()
 
 	if *configFilename == invalid {
-		log.Fatalf("config file name missing")
+		log.Panic("config file name missing")
 	}
 
 	if *debug {
@@ -62,7 +62,7 @@ func main() {
 	}
 
 	if conf.Port == 0 {
-		log.Fatalf("port is zero")
+		log.Panic("port is zero")
 	}
 
 	location := s2.LatLngFromDegrees(conf.Location.Lat, conf.Location.Lng)

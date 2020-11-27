@@ -6,16 +6,14 @@ PORT=""
 
 set -e
 
-while :
-do
+while :; do
 	if ! docker info >/dev/null 2>&1; then
-	    echo "Docker does not seem to be running, run it first and retry"
+		echo "Docker does not seem to be running, run it first and retry"
 		sleep 2s
 	else
 		break
 	fi
 done
-
 
 HOSTNAME=$(hostname)
 
@@ -24,8 +22,8 @@ HOSTNAME=$(hostname)
 docker network create --subnet=181.168.192.1/20 services-network
 
 run() {
-	docker run -d --network=services-network --name=$SERVICE_NAME --net-alias=$SERVICE_NAME -p $PORT:$PORT \
-		$OPTIONS --hostname "$HOSTNAME" brunoanjos/$SERVICE_NAME:latest
+	docker run -d --network=services-network --env NODE_IP="$NODE_IP" --env NODE_ID="$NODE_ID" --name=$SERVICE_NAME \
+		--net-alias=$SERVICE_NAME -p $PORT:$PORT $OPTIONS --hostname "$HOSTNAME" brunoanjos/$SERVICE_NAME:latest
 }
 
 SERVICE_NAME="archimedes"

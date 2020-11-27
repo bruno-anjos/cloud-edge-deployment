@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	autonomicUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -24,16 +25,6 @@ import (
 type (
 	deploymentsMapKey   = string
 	deploymentsMapValue = *deployment.Deployment
-
-	VicinityMetric struct {
-		Nodes     map[string]*utils.Node
-		Locations map[string]string
-	}
-
-	Vicinity struct {
-		Nodes     map[string]*utils.Node
-		Locations map[string]s2.CellID
-	}
 )
 
 type (
@@ -121,7 +112,7 @@ func (a *system) addDeploymentChild(deploymentId string, child *utils.Node) {
 		return
 	}
 
-	locations := value.(VicinityMetric)
+	locations := value.(metrics.VicinityMetric)
 	cellValue, ok := locations.Locations[child.Id]
 	if !ok {
 		log.Errorf("no location for child %s", child.Id)
@@ -189,7 +180,7 @@ func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]inter
 		return nil
 	}
 
-	vicinity := value.(VicinityMetric)
+	vicinity := value.(metrics.VicinityMetric)
 	var ordered []*utils.Node
 
 	for nodeId, node := range vicinity.Nodes {
@@ -228,14 +219,14 @@ func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]inter
 	return ordered[0]
 }
 
-func (a *system) getVicinity() *Vicinity {
+func (a *system) getVicinity() *autonomic.Vicinity {
 	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		return nil
 	}
 
-	vicinityMetric := value.(VicinityMetric)
-	vicinity := &Vicinity{
+	vicinityMetric := value.(metrics.VicinityMetric)
+	vicinity := &autonomic.Vicinity{
 		Nodes:     vicinityMetric.Nodes,
 		Locations: map[string]s2.CellID{},
 	}

@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"os"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/golang/geo/s1"
 )
 
@@ -12,15 +13,11 @@ const (
 	DeploymentEnvVarName = "DEPLOYMENT_ID"
 	InstanceEnvVarName   = "INSTANCE_ID"
 	LocationEnvVarName   = "LOCATION"
-	NodeIdEnvVarName     = "NODE_ID"
-	NodeIPEnvVarName     = "NODE_IP"
 )
 
 const (
 	TCP string = "tcp"
 	UDP string = "udp"
-
-	LocalHost = ""
 )
 
 type Node struct {
@@ -29,12 +26,12 @@ type Node struct {
 }
 
 func NodeFromEnv() *Node {
-	nodeId, exists := os.LookupEnv(NodeIdEnvVarName)
+	nodeId, exists := os.LookupEnv(utils.NodeIdEnvVarName)
 	if !exists {
 		panic("no NODE_ID set in environment")
 	}
 
-	nodeIP, exists := os.LookupEnv(NodeIPEnvVarName)
+	nodeIP, exists := os.LookupEnv(utils.NodeIPEnvVarName)
 	if !exists {
 		panic("no NODE_IP set in environment")
 	}
@@ -50,7 +47,7 @@ func NewNode(id, addr string) *Node {
 }
 
 func GetLocalHostPort(port int) string {
-	nodeIP, exists := os.LookupEnv(NodeIPEnvVarName)
+	nodeIP, exists := os.LookupEnv(utils.NodeIPEnvVarName)
 	if !exists {
 		panic("no NODE_IP set in environment")
 	}

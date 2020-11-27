@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	deployerAPI "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -204,7 +203,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 		return nil, nil, false
 	}
 
-	vicinity := value.(autonomic.VicinityMetric)
+	vicinity := value.(metrics.VicinityMetric)
 
 	centroids := arg.([]s2.CellID)
 
@@ -415,12 +414,12 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthes
 	if furthestChildDistance == -1.0 {
 		value, ok := i.deployment.Environment.GetMetric(metrics.MetricNodeAddr)
 		if !ok {
-			log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
+			log.Panicf("no value for metric %s", metrics.MetricNodeAddr)
 		}
 
 		value, ok = i.deployment.Environment.GetMetric(metrics.MetricLocation)
 		if !ok {
-			log.Fatalf("no value for metric %s", metrics.MetricNodeAddr)
+			log.Panicf("no value for metric %s", metrics.MetricNodeAddr)
 		}
 
 		var location s2.CellID

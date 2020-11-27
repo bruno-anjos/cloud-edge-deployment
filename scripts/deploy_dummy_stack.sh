@@ -19,8 +19,9 @@ set -e
 bash "$CLOUD_EDGE_DEPLOYMENT"/build/dummy_node/build_dummy_node.sh
 
 function run() {
-	docker run -d --network=dummies-network --privileged --ip "192.168.19$((3 + CARRY)).$NODE" --name=$DUMMY_NAME \
-		--hostname $DUMMY_NAME brunoanjos/dummy_node:latest
+	nodeip="192.168.19$((3 + CARRY)).$NODE"
+	docker run -d --network=dummies-network --privileged --ip $nodeip --name=$DUMMY_NAME \
+		--hostname $DUMMY_NAME --env NODE_IP="$nodeip" --env NODE_ID="$DUMMY_NAME" brunoanjos/dummy_node:latest
 }
 
 docker network create --subnet=192.168.192.1/20 dummies-network

@@ -2,6 +2,15 @@ package metrics
 
 import (
 	"fmt"
+
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+)
+
+type (
+	VicinityMetric struct {
+		Nodes     map[string]*utils.Node
+		Locations map[string]string
+	}
 )
 
 const (
@@ -11,7 +20,6 @@ const (
 
 	// DEPLOYMENT METRICS
 	metricNumberOfInstancesPerDeploymentId   = "METRIC_NUMBER_OF_INSTANCES_PER_DEPLOYMENT_%s"
-	metricLoadPerDeploymentInChild           = "METRIC_LOAD_PER_DEPLOYMENT_%s_IN_CHILD_%s"
 	metricLoadPerDeploymentInChildren        = "METRIC_LOAD_PER_DEPLOYMENT_%s_IN_CHILDREN"
 	metricAggLoadPerDeploymentInChildren     = "METRIC_AGG_LOAD_PER_DEPLOYMENT_%s_IN_CHILDREN"
 	metricClientLatencyPerDeployment         = "METRIC_CLIENT_LATENCY_PER_DEPLOYMENT_%s"
@@ -22,10 +30,6 @@ const (
 
 func GetNumInstancesMetricId(deploymentId string) string {
 	return fmt.Sprintf(metricNumberOfInstancesPerDeploymentId, deploymentId)
-}
-
-func GetLoadPerDeploymentInChildMetricId(deploymentId, childId string) string {
-	return fmt.Sprintf(metricLoadPerDeploymentInChild, deploymentId, childId)
 }
 
 func GetLoadPerDeploymentInChildrenMetricId(deploymentId string) string {

@@ -49,7 +49,7 @@ func dummyStartInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		portBindings, true)
 
 	if status != http.StatusOK {
-		log.Fatalf("got status code %d while adding instances to archimedes", status)
+		log.Panicf("got status code %d while adding instances to archimedes", status)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

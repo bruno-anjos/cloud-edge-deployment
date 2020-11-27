@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -77,7 +76,7 @@ func (nl *nodeLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, inf
 		return nil, nil, false
 	}
 
-	vicinity := value.(autonomic.VicinityMetric)
+	vicinity := value.(metrics.VicinityMetric)
 
 	info = map[string]interface{}{}
 	deplClient := deployer.NewDeployerClient("")

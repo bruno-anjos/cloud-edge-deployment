@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -15,9 +16,9 @@ import (
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	utils2 "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/pkg/errors"
@@ -156,33 +157,68 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	deploymentIdEnvVar := utils.DeploymentEnvVarName + "=" + containerInstance.DeploymentName
 	instanceIdEnvVar := utils.InstanceEnvVarName + "=" + instanceId
 	fallbackEnvVar := archimedesHTTPClient.FallbackEnvVar + "=" + fallback.Addr
-	nodeEnvVar := "NODE" + "=" + hostname
+	nodeIpEnvVar := utils2.NodeIPEnvVarName + "=" + myself.Addr
 
 	// TODO CHANGE THIS TO USE THE ACTUAL LOCATION TOKEN
 	locationEnvVar := utils.LocationEnvVarName + "=" + "0c"
 
-	envVars := []string{deploymentIdEnvVar, instanceIdEnvVar, locationEnvVar, fallbackEnvVar, nodeEnvVar}
+	envVars := []string{deploymentIdEnvVar, instanceIdEnvVar, locationEnvVar, fallbackEnvVar, nodeIpEnvVar}
 	envVars = append(envVars, containerInstance.EnvVars...)
 
-	reader, err := dockerClient.ImagePull(context.Background(), containerInstance.ImageName, types.ImagePullOptions{})
+	images, err := dockerClient.ImageList(context.Background(), types.ImageListOptions{})
 	if err != nil {
 		panic(err)
 	}
 
-	_, err = ioutil.ReadAll(reader)
-	if err != nil {
-		panic(err)
+	splits := strings.Split(containerInstance.ImageName, "/")[1:]
+	var imageName string
+	if splits[0] == "library" {
+		imageName = splits[1]
+	} else {
+		imageName = splits[0] + "/" + splits[1]
 	}
 
-	err = reader.Close()
-	if err != nil {
-		panic(err)
+	log.Debugf("imagename: %s", imageName)
+
+	hasImage := false
+	for _, image := range images {
+		log.Debugf("repo: %s", image.RepoTags[0])
+		if image.RepoTags[0] == imageName {
+			hasImage = true
+		}
 	}
 
-	containerConfig := container.Config{
-		Cmd:   containerInstance.Command,
-		Env:   envVars,
-		Image: containerInstance.ImageName,
+	var containerConfig container.Config
+	if !hasImage {
+		log.Debugf("Pulling image %s", imageName)
+
+		var reader io.ReadCloser
+		reader, err = dockerClient.ImagePull(context.Background(), containerInstance.ImageName, types.ImagePullOptions{})
+		if err != nil {
+			panic(err)
+		}
+
+		_, err = ioutil.ReadAll(reader)
+		if err != nil {
+			panic(err)
+		}
+
+		err = reader.Close()
+		if err != nil {
+			panic(err)
+		}
+
+		containerConfig = container.Config{
+			Cmd:   containerInstance.Command,
+			Env:   envVars,
+			Image: containerInstance.ImageName,
+		}
+	} else {
+		containerConfig = container.Config{
+			Cmd:   containerInstance.Command,
+			Env:   envVars,
+			Image: imageName,
+		}
 	}
 
 	hostConfig := container.HostConfig{
@@ -190,22 +226,11 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 		PortBindings: portBindings,
 	}
 
-	networkConfig := network.NetworkingConfig{
-		EndpointsConfig: map[string]*network.EndpointSettings{
-			"bridge": {
-				Aliases:   []string{instanceId},
-				NetworkID: networkId,
-			},
-		},
-	}
-
-	cont, err := dockerClient.ContainerCreate(context.Background(), &containerConfig, &hostConfig, &networkConfig,
+	cont, err := dockerClient.ContainerCreate(context.Background(), &containerConfig, &hostConfig, nil,
 		instanceId)
 	if err != nil {
 		panic(err)
 	}
-
-	log.Debugf("connecting %s to network %s", cont.ID, networkId)
 
 	// Add container instance to deployer
 	status := deplClient.RegisterDeploymentInstance(containerInstance.DeploymentName, instanceId,
@@ -215,7 +240,7 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 		if err != nil {
 			log.Error(err)
 		}
-		log.Fatalf("got status code %d while adding instances to deployer", status)
+		log.Panicf("got status code %d while adding instances to deployer", status)
 		return
 	}
 

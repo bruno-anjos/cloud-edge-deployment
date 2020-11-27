@@ -7,7 +7,6 @@ import (
 
 	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
-	autonomic2 "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
@@ -15,6 +14,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -136,7 +136,11 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain
 		return nil, nil, false
 	}
 
-	locationsInVicinity := value.(autonomic2.VicinityMetric)
+	var locationsInVicinity metrics.VicinityMetric
+	err := mapstructure.Decode(value, &locationsInVicinity)
+	if err != nil {
+		panic(err)
+	}
 
 	info = map[string]interface{}{}
 	archClient := archimedes.NewArchimedesClient(Myself.Addr + ":" + strconv.Itoa(archimedes.Port))

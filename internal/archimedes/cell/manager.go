@@ -132,7 +132,7 @@ func (cm *Manager) findDownmostCellAndRLock(topCellId s2.CellID, topCell *Cell, 
 			if childId.Contains(clientCellId) {
 				cell, ok := deploymentCells.LoadCell(childId)
 				if !ok {
-					log.Fatalf("%s should have child %s", downmostCellId, childId)
+					log.Panicf("%s should have child %s", downmostCellId, childId)
 				}
 				downmostCellId = childId
 				downmostCell = cell

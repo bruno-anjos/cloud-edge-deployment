@@ -114,7 +114,7 @@ func newDeploymentsTable() *deploymentsTable {
 func (st *deploymentsTable) updateDeployment(deploymentId string, newEntry *api.DeploymentsTableEntryDTO) bool {
 	value, ok := st.deploymentsMap.Load(deploymentId)
 	if !ok {
-		log.Fatalf("deployment %s doesnt exist", deploymentId)
+		log.Panicf("deployment %s doesnt exist", deploymentId)
 	}
 
 	entry := value.(typeDeploymentsTableMapValue)

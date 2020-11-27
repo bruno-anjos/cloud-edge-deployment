@@ -33,7 +33,7 @@ func main() {
 				Usage:   "add a new deployment",
 				Action: func(c *cli.Context) error {
 					if c.Args().Len() != 2 {
-						log.Fatal("add: deployment_name yaml_file")
+						log.Panic("add: deployment_name yaml_file")
 					}
 
 					addDeployment(c.Args().First(), c.Args().Get(1))
@@ -47,7 +47,7 @@ func main() {
 				Usage:   "delete a deployment",
 				Action: func(c *cli.Context) error {
 					if c.Args().Len() != 1 {
-						log.Fatal("del: deployment_name")
+						log.Panic("del: deployment_name")
 					}
 
 					deleteDeployment(c.Args().First())
@@ -60,14 +60,14 @@ func main() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 }
 
 func addDeployment(deploymentId, filename string) {
 	fileBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
-		log.Fatal("error reading file: ", err)
+		log.Panic("error reading file: ", err)
 	}
 
 	var deploymentYAML deployer2.DeploymentYAML
@@ -79,13 +79,13 @@ func addDeployment(deploymentId, filename string) {
 	status := deployerClient.RegisterDeployment(deploymentId, deploymentYAML.Static, fileBytes, nil, nil, nil,
 		deployer2.NotExploringTTL)
 	if status != http.StatusOK {
-		log.Fatalf("got status %d from deployer", status)
+		log.Panicf("got status %d from deployer", status)
 	}
 }
 
 func deleteDeployment(deploymentId string) {
 	status := deployerClient.DeleteDeployment(deploymentId)
 	if status != http.StatusOK {
-		log.Fatalf("got status %d from deployer", status)
+		log.Panicf("got status %d from deployer", status)
 	}
 }

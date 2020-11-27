@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/golang/geo/s2"
 )
@@ -118,7 +117,7 @@ func (c *Client) GetClosestNode(locations []s2.CellID, toExclude map[string]inte
 	return
 }
 
-func (c *Client) GetVicinity() (vicinity *autonomic.Vicinity, status int) {
+func (c *Client) GetVicinity() (vicinity *api.Vicinity, status int) {
 	path := api.GetVicinityPath()
 	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 

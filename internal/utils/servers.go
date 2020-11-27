@@ -39,7 +39,7 @@ func StartServer(deploymentName string, port int, prefixPath string, routes []Ro
 	}
 
 	log.Infof("%s server listening at %s...\n", deploymentName, listenAddrPort)
-	log.Fatal(http.ListenAndServe(listenAddrPort, r))
+	log.Panic(http.ListenAndServe(listenAddrPort, r))
 }
 
 func StartServerWithoutDefaultFlags(deploymentName string, port int, prefixPath string, routes []Route,
@@ -61,5 +61,5 @@ func StartServerWithoutDefaultFlags(deploymentName string, port int, prefixPath 
 	}
 
 	log.Infof("%s server listening at %s...\n", deploymentName, listenAddrPort)
-	log.Fatal(http.ListenAndServe(listenAddrPort, r))
+	log.Panic(http.ListenAndServe(listenAddrPort, r))
 }
