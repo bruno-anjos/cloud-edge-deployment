@@ -1,5 +1,5 @@
 replicas: 3
-serviceName: gym
+deploymentName: gym
 containers:
   - image: docker.io/brunoanjos/gym:latest
     command: [ "sh", "-c", "./executable -l -d" ]

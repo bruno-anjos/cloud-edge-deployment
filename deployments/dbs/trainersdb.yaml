@@ -1,22 +1,7 @@
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: trainersdb
-spec:
-  selector:
-    matchLabels:
-      app: trainersdb
-  replicas: 1
-  serviceName: trainersdb
-  template:
-    spec:
-      containers:
-        - name: trainersdb
-          image: docker.io/library/mongo:latest
-          ports:
-            - containerPort: 27017
-          envFrom:
-            - configMapRef:
-                name: {{$.Values.global.api_configmap.name}}
-      nodeSelector:
-        serversnode: "true"
+replicas: 1
+deploymentName: novapokemon-trainersdb
+containers:
+  - image: docker.io/library/mongo:latest
+    ports:
+      - containerPort: 27017
+static: True

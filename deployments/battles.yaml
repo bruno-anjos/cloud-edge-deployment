@@ -1,5 +1,5 @@
 replicas: 3
-serviceName: battles
+deploymentName: battles
 containers:
   - image: docker.io/brunoanjos/battles:latest
     command: [ "sh", "-c", "./executable -l -d" ]
@@ -7,7 +7,7 @@ containers:
       - containerPort: 8002
     env:
       - name: NOTIFICATIONS_URL
-          value: "notifications:8006"
+        value: "notifications:8006"
       - name: TRAINERS_URL
-          value: "trainers:8009"
+        value: "trainers:8009"
 static: False

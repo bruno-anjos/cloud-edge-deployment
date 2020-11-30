@@ -1,5 +1,5 @@
 replicas: 3
-serviceName: trainers
+deploymentName: trainers
 containers:
   - image: docker.io/brunoanjos/trainers:latest
     command: [ "sh", "-c", "./executable -l -d" ]

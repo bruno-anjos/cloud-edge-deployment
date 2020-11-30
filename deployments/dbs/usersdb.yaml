@@ -1,5 +1,5 @@
 replicas: 1
-serviceName: novapokemon-usersdb
+deploymentName: novapokemon-usersdb
 containers:
   - image: docker.io/library/mongo:latest
     ports:

@@ -1,5 +1,5 @@
 replicas: 3
-serviceName: dummy
+deploymentName: dummy
 containers:
   - image: docker.io/brunoanjos/dummy-service:latest
     command: [ "sh", "-c", "./executable -l -d" ]

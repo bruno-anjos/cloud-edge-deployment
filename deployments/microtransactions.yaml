@@ -1,5 +1,5 @@
 replicas: 3
-serviceName: microtransactions
+deploymentName: microtransactions
 containers:
   - image: docker.io/brunoanjos/microtransactions:latest
     command: [ "sh", "-c", "./executable -l -d" ]

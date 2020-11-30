@@ -1,5 +1,5 @@
 replicas: 3
-serviceName: store
+deploymentName: store
 containers:
   - image: docker.io/brunoanjos/store:latest
     command: [ "sh", "-c", "./executable -l -d" ]
