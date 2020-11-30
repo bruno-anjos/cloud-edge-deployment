@@ -184,13 +184,14 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	for _, image := range images {
 		log.Debugf("repo: %s", image.RepoTags[0])
 		if image.RepoTags[0] == imageName {
+			log.Debugf("%s matches %s", image.RepoTags[0], imageName)
 			hasImage = true
 		}
 	}
 
 	var containerConfig container.Config
 	if !hasImage {
-		log.Debugf("Pulling image %s", imageName)
+		log.Debugf("pulling image %s", imageName)
 
 		var reader io.ReadCloser
 		reader, err = dockerClient.ImagePull(context.Background(), containerInstance.ImageName, types.ImagePullOptions{})
@@ -214,6 +215,7 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 			Image: containerInstance.ImageName,
 		}
 	} else {
+		log.Debugf("image %s already exists locally", imageName)
 		containerConfig = container.Config{
 			Cmd:   containerInstance.Command,
 			Env:   envVars,
