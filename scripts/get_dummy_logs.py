@@ -7,7 +7,7 @@ from datetime import datetime
 from multiprocessing import Pool
 
 clients_config_file = f"{os.path.expanduser('~')}" \
-                      f"/go/src/github.com/bruno-anjos/cloud-edge-deployment/scripts/clients_config.json"
+                      f"/go/src/github.com/bruno-anjos/cloud-edge-deployment/deployments/clients_config.json"
 
 log_prefixes = ["archimedes", "autonomic", "deployer", "scheduler"]
 

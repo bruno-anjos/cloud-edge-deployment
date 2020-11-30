@@ -236,7 +236,7 @@ def gen_services():
     processing_times = {}
     service_latencies = {}
 
-    with open(f"{os.path.dirname(os.path.realpath(__file__))}/clients_config.json", "r") as config_fp:
+    with open(f"{os.path.dirname(os.path.realpath(__file__))}/../deployments/clients_config.json", "r") as config_fp:
         configs = json.load(config_fp)
         for config in configs:
             service_name = config
