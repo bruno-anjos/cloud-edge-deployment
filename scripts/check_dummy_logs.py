@@ -53,17 +53,6 @@ def process_node_logs(data):
     return True, f"[OK] {node_to_process} {log_to_process}", ""
 
 
-def process_client_logs(data):
-    client_to_process = data
-
-    docker_cmd = ["docker", "logs", client_to_process, "2>&1"]
-    docker_cmd.extend(filterSuffix)
-    out = subprocess.getoutput(" ".join(docker_cmd))
-    if out:
-        return False, f"[ERROR] {client_to_process}", out
-    return True, f"[OK] {client_to_process}", out
-
-
 nodes = []
 path = f"{os.path.dirname(os.path.realpath(__file__))}/../build/autonomic/metrics"
 for f in os.listdir(path):
@@ -80,20 +69,13 @@ for node in nodes:
     for log in logs:
         logs_per_node.append((node, log))
 
-with open(f"{os.path.dirname(os.path.realpath(__file__))}/clients_config.json") as services_config_fp:
+with open(f"{os.path.dirname(os.path.realpath(__file__))}/../deployments/clients_config.json") as services_config_fp:
     service_configs = json.load(services_config_fp)
 
-service_clients = []
-for service in service_configs:
-    for idx, service_config in enumerate(service_configs[service]):
-        service_clients.append(f"{service}_{idx}")
-
 print("[INFO] nodes:", nodes)
-print("[INFO] clients:", service_clients)
 
 pool = Pool(processes=cpu_count)
 results = pool.map(process_node_logs, logs_per_node)
-results.extend(pool.map(process_client_logs, service_clients))
 pool.close()
 
 for idx, log_per_node in enumerate(logs_per_node):
