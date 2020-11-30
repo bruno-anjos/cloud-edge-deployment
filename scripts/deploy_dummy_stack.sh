@@ -10,6 +10,8 @@ function del_everything() {
 	docker stop $nodes
 	docker rm $nodes
 	docker network rm dummies-network
+	docker volume prune -f
+	docker system prune -f
 }
 
 del_everything
