@@ -203,7 +203,11 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 		return nil, nil, false
 	}
 
-	vicinity := value.(metrics.VicinityMetric)
+	var vicinity metrics.VicinityMetric
+	err := mapstructure.Decode(value, &vicinity)
+	if err != nil {
+		panic(err)
+	}
 
 	centroids := arg.([]s2.CellID)
 

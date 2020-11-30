@@ -32,14 +32,11 @@ type (
 
 const (
 	stopContainerTimeout = 10
-
-	networkName = "services-network"
 )
 
 var (
 	deplClient          = deployer.NewDeployerClient(deployer.LocalHostPort)
 	dockerClient        *client.Client
-	networkId           string
 	instanceToContainer sync.Map
 	fallback            *utils.Node
 	myself              *utils.Node
@@ -68,35 +65,6 @@ func InitHandlers() {
 	}
 
 	instanceToContainer = sync.Map{}
-
-	networkConfig := types.NetworkCreate{
-		CheckDuplicate: false,
-		Attachable:     false,
-	}
-
-	networks, err := dockerClient.NetworkList(context.Background(), types.NetworkListOptions{})
-
-	exists := false
-	for _, netVal := range networks {
-		if netVal.Name == networkName {
-			networkId = netVal.ID
-			exists = true
-			break
-		}
-	}
-
-	if !exists {
-		var resp types.NetworkCreateResponse
-		resp, err = dockerClient.NetworkCreate(context.Background(), networkName, networkConfig)
-		if err != nil {
-			panic(err)
-		}
-
-		networkId = resp.ID
-		log.Debug("created network with id ", networkId)
-	} else {
-		log.Debug("network ", networkName, " already exists")
-	}
 
 	log.SetLevel(log.InfoLevel)
 }

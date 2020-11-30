@@ -49,7 +49,7 @@ func cleanUnresponsiveInstance(deploymentId, instanceId string, instanceDTO *arc
 		return
 	case <-unresponsiveTimer.C:
 		log.Debugf("%s for deployment %s never sent heartbeat", instanceId, deploymentId)
-		removeInstance(deploymentId, instanceId)
+		removeInstance(deploymentId, instanceId, false)
 	}
 }
 
@@ -69,7 +69,7 @@ func instanceHeartbeatChecker() {
 			// case where instance didnt set online status since last status reset, so it has to be removed
 			if !pairDeploymentStatus.IsUp {
 				pairDeploymentStatus.Mutex.Unlock()
-				removeInstance(pairDeploymentStatus.DeploymentId, instanceId)
+				removeInstance(pairDeploymentStatus.DeploymentId, instanceId, true)
 
 				toDelete = append(toDelete, instanceId)
 				log.Debugf("removing instance %s", instanceId)
@@ -89,16 +89,20 @@ func instanceHeartbeatChecker() {
 	}
 }
 
-func removeInstance(deploymentId, instanceId string) {
+func removeInstance(deploymentId, instanceId string, existed bool) {
 	status := schedulerClient.StopInstance(instanceId)
 	if status != http.StatusOK {
-		log.Warnf("while trying to remove instance %s after timeout, scheduler returned status %d",
+		log.Errorf("while trying to remove instance %s after timeout, scheduler returned status %d",
 			instanceId, status)
 	}
 
 	status = archimedesClient.DeleteDeploymentInstance(deploymentId, instanceId)
-	if status != http.StatusOK {
-		log.Warnf("while trying to remove instance %s after timeout, archimedes returned status %d",
-			instanceId, status)
+	if existed {
+		if status != http.StatusOK {
+			log.Errorf("while trying to remove instance %s after timeout, archimedes returned status %d",
+				instanceId, status)
+		}
 	}
+
+	log.Errorf("Removed unresponsive instance %s", instanceId)
 }

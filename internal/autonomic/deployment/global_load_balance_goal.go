@@ -8,6 +8,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -76,7 +77,11 @@ func (nl *nodeLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, inf
 		return nil, nil, false
 	}
 
-	vicinity := value.(metrics.VicinityMetric)
+	var vicinity metrics.VicinityMetric
+	err := mapstructure.Decode(value, &vicinity)
+	if err != nil {
+		panic(err)
+	}
 
 	info = map[string]interface{}{}
 	deplClient := deployer.NewDeployerClient("")

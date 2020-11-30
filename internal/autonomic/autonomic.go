@@ -9,6 +9,7 @@ import (
 	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	autonomicUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"
@@ -112,8 +113,13 @@ func (a *system) addDeploymentChild(deploymentId string, child *utils.Node) {
 		return
 	}
 
-	locations := value.(metrics.VicinityMetric)
-	cellValue, ok := locations.Locations[child.Id]
+	var vicinityMetric metrics.VicinityMetric
+	err := mapstructure.Decode(value, &vicinityMetric)
+	if err != nil {
+		panic(err)
+	}
+
+	cellValue, ok := vicinityMetric.Locations[child.Id]
 	if !ok {
 		log.Errorf("no location for child %s", child.Id)
 		return
@@ -180,7 +186,11 @@ func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]inter
 		return nil
 	}
 
-	vicinity := value.(metrics.VicinityMetric)
+	var vicinity metrics.VicinityMetric
+	err := mapstructure.Decode(value, &vicinity)
+	if err != nil {
+		panic(err)
+	}
 	var ordered []*utils.Node
 
 	for nodeId, node := range vicinity.Nodes {
@@ -225,7 +235,12 @@ func (a *system) getVicinity() *autonomic.Vicinity {
 		return nil
 	}
 
-	vicinityMetric := value.(metrics.VicinityMetric)
+	var vicinityMetric metrics.VicinityMetric
+	err := mapstructure.Decode(value, &vicinityMetric)
+	if err != nil {
+		panic(err)
+	}
+
 	vicinity := &autonomic.Vicinity{
 		Nodes:     vicinityMetric.Nodes,
 		Locations: map[string]s2.CellID{},

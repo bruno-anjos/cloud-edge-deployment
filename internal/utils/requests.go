@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 
@@ -51,7 +52,7 @@ func BuildRequest(method, host, path string, body interface{}) *http.Request {
 	return request
 }
 
-func DoRequest(httpClient *http.Client, request *http.Request, responseBody interface{}) int {
+func DoRequest(httpClient *http.Client, request *http.Request, responseBody interface{}) (status int, timedOut bool) {
 	log.Debugf("Doing request: %s %s", request.Method, request.URL.String())
 
 	if httpClient == nil {
@@ -67,8 +68,11 @@ func DoRequest(httpClient *http.Client, request *http.Request, responseBody inte
 
 	resp, err := httpClient.Do(request)
 	if err != nil {
+		status = -1
+		timedOut = err.(net.Error).Timeout()
+
 		log.Warn(err)
-		return -1
+		return
 	}
 
 	if responseBody != nil {
@@ -95,7 +99,9 @@ func DoRequest(httpClient *http.Client, request *http.Request, responseBody inte
 
 	log.Debugf("Done: %s %s", request.Method, request.URL.String())
 
-	return resp.StatusCode
+	status = resp.StatusCode
+
+	return
 }
 
 func ExtractPathVar(r *http.Request, varName string) (varValue string) {
