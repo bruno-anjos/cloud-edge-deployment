@@ -2,7 +2,7 @@ replicas: 3
 deploymentName: dummy
 containers:
   - image: docker.io/brunoanjos/dummy-service:latest
-    command: [ "sh", "-c", "./executable -l -d" ]
+    command: [ "sh", "-c", "./executable -l -d -a" ]
     ports:
       - containerPort: 8001
 static: True

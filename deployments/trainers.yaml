@@ -1,11 +1,13 @@
-replicas: 3
+replicas: 1
 deploymentName: trainers
 containers:
   - image: docker.io/brunoanjos/trainers:latest
-    command: [ "sh", "-c", "./executable -l -d" ]
+    command: [ "sh", "-c", "./executable -l -d -a" ]
     ports:
       - containerPort: 8009
     env:
       - name: MONGODB_URL
         value: "mongodb://novapokemon-trainersdb:27017"
+      - name: HEADLESS_SERVICE_NAME
+        value: "$instance"
 static: False

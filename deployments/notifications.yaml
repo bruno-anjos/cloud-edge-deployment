@@ -1,11 +1,13 @@
-replicas: 3
+replicas: 1
 deploymentName: notifications
 containers:
   - image: docker.io/brunoanjos/notifications:latest
-    command: [ "sh", "-c", "./executable -l -d" ]
+    command: [ "sh", "-c", "./executable -l -d -a" ]
     ports:
       - containerPort: 8006
     env:
       - name: MONGODB_URL
         value: "mongodb://novapokemon-notificationsdb:27017"
+      - name: HEADLESS_SERVICE_NAME
+        value: "$instance"
 static: False

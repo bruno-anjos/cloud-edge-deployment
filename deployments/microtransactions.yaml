@@ -1,8 +1,8 @@
-replicas: 3
+replicas: 1
 deploymentName: microtransactions
 containers:
   - image: docker.io/brunoanjos/microtransactions:latest
-    command: [ "sh", "-c", "./executable -l -d" ]
+    command: [ "sh", "-c", "./executable -l -d -a" ]
     ports:
       - containerPort: 8005
     env:
@@ -12,4 +12,6 @@ containers:
         value: "authentication:8001"
       - name: TRAINERS_URL
         value: "trainers:8009"
+      - name: HEADLESS_SERVICE_NAME
+        value: "$instance"
 static: False

@@ -1,8 +1,8 @@
-replicas: 3
+replicas: 1
 deploymentName: battles
 containers:
   - image: docker.io/brunoanjos/battles:latest
-    command: [ "sh", "-c", "./executable -l -d" ]
+    command: [ "sh", "-c", "./executable -l -d -a" ]
     ports:
       - containerPort: 8002
     env:
@@ -10,4 +10,6 @@ containers:
         value: "notifications:8006"
       - name: TRAINERS_URL
         value: "trainers:8009"
+      - name: HEADLESS_SERVICE_NAME
+        value: "$instance"
 static: False
