@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	pkgUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/golang/geo/s2"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
@@ -191,8 +192,8 @@ func (c *Client) SetParentAlive(parentId string) (status int) {
 }
 
 func (c *Client) SendInstanceHeartbeatToDeployerPeriodically() {
-	deploymentId := os.Getenv(utils.DeploymentEnvVarName)
-	instanceId := os.Getenv(utils.InstanceEnvVarName)
+	deploymentId := os.Getenv(pkgUtils.DeploymentEnvVarName)
+	instanceId := os.Getenv(pkgUtils.InstanceEnvVarName)
 
 	status := c.RegisterHearbeatDeploymentInstance(deploymentId, instanceId)
 	switch status {

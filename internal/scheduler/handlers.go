@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -16,7 +17,7 @@ import (
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
-	utils2 "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	pkgUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
@@ -32,6 +33,10 @@ type (
 
 const (
 	stopContainerTimeout = 10
+
+	envVarFormatString = "%s=%s"
+
+	instanceIdEnvVarReplace = "$instance"
 )
 
 var (
@@ -122,15 +127,24 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 
 	log.Debugf("instance %s has following portBindings: %+v", instanceId, portBindings)
 
-	deploymentIdEnvVar := utils.DeploymentEnvVarName + "=" + containerInstance.DeploymentName
-	instanceIdEnvVar := utils.InstanceEnvVarName + "=" + instanceId
-	fallbackEnvVar := archimedesHTTPClient.FallbackEnvVar + "=" + fallback.Addr
-	nodeIpEnvVar := utils2.NodeIPEnvVarName + "=" + myself.Addr
+	deploymentIdEnvVar := fmt.Sprintf(envVarFormatString, pkgUtils.DeploymentEnvVarName, containerInstance.DeploymentName)
+	instanceIdEnvVar := fmt.Sprintf(envVarFormatString, pkgUtils.InstanceEnvVarName, instanceId)
+	fallbackEnvVar := fmt.Sprintf(envVarFormatString, archimedesHTTPClient.FallbackEnvVar, fallback.Addr)
+	nodeIpEnvVar := fmt.Sprintf(envVarFormatString, pkgUtils.NodeIPEnvVarName, myself.Addr)
+	replicaNumEnvVar := fmt.Sprintf(envVarFormatString, pkgUtils.ReplicaNumEnvVarName,
+		strconv.Itoa(containerInstance.ReplicaNumber))
 
 	// TODO CHANGE THIS TO USE THE ACTUAL LOCATION TOKEN
-	locationEnvVar := utils.LocationEnvVarName + "=" + "0c"
+	locationEnvVar := fmt.Sprintf(envVarFormatString, pkgUtils.LocationEnvVarName, "0c")
 
-	envVars := []string{deploymentIdEnvVar, instanceIdEnvVar, locationEnvVar, fallbackEnvVar, nodeIpEnvVar}
+	for idx, envVar := range containerInstance.EnvVars {
+		if envVar == instanceIdEnvVarReplace {
+			containerInstance.EnvVars[idx] = instanceId
+		}
+	}
+
+	envVars := []string{deploymentIdEnvVar, instanceIdEnvVar, locationEnvVar, fallbackEnvVar, nodeIpEnvVar,
+		replicaNumEnvVar}
 	envVars = append(envVars, containerInstance.EnvVars...)
 
 	images, err := dockerClient.ImageList(context.Background(), types.ImageListOptions{})
@@ -157,7 +171,9 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 		}
 	}
 
-	var containerConfig container.Config
+	var (
+		containerConfig container.Config
+	)
 	if !hasImage {
 		log.Debugf("pulling image %s", imageName)
 
@@ -177,18 +193,16 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 			panic(err)
 		}
 
-		containerConfig = container.Config{
-			Cmd:   containerInstance.Command,
-			Env:   envVars,
-			Image: containerInstance.ImageName,
-		}
+		imageName = containerInstance.ImageName
 	} else {
 		log.Debugf("image %s already exists locally", imageName)
-		containerConfig = container.Config{
-			Cmd:   containerInstance.Command,
-			Env:   envVars,
-			Image: imageName,
-		}
+	}
+
+	containerConfig = container.Config{
+		Cmd:      containerInstance.Command,
+		Env:      envVars,
+		Image:    imageName,
+		Hostname: fmt.Sprintf("%s-%d", containerInstance.DeploymentName, containerInstance.ReplicaNumber),
 	}
 
 	hostConfig := container.HostConfig{

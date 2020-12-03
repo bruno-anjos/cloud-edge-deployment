@@ -360,6 +360,11 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if fallback.Id == myself.Id {
+			utils.SendJSONReplyStatus(w, http.StatusNotFound, nil)
+			return
+		}
+
 		reqLogger.Debugf("redirecting to fallback %s", fallback)
 
 		fallbackURL := url.URL{

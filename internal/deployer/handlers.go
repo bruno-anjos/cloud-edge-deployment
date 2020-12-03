@@ -380,7 +380,7 @@ func addDeploymentAsync(deployment *Deployment, deploymentId string) {
 	}
 
 	for i := 0; i < deployment.NumberOfInstances; i++ {
-		status = schedulerClient.StartInstance(deploymentId, deployment.Image, deployment.Ports, deployment.Static,
+		status = schedulerClient.StartInstance(deploymentId, deployment.Image, deployment.Ports, i, deployment.Static,
 			deployment.EnvVars, deployment.Command)
 		if status != http.StatusOK {
 			log.Errorf("got status code %d from scheduler", status)

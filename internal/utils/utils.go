@@ -10,12 +10,6 @@ import (
 )
 
 const (
-	DeploymentEnvVarName = "DEPLOYMENT_ID"
-	InstanceEnvVarName   = "INSTANCE_ID"
-	LocationEnvVarName   = "LOCATION"
-)
-
-const (
 	TCP string = "tcp"
 	UDP string = "udp"
 )

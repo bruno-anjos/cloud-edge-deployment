@@ -11,4 +11,5 @@ type ContainerInstanceDTO struct {
 	Ports          nat.PortSet
 	Static         bool
 	EnvVars        []string
+	ReplicaNumber  int
 }
