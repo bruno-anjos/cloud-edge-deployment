@@ -1,0 +1,7 @@
+replicas: 1
+deploymentName: novapokemon-notificationsdb
+containers:
+  - image: docker.io/library/mongo:latest
+    ports:
+      - containerPort: 27017
+static: True
