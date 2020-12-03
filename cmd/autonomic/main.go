@@ -4,7 +4,6 @@ import (
 	autonomic2 "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	internal "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 )
 
 const (
@@ -12,5 +11,5 @@ const (
 )
 
 func main() {
-	utils.StartServer(serviceName, autonomic.Port, autonomic2.PrefixPath, internal.Routes)
+	utils.StartServer(serviceName, utils.AutonomicPort, autonomic2.PrefixPath, internal.Routes)
 }

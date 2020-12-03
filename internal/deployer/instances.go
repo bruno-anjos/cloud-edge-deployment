@@ -6,7 +6,7 @@ import (
 	"time"
 
 	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -18,7 +18,7 @@ type (
 )
 
 const (
-	initInstanceTimeout = 30 * time.Second
+	initInstanceTimeout = 60 * time.Second
 )
 
 var (
@@ -54,7 +54,7 @@ func cleanUnresponsiveInstance(deploymentId, instanceId string, instanceDTO *arc
 }
 
 func instanceHeartbeatChecker() {
-	heartbeatTimer := time.NewTimer(deployer.HeartbeatCheckerTimeout * time.Second)
+	heartbeatTimer := time.NewTimer(client.HeartbeatCheckerTimeout * time.Second)
 
 	var toDelete []string
 	for {
@@ -85,7 +85,7 @@ func instanceHeartbeatChecker() {
 			log.Debugf("removing %s instance from expected hearbeats map", instanceId)
 			heartbeatsMap.Delete(instanceId)
 		}
-		heartbeatTimer.Reset(deployer.HeartbeatCheckerTimeout * time.Second)
+		heartbeatTimer.Reset(client.HeartbeatCheckerTimeout * time.Second)
 	}
 }
 

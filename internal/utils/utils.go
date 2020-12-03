@@ -12,12 +12,24 @@ import (
 const (
 	TCP string = "tcp"
 	UDP string = "udp"
+
+	ArchimedesPort = 5000
+	AutonomicPort  = 5000
+	DeployerPort   = 5000
+	SchedulerPort  = 5000
 )
 
 type Node struct {
 	Id   string
 	Addr string
 }
+
+var (
+	ArchimedesLocalHostPort = GetLocalHostPort(ArchimedesPort)
+	AutonomicLocalHostPort  = GetLocalHostPort(AutonomicPort)
+	DeployerLocalHostPort   = GetLocalHostPort(DeployerPort)
+	SchedulerLocalHostPort  = GetLocalHostPort(SchedulerPort)
+)
 
 func NodeFromEnv() *Node {
 	nodeId, exists := os.LookupEnv(utils.NodeIdEnvVarName)

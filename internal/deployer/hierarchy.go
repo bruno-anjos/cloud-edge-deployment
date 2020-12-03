@@ -11,10 +11,11 @@ import (
 
 	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+
+
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 )
@@ -226,7 +227,7 @@ func (t *hierarchyTable) updateDeployment(deploymentId string, parent *utils.Nod
 
 	if parent != nil {
 		autonomicClient.SetDeploymentParent(deploymentId, parent)
-		deplClient := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
+		deplClient := client2.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 		status := deplClient.PropagateLocationToHorizon(deploymentId, myself.Id, location.ID(), 0, api.Add)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while trying to propagate location to %s for deployment %s", status,
@@ -278,7 +279,7 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, depthFactor float
 	autonomicClient.RegisterDeployment(dto.DeploymentId, autonomic.StrategyIdealLatencyId, depthFactor, exploringTTL)
 	if dto.Parent != nil {
 		autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent)
-		deplClient := deployer.NewDeployerClient(dto.Parent.Addr + ":" + strconv.Itoa(deployer.Port))
+		deplClient := client2.NewDeployerClient(dto.Parent.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself.Id, location.ID(), 0, api.Add)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while trying to propagate location to %s for deployment %s", status,
@@ -328,7 +329,7 @@ func (t *hierarchyTable) removeDeployment(deploymentId string) {
 
 		parent := t.getParent(deploymentId)
 		if parent != nil {
-			deplClient := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
+			deplClient := client2.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 			status = deplClient.PropagateLocationToHorizon(deploymentId, myself.Id, location.ID(), 0, api.Remove)
 			if status != http.StatusOK {
 				log.Errorf("got status %d while propagating location to %s for deployment %s", status, parent.Id,
@@ -361,9 +362,9 @@ func (t *hierarchyTable) setDeploymentParent(deploymentId string, parent *utils.
 
 	auxChildren := t.getChildren(deploymentId)
 	if len(auxChildren) > 0 {
-		deplClient := deployer.NewDeployerClient("")
+		deplClient := client2.NewDeployerClient("")
 		for _, child := range auxChildren {
-			deplClient.SetHostPort(child.Addr + ":" + strconv.Itoa(deployer.Port))
+			deplClient.SetHostPort(child.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 			deplClient.SetGrandparent(deploymentId, parent)
 		}
 	}
@@ -667,7 +668,7 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 		}
 		log.Debugf("my grandparent for %s is %s", deploymentId, grandparentId)
 		if grandparent == nil {
-			deplClient := deployer.NewDeployerClient(fallback.Addr + ":" + strconv.Itoa(deployer.Port))
+			deplClient := client2.NewDeployerClient(fallback.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 			status := deplClient.Fallback(deploymentId, myself, location.ID())
 			if status != http.StatusOK {
 				log.Debugf("tried to fallback to %s, got %d", fallback.Id, status)
@@ -684,7 +685,7 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 		)
 		locations, status = archimedesClient.GetClientCentroids(deploymentId)
 		if status == http.StatusNotFound {
-			autoClient := autonomic.NewAutonomicClient(autonomic.LocalHostPort)
+			autoClient := client.NewAutonomicClient(utils.AutonomicLocalHostPort)
 			var myLoc s2.CellID
 			myLoc, status = autoClient.GetLocation()
 			if status != http.StatusOK {
@@ -695,7 +696,7 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 			log.Errorf("got status %d while trying to get centroids for deployment %s", status, deploymentId)
 		}
 
-		deplClient := deployer.NewDeployerClient(grandparent.Addr + ":" + strconv.Itoa(deployer.Port))
+		deplClient := client2.NewDeployerClient(grandparent.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 		status = deplClient.WarnOfDeadChild(deploymentId, deadParent.Id, myself, alternatives, locations)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while renegotiating parent %s with %s for deployment %s", status,
@@ -715,7 +716,7 @@ func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string
 	select {
 	case <-waitingTimer.C:
 		log.Debugf("falling back to %s", fallback)
-		deplClient := deployer.NewDeployerClient(fallback.Addr + ":" + strconv.Itoa(deployer.Port))
+		deplClient := client2.NewDeployerClient(fallback.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 		status := deplClient.Fallback(deploymentId, myself, location.ID())
 		if status != http.StatusOK {
 			log.Debugf("tried to fallback to %s, got %d", fallback, status)
@@ -787,12 +788,12 @@ func attemptToExtend(deploymentId string, targetNode *utils.Node, config *api.Ex
 	}
 
 	if len(config.Locations) > 0 {
-		archClient := archimedes.NewArchimedesClient(nodeToExtendTo.Addr + ":" + strconv.Itoa(archimedes.Port))
+		archClient := archimedes.NewArchimedesClient(nodeToExtendTo.Addr + ":" + strconv.Itoa(utils.ArchimedesPort))
 		archClient.SetExploringCells(deploymentId, config.Locations)
 	}
 
 	if len(toExclude) > 0 {
-		autoClient := autonomic.NewAutonomicClient(nodeToExtendTo.Addr + ":" + strconv.Itoa(autonomic.Port))
+		autoClient := client.NewAutonomicClient(nodeToExtendTo.Addr + ":" + strconv.Itoa(utils.AutonomicPort))
 		toExcludeArr := make([]string, len(toExclude))
 		i := 0
 		for node := range toExclude {
@@ -813,7 +814,7 @@ func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children 
 	dto.Grandparent = hTable.getParent(deploymentId)
 	dto.Parent = myself
 	dto.Children = children
-	depClient := deployer.NewDeployerClient(nodeToExtendTo.Addr + ":" + strconv.Itoa(deployer.Port))
+	depClient := client2.NewDeployerClient(nodeToExtendTo.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 
 	log.Debugf("extending deployment %s to %s", deploymentId, nodeToExtendTo.Id)
 	status := depClient.RegisterDeployment(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Grandparent,

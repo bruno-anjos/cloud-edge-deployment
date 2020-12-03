@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 
@@ -92,7 +91,7 @@ func runClient(wg *sync.WaitGroup, clientNum int, deploymentUrl url.URL, config 
 	log.Debugf("[%d] Starting client", clientNum)
 
 	client := &http.Client{}
-	client.InitArchimedesClient(config.Fallback.Addr, archimedes.Port, location)
+	client.InitArchimedesClient(config.Fallback.Addr, utils.ArchimedesPort, location)
 	r, err := http.NewRequest(defaultHttp.MethodGet, deploymentUrl.String(), nil)
 	if err != nil {
 		panic(err)

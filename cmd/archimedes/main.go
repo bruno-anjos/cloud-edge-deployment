@@ -1,10 +1,9 @@
 package main
 
 import (
-	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
-	internal "github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
+	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 )
 
 const (
@@ -12,5 +11,5 @@ const (
 )
 
 func main() {
-	utils.StartServer(serviceName, archimedes.Port, archimedes2.PrefixPath, internal.Routes)
+	utils.StartServer(serviceName, utils.ArchimedesPort, api.PrefixPath, archimedes.Routes)
 }

@@ -5,12 +5,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+
 	log "github.com/sirupsen/logrus"
 )
 
 var (
-	childrenClient = deployer.NewDeployerClient("")
+	childrenClient = client.NewDeployerClient("")
 )
 
 func sendHeartbeatsPeriodically() {
@@ -23,7 +24,7 @@ func sendHeartbeatsPeriodically() {
 			childId := key.(string)
 			log.Debugf("sending heartbeat to %s", childId)
 			child := value.(typeChildrenMapValue)
-			childrenClient.SetHostPort(child.Addr + ":" + strconv.Itoa(deployer.Port))
+			childrenClient.SetHostPort(child.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 			status := childrenClient.SetParentAlive(myself.Id)
 			if status != http.StatusOK {
 				log.Errorf("got status %d while telling %s that i was alive", status, child.Id)

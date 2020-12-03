@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 )
@@ -22,7 +22,7 @@ type (
 func (nc *nodeLocationCache) get(node *utils.Node) (location s2.CellID) {
 	value, ok := nc.Load(node.Id)
 	if !ok {
-		autoClient := autonomic.NewAutonomicClient(node.Addr + ":" + strconv.Itoa(autonomic.Port))
+		autoClient := client.NewAutonomicClient(node.Addr + ":" + strconv.Itoa(utils.AutonomicPort))
 		var status int
 		location, status = autoClient.GetLocation()
 		if status != http.StatusOK {

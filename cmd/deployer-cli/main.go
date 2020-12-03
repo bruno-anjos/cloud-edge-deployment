@@ -7,14 +7,15 @@ import (
 	"os"
 
 	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v3"
 )
 
 var (
-	deployerClient = deployer.NewDeployerClient(deployer.LocalHostPort)
+	deployerClient = client.NewDeployerClient(utils.DeployerLocalHostPort)
 )
 
 func main() {

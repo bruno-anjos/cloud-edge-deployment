@@ -1,4 +1,4 @@
-package autonomic
+package client
 
 import (
 	"net/http"

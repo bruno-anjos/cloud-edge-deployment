@@ -13,7 +13,7 @@ var (
 	autonomicSystem *system
 )
 
-func init() {
+func InitServer() {
 	log.SetLevel(log.DebugLevel)
 	autonomicSystem = newSystem()
 

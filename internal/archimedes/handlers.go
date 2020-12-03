@@ -13,12 +13,12 @@ import (
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/clients"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+
+
 	"github.com/golang/geo/s2"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -55,7 +55,7 @@ var (
 	myLocation   s2.Cell
 )
 
-func init() {
+func InitServer(autoFactory autonomic.ClientFactory) {
 	sTable = newDeploymentsTable()
 	clientsManager = clients.NewManager()
 
@@ -64,7 +64,7 @@ func init() {
 	var (
 		locationId s2.CellID
 		status     int
-		autoClient = autonomic.NewAutonomicClient(autonomic.LocalHostPort)
+		autoClient = autoFactory.New(utils.AutonomicLocalHostPort)
 	)
 	for status != http.StatusOK {
 		locationId, status = autoClient.GetLocation()
@@ -340,7 +340,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 			reqLogger.Debugf("redirecting to %s from %s", redirectTo, reqBody.Location)
 			targetUrl = url.URL{
 				Scheme: "http",
-				Host:   redirectTo.Addr + ":" + strconv.Itoa(archimedes.Port),
+				Host:   redirectTo.Addr + ":" + strconv.Itoa(utils.ArchimedesPort),
 				Path:   api.GetResolvePath(),
 			}
 			clientsManager.RemoveFromExploring(reqBody.DeploymentId)
@@ -349,7 +349,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	deplClient := deployer.NewDeployerClient(deployer.LocalHostPort)
+	deplClient := client2.NewDeployerClient(utils.DeployerLocalHostPort)
 
 	resolved, found := resolveLocally(reqBody.ToResolve, reqLogger)
 	if !found {
@@ -369,7 +369,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 		fallbackURL := url.URL{
 			Scheme: "http",
-			Host:   fallback.Addr + ":" + strconv.Itoa(archimedes.Port),
+			Host:   fallback.Addr + ":" + strconv.Itoa(utils.ArchimedesPort),
 			Path:   api.GetResolvePath(),
 		}
 		clientsManager.RemoveFromExploring(reqBody.DeploymentId)
@@ -401,7 +401,7 @@ func checkForLoadBalanceRedirections(hostToResolve string) (redirect bool, targe
 			if current <= redirectConfig.Goal {
 				redirect, targetUrl = true, url.URL{
 					Scheme: "http",
-					Host:   redirectConfig.Target + ":" + strconv.Itoa(archimedes.Port),
+					Host:   redirectConfig.Target + ":" + strconv.Itoa(utils.ArchimedesPort),
 					Path:   api.GetResolvePath(),
 				}
 			}
@@ -675,7 +675,7 @@ func checkForClosestNodeRedirection(deploymentId string, clientLocation s2.CellI
 		// TODO this can be change by a load and delete probably
 		has := exploringNodes.checkAndDelete(deploymentId, redirectTo.Id)
 		if has {
-			autoClient := autonomic.NewAutonomicClient(myself.Addr + ":" + strconv.Itoa(autonomic.Port))
+			autoClient := client.NewAutonomicClient(myself.Addr + ":" + strconv.Itoa(utils.ArchimedesPort))
 			status = autoClient.SetExploredSuccessfully(deploymentId, redirectTo.Id)
 			if status != http.StatusOK {
 				log.Errorf("got status %d when setting %s exploration as success", status, redirectTo)

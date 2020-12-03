@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 )
 
 const (
@@ -38,13 +38,13 @@ func (r *RedirectAction) getErrorRedirectingCallback() func() {
 
 func (r *RedirectAction) Execute(client utils.Client) {
 	assertedClient := client.(*archimedes.Client)
-	assertedClient.SetHostPort(r.GetTarget().Addr + ":" + strconv.Itoa(archimedes.Port))
+	assertedClient.SetHostPort(r.GetTarget().Addr + ":" + strconv.Itoa(utils.ArchimedesPort))
 	status := assertedClient.WillRedirectToYou(r.GetDeploymentId(), r.GetOrigin().Id)
 	if status != http.StatusOK {
 		return
 	}
 
-	assertedClient.SetHostPort(r.GetOrigin().Addr + ":" + strconv.Itoa(archimedes.Port))
+	assertedClient.SetHostPort(r.GetOrigin().Addr + ":" + strconv.Itoa(utils.ArchimedesPort))
 	status = assertedClient.Redirect(r.GetDeploymentId(), r.GetTarget().Addr, r.GetAmount())
 	if status != http.StatusOK {
 		r.getErrorRedirectingCallback()()

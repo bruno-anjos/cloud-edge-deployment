@@ -1,4 +1,4 @@
-package deployer
+package client
 
 import (
 	"fmt"
@@ -16,13 +16,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type Client struct {
-	*utils.GenericClient
-}
 
 const (
 	HeartbeatCheckerTimeout = 60
 )
+
+type Client struct {
+	*utils.GenericClient
+}
 
 func NewDeployerClient(addr string) *Client {
 	return &Client{

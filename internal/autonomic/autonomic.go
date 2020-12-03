@@ -7,16 +7,16 @@ import (
 
 	"github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
 	autonomicUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 
@@ -35,7 +35,7 @@ type (
 		env         *environment.Environment
 		suspected   *sync.Map
 
-		deployerClient   *deployer.Client
+		deployerClient   *client.Client
 		archimedesClient *archimedes.Client
 	}
 )
@@ -46,8 +46,8 @@ func newSystem() *system {
 		exitChans:        &sync.Map{},
 		env:              environment.NewEnvironment(),
 		suspected:        &sync.Map{},
-		deployerClient:   deployer.NewDeployerClient(deployer.LocalHostPort),
-		archimedesClient: archimedes.NewArchimedesClient(archimedes.LocalHostPort),
+		deployerClient:   client.NewDeployerClient(utils.DeployerLocalHostPort),
+		archimedesClient: archimedes.NewArchimedesClient(utils.ArchimedesLocalHostPort),
 	}
 }
 

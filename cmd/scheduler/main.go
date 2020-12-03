@@ -6,7 +6,6 @@ import (
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
 	internal "github.com/bruno-anjos/cloud-edge-deployment/internal/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
 )
 
 const (
@@ -19,6 +18,6 @@ func main() {
 	flag.Parse()
 
 	internal.InitHandlers()
-	utils.StartServerWithoutDefaultFlags(serviceName, scheduler.Port, api.PrefixPath, internal.Routes, debug,
+	utils.StartServerWithoutDefaultFlags(serviceName, utils.SchedulerPort, api.PrefixPath, internal.Routes, debug,
 		listenAddr)
 }

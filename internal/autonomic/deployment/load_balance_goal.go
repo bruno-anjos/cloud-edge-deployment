@@ -7,13 +7,13 @@ import (
 
 	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
 	utils2 "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+
+
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
@@ -101,7 +101,7 @@ func (l *deploymentLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax boo
 			var filteredRedirectedTargets Range
 			archClient := archimedes.NewArchimedesClient("")
 			for _, node := range optRange {
-				archClient.SetHostPort(node.Addr + ":" + strconv.Itoa(archimedes.Port))
+				archClient.SetHostPort(node.Addr + ":" + strconv.Itoa(utils2.ArchimedesPort))
 				can, _ := archClient.CanRedirectToYou(l.deployment.DeploymentId, Myself.Id)
 				log.Debugf("%s deployment %s to redirect: %t", node, l.deployment.DeploymentId, can)
 				if can {
@@ -143,7 +143,7 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain
 	}
 
 	info = map[string]interface{}{}
-	archClient := archimedes.NewArchimedesClient(Myself.Addr + ":" + strconv.Itoa(archimedes.Port))
+	archClient := archimedes.NewArchimedesClient(Myself.Addr + ":" + strconv.Itoa(utils2.ArchimedesPort))
 	load, status := archClient.GetLoad(l.deployment.DeploymentId)
 	if status != http.StatusOK {
 		load = 0
@@ -162,7 +162,7 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain
 			continue
 		}
 		domain = append(domain, node)
-		archClient.SetHostPort(node.Addr + ":" + strconv.Itoa(archimedes.Port))
+		archClient.SetHostPort(node.Addr + ":" + strconv.Itoa(utils2.ArchimedesPort))
 		load, status = archClient.GetLoad(l.deployment.DeploymentId)
 		if status != http.StatusOK {
 			info[nodeId] = infoValueType{
@@ -235,7 +235,7 @@ func (l *deploymentLoadBalanceGoal) GenerateAction(targets []*utils2.Node, args 
 
 	switch args[lbActionTypeArgIndex].(string) {
 	case actions.ExtendDeploymentId:
-		autoClient := autonomic.NewAutonomicClient(targets[0].Addr + ":" + strconv.Itoa(autonomic.Port))
+		autoClient := client.NewAutonomicClient(targets[0].Addr + ":" + strconv.Itoa(utils2.AutonomicPort))
 		location, status := autoClient.GetLocation()
 		if status != http.StatusOK {
 			log.Errorf("got status %d while getting %s location", status, targets[0])
@@ -279,11 +279,11 @@ func (l *deploymentLoadBalanceGoal) handleOverload(candidates Range) (
 	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
 
 	actionArgs[lbActionTypeArgIndex] = actions.ExtendDeploymentId
-	deplClient := deployer.NewDeployerClient("")
+	deplClient := client2.NewDeployerClient("")
 	for _, candidate := range candidates {
 		_, okC := l.deployment.Children.Load(candidate)
 		if !okC {
-			deplClient.SetHostPort(candidate.Addr + ":" + strconv.Itoa(deployer.Port))
+			deplClient.SetHostPort(candidate.Addr + ":" + strconv.Itoa(utils2.DeployerPort))
 			hasDeployment, _ := deplClient.HasDeployment(l.deployment.DeploymentId)
 			if hasDeployment {
 				continue
@@ -312,7 +312,7 @@ func (l *deploymentLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 		return false
 	}
 
-	archClient := archimedes.NewArchimedesClient(archimedes.LocalHostPort)
+	archClient := archimedes.NewArchimedesClient(utils2.ArchimedesLocalHostPort)
 	load, status := archClient.GetLoad(l.deployment.DeploymentId)
 	if status != http.StatusOK {
 		log.Errorf("got status %d when asking for load for deployment %s", status, l.deployment.DeploymentId)
@@ -335,13 +335,13 @@ func (l *deploymentLoadBalanceGoal) checkIfHasAlternatives(sortingCriteria map[s
 	myLoad := sortingCriteria[Myself.Id].(infoValueType).Load
 
 	var (
-		deplClient = deployer.NewDeployerClient("")
+		deplClient = client2.NewDeployerClient("")
 	)
 	for _, value := range sortingCriteria {
 		infoValue := value.(infoValueType)
 		load := infoValue.Load
 		if float64(load) < maximumLoad && float64(load) < float64(myLoad)/2. {
-			deplClient.SetHostPort(infoValue.Node.Addr + ":" + strconv.Itoa(deployer.Port))
+			deplClient.SetHostPort(infoValue.Node.Addr + ":" + strconv.Itoa(utils2.DeployerPort))
 			hasDeployment, _ := deplClient.HasDeployment(l.deployment.DeploymentId)
 			if hasDeployment {
 				hasAlternatives = true

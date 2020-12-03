@@ -6,7 +6,7 @@ import (
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 )
@@ -28,7 +28,7 @@ func NewRemoveDeploymentAction(deploymentId string) *RemoveDeploymentAction {
 }
 
 func (m *RemoveDeploymentAction) Execute(client utils.Client) {
-	deployerClient := client.(*deployer.Client)
+	deployerClient := client.(*client2.Client)
 	status := deployerClient.DeleteDeployment(m.GetDeploymentId())
 	if status != http.StatusOK {
 		log.Errorf("got status %d while attempting to delete deployment %s", status, m.GetDeploymentId())
@@ -70,9 +70,9 @@ func (m *ExtendDeploymentAction) getSetNodeAsExploringCallback() func(nodeId str
 
 func (m *ExtendDeploymentAction) Execute(client utils.Client) {
 	log.Debugf("executing %s to %s", m.ActionId, m.GetTarget())
-	deployerClient := client.(*deployer.Client)
+	deployerClient := client.(*client2.Client)
 
-	targetClient := deployer.NewDeployerClient(m.GetTarget().Addr + ":" + strconv.Itoa(deployer.Port))
+	targetClient := client2.NewDeployerClient(m.GetTarget().Addr + ":" + strconv.Itoa(utils.DeployerPort))
 	has, _ := targetClient.HasDeployment(m.GetDeploymentId())
 	if has {
 		log.Debugf("%s already has deployment %s", m.GetTarget(), m.GetDeploymentId())
@@ -130,14 +130,14 @@ func (m *MultipleExtendDeploymentAction) getSetNodeAsExploringCallback() func(no
 
 func (m *MultipleExtendDeploymentAction) Execute(client utils.Client) {
 	log.Debugf("executing %s to %+v", m.ActionId, m.GetTargets())
-	deployerClient := client.(*deployer.Client)
+	deployerClient := client.(*client2.Client)
 	locations := m.getLocations()
 	extendedCentroidCallback := m.getCentroidCallback()
 	targetsExploring := m.getTargetsExploring()
 	toExclude := m.getToExclude()
 
 	for _, target := range m.GetTargets() {
-		targetClient := deployer.NewDeployerClient(target.Addr + ":" + strconv.Itoa(deployer.Port))
+		targetClient := client2.NewDeployerClient(target.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 		has, _ := targetClient.HasDeployment(m.GetDeploymentId())
 		if has {
 			log.Debugf("%s already has deployment %s", target, m.GetDeploymentId())

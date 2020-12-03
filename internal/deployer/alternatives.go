@@ -8,7 +8,7 @@ import (
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -77,7 +77,7 @@ func sendAlternatives() {
 }
 
 func sendAlternativesTo(neighbor *utils.Node, alternatives []*utils.Node) {
-	depClient := deployer.NewDeployerClient(neighbor.Addr + ":" + strconv.Itoa(deployer.Port))
+	depClient := client.NewDeployerClient(neighbor.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 	status := depClient.SendAlternatives(myself.Addr, alternatives)
 	if status != http.StatusOK {
 		log.Errorf("got status %d while sending alternatives to %s", status, neighbor.Addr)

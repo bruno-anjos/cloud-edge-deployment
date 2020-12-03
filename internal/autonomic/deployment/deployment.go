@@ -11,6 +11,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	public "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+
 	"github.com/golang/geo/s2"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -150,7 +151,7 @@ func (a *Deployment) BlacklistNodes(origin string, nodes ...string) {
 		a.Blacklist.Store(node, nil)
 	}
 
-	autoClient := public.NewAutonomicClient(a.Parent.Addr + ":" + strconv.Itoa(public.Port))
+	autoClient := client.NewAutonomicClient(a.Parent.Addr + ":" + strconv.Itoa(utils.AutonomicPort))
 	if a.Parent != nil && origin != a.Parent.Id {
 		autoClient.BlacklistNodes(a.DeploymentId, Myself.Id, nodes...)
 	}
@@ -161,7 +162,7 @@ func (a *Deployment) BlacklistNodes(origin string, nodes ...string) {
 		}
 		log.Debugf("telling %s to blacklist %+v for %s", childId, nodes, a.DeploymentId)
 		nodeWithLoc := value.(nodeWithLocation)
-		autoClient.SetHostPort(nodeWithLoc.Node.Addr + ":" + strconv.Itoa(public.Port))
+		autoClient.SetHostPort(nodeWithLoc.Node.Addr + ":" + strconv.Itoa(utils.AutonomicPort))
 		autoClient.BlacklistNodes(a.DeploymentId, Myself.Id, nodes...)
 		return true
 	})

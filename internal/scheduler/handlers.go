@@ -16,7 +16,7 @@ import (
 	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+
 	pkgUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -40,7 +40,7 @@ const (
 )
 
 var (
-	deplClient          = deployer.NewDeployerClient(deployer.LocalHostPort)
+	deplClient          = client2.NewDeployerClient(utils.DeployerLocalHostPort)
 	dockerClient        *client.Client
 	instanceToContainer sync.Map
 	fallback            *utils.Node
@@ -164,7 +164,6 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 
 	hasImage := false
 	for _, image := range images {
-		log.Debugf("repo: %s", image.RepoTags[0])
 		if image.RepoTags[0] == imageName {
 			log.Debugf("%s matches %s", image.RepoTags[0], imageName)
 			hasImage = true
@@ -199,10 +198,11 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	}
 
 	containerConfig = container.Config{
-		Cmd:      containerInstance.Command,
-		Env:      envVars,
-		Image:    imageName,
-		Hostname: fmt.Sprintf("%s-%d", containerInstance.DeploymentName, containerInstance.ReplicaNumber),
+		Cmd:          containerInstance.Command,
+		Env:          envVars,
+		Image:        imageName,
+		Hostname:     fmt.Sprintf("%s-%d", containerInstance.DeploymentName, containerInstance.ReplicaNumber),
+		ExposedPorts: containerInstance.Ports,
 	}
 
 	hostConfig := container.HostConfig{
@@ -214,6 +214,12 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 		instanceId)
 	if err != nil {
 		panic(err)
+	}
+
+	if len(cont.Warnings) > 0 {
+		for _, warn := range cont.Warnings {
+			log.Warn(warn)
+		}
 	}
 
 	// Add container instance to deployer

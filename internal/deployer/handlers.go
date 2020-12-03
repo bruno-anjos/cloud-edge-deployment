@@ -13,6 +13,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
+
 	"github.com/docker/go-connections/nat"
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
@@ -44,9 +45,9 @@ const (
 )
 
 var (
-	autonomicClient  = autonomic.NewAutonomicClient(autonomic.LocalHostPort)
-	archimedesClient = archimedes.NewArchimedesClient(archimedes.LocalHostPort)
-	schedulerClient  = scheduler.NewSchedulerClient(scheduler.LocalHostPort)
+	autonomicClient  autonomic.Client
+	archimedesClient archimedes.Client
+	schedulerClient  scheduler.Client
 )
 
 var (
@@ -68,10 +69,25 @@ var (
 	nodeLocCache *nodeLocationCache
 
 	timer *time.Timer
+
+	autoFactory  autonomic.ClientFactory
+	archFactory  archimedes.ClientFactory
+	deplFactory  deployer.ClientFactory
+	schedFactory scheduler.ClientFactory
 )
 
-func init() {
+func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimedes.ClientFactory,
+	schedFactoryAux scheduler.ClientFactory, deplFactoryAux deployer.ClientFactory) {
 	myself = utils.NodeFromEnv()
+
+	autoFactory = autoFactoryAux
+	archFactory = archFactoryAux
+	deplFactory = deplFactoryAux
+	schedFactory = schedFactoryAux
+
+	autonomicClient = autoFactory.New(utils.AutonomicLocalHostPort)
+	archimedesClient = archFactory.New(utils.ArchimedesLocalHostPort)
+	schedulerClient = schedFactory.New(utils.SchedulerLocalHostPort)
 
 	myAlternatives = sync.Map{}
 	nodeAlternatives = map[string][]*utils.Node{}
@@ -134,7 +150,7 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deplClient := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
+	deplClient := deplFactory.New(parent.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 	log.Debugf("propagating %s location for deployments %+v to %s", reqBody.ChildId, deploymentId, parent.Id)
 	deplClient.PropagateLocationToHorizon(deploymentId, reqBody.ChildId, reqBody.Location, reqBody.TTL+1,
 		reqBody.Operation)
@@ -303,10 +319,10 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func takeChildren(deploymentId string, parent *utils.Node, children ...*utils.Node) {
-	deplClient := deployer.NewDeployerClient("")
+	deplClient := deplFactory.New("")
 
 	for _, child := range children {
-		deplClient.SetHostPort(child.Addr + ":" + strconv.Itoa(deployer.Port))
+		deplClient.SetHostPort(child.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 		status := deplClient.WarnThatIAmParent(deploymentId, myself, parent)
 		if status == http.StatusConflict {
 			log.Debugf("can not be %s parent since it already has a live parent", child.Id)
@@ -497,7 +513,7 @@ func deleteDeployment(deploymentId string) (success bool, parentStatus int) {
 
 	parent := hTable.getParent(deploymentId)
 	if parent != nil {
-		client := deployer.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(deployer.Port))
+		client := client2.NewDeployerClient(parent.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 		status := client.ChildDeletedDeployment(deploymentId, myself.Id)
 		if status != http.StatusOK {
 			log.Errorf("got status %d from child deleted deployment", status)

@@ -8,11 +8,11 @@ import (
 	"strconv"
 
 	deployerAPI "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+
 	"github.com/golang/geo/s2"
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
@@ -101,7 +101,7 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 		return
 	}
 
-	archClient := archimedes.NewArchimedesClient(archimedes.LocalHostPort)
+	archClient := archimedes.NewArchimedesClient(utils.ArchimedesLocalHostPort)
 	centroids, status := archClient.GetClientCentroids(i.deployment.DeploymentId)
 	if status == http.StatusNotFound {
 		return
@@ -282,12 +282,12 @@ func (i *idealLatency) Cutoff(candidates Domain, candidatesCriteria map[string]i
 	maxed bool) {
 	maxed = true
 
-	candidateClient := deployer.NewDeployerClient("")
+	candidateClient := client.NewDeployerClient("")
 	for _, candidate := range candidates {
 		percentage := candidatesCriteria[candidate.Id].(float64)
 		log.Debugf("candidate %s distance percentage (me) %f", candidate, percentage)
 		if percentage < maximumDistancePercentage {
-			candidateClient.SetHostPort(candidate.Addr + ":" + strconv.Itoa(deployer.Port))
+			candidateClient.SetHostPort(candidate.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 			has, _ := candidateClient.HasDeployment(i.deployment.DeploymentId)
 			if has {
 				log.Debugf("candidate %s already has deployment %s", candidate, i.deployment.DeploymentId)

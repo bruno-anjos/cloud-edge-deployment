@@ -7,7 +7,8 @@ import (
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
@@ -84,7 +85,7 @@ func (nl *nodeLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, inf
 	}
 
 	info = map[string]interface{}{}
-	deplClient := deployer.NewDeployerClient("")
+	deplClient := client.NewDeployerClient("")
 
 	for nodeId, node := range vicinity.Nodes {
 		_, okS := nl.deployment.Suspected.Load(nodeId)
@@ -95,7 +96,7 @@ func (nl *nodeLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, inf
 
 		domain = append(domain, node)
 
-		deplClient.SetHostPort(node.Addr + ":" + strconv.Itoa(deployer.Port))
+		deplClient.SetHostPort(node.Addr + ":" + strconv.Itoa(utils.DeployerPort))
 		deployments, status := deplClient.GetDeployments()
 		if status != http.StatusOK {
 			info[nodeId] = &nodeCriteria{Deployments: []string{}}

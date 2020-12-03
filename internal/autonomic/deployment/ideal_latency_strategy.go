@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	public "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	log "github.com/sirupsen/logrus"
 )
@@ -31,7 +31,7 @@ func newDefaultIdealLatencyStrategy(deployment *Deployment) *idealLatencyStrateg
 
 	return &idealLatencyStrategy{
 		basicStrategy: newBasicStrategy(public.StrategyIdealLatencyId, defaultGoals),
-		archClient:    archimedes.NewArchimedesClient(archimedes.LocalHostPort),
+		archClient:    archimedes.NewArchimedesClient(utils.ArchimedesLocalHostPort),
 		lbGoal:        lbGoal,
 		deployment:    deployment,
 	}
@@ -85,8 +85,8 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 			}
 
 			if int(redirected) >= i.redirectGoal {
-				targetArchClient := archimedes.NewArchimedesClient(i.redirectingTo.Addr + ":" + strconv.Itoa(archimedes.
-					Port))
+				targetArchClient := archimedes.NewArchimedesClient(i.redirectingTo.Addr + ":" + strconv.Itoa(
+					utils.ArchimedesPort))
 				status = targetArchClient.RemoveRedirect(i.deployment.DeploymentId)
 				if status != http.StatusOK {
 					log.Errorf("got status %d while removing redirections for deployment %s at %s", status,
