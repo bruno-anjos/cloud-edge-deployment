@@ -1,7 +1,7 @@
 package autonomic
 
 import (
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/golang/geo/s2"
 )
 

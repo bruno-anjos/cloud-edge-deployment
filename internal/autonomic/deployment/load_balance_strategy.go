@@ -9,7 +9,7 @@ type loadBalanceStrategy struct {
 }
 
 func newDefaultLoadBalanceStrategy(deployment *Deployment) *loadBalanceStrategy {
-	defaultGoals := []Goal{
+	defaultGoals := []goal{
 		newLoadBalanceGoal(deployment),
 		newIdealLatencyGoal(deployment),
 	}

@@ -7,13 +7,15 @@ import (
 	"time"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
 	log "github.com/sirupsen/logrus"
 )
 
 func setAlternativesHandler(_ http.ResponseWriter, r *http.Request) {
-	deployerId := utils.ExtractPathVar(r, nodeIdPathVar)
+	deployerId := internalUtils.ExtractPathVar(r, nodeIdPathVar)
 
 	reqBody := api.AlternativesRequestBody{}
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -77,7 +79,7 @@ func sendAlternatives() {
 }
 
 func sendAlternativesTo(neighbor *utils.Node, alternatives []*utils.Node) {
-	depClient :=  deplFactory.New(neighbor.Addr + ":" + strconv.Itoa(utils.DeployerPort))
+	depClient := deplFactory.New(neighbor.Addr + ":" + strconv.Itoa(deployer.Port))
 	status := depClient.SendAlternatives(myself.Addr, alternatives)
 	if status != http.StatusOK {
 		log.Errorf("got status %d while sending alternatives to %s", status, neighbor.Addr)

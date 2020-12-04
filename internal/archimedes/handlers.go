@@ -12,13 +12,15 @@ import (
 	"time"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/clients"
+	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
 	"github.com/golang/geo/s2"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -70,7 +72,7 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.
 	var (
 		locationId s2.CellID
 		status     int
-		autoClient = autoFactory.New(utils.AutonomicLocalHostPort)
+		autoClient = autoFactory.New(internalUtils.AutonomicLocalHostPort)
 	)
 	for status != http.StatusOK {
 		locationId, status = autoClient.GetLocation()
@@ -90,7 +92,7 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.
 func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in registerDeployment handler")
 
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 
 	reqBody := api.RegisterDeploymentRequestBody{}
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -132,7 +134,7 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in deleteDeployment handler")
 
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 
 	_, ok := sTable.getDeployment(deploymentId)
 	if !ok {
@@ -149,7 +151,7 @@ func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 func registerDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in registerDeploymentInstance handler")
 
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 
 	_, ok := sTable.getDeployment(deploymentId)
 	if !ok {
@@ -157,7 +159,7 @@ func registerDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
+	instanceId := internalUtils.ExtractPathVar(r, instanceIdPathVar)
 
 	req := api.RegisterDeploymentInstanceRequestBody{}
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -202,14 +204,14 @@ func registerDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 func deleteDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in deleteDeploymentInstance handler")
 
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 	_, ok := sTable.getDeployment(deploymentId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
+	instanceId := internalUtils.ExtractPathVar(r, instanceIdPathVar)
 	instance, ok := sTable.getDeploymentInstance(deploymentId, instanceId)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
@@ -226,13 +228,13 @@ func getAllDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
 
 	var resp api.GetAllDeploymentsResponseBody
 	resp = sTable.getAllDeployments()
-	utils.SendJSONReplyOK(w, resp)
+	internalUtils.SendJSONReplyOK(w, resp)
 }
 
 func getAllDeploymentInstancesHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in getAllDeploymentInstances handler")
 
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 
 	_, ok := sTable.getDeployment(deploymentId)
 	if !ok {
@@ -242,14 +244,14 @@ func getAllDeploymentInstancesHandler(w http.ResponseWriter, r *http.Request) {
 
 	var resp api.GetDeploymentResponseBody
 	resp = sTable.getAllDeploymentInstances(deploymentId)
-	utils.SendJSONReplyOK(w, resp)
+	internalUtils.SendJSONReplyOK(w, resp)
 }
 
 func getDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in getDeploymentInstance handler")
 
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
+	instanceId := internalUtils.ExtractPathVar(r, instanceIdPathVar)
 
 	instance, ok := sTable.getDeploymentInstance(deploymentId, instanceId)
 	if !ok {
@@ -260,11 +262,11 @@ func getDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	var resp api.GetDeploymentInstanceResponseBody
 	resp = *instance
 
-	utils.SendJSONReplyOK(w, resp)
+	internalUtils.SendJSONReplyOK(w, resp)
 }
 
 func getInstanceHandler(w http.ResponseWriter, r *http.Request) {
-	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
+	instanceId := internalUtils.ExtractPathVar(r, instanceIdPathVar)
 
 	instance, ok := sTable.getInstance(instanceId)
 	if !ok {
@@ -274,14 +276,14 @@ func getInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	var resp api.GetInstanceResponseBody
 	resp = *instance
-	utils.SendJSONReplyOK(w, resp)
+	internalUtils.SendJSONReplyOK(w, resp)
 }
 
 func whoAreYouHandler(w http.ResponseWriter, _ *http.Request) {
 	log.Debug("handling whoAreYou request")
 	var resp api.WhoAreYouResponseBody
 	resp = archimedesId
-	utils.SendJSONReplyOK(w, resp)
+	internalUtils.SendJSONReplyOK(w, resp)
 }
 
 func getDeploymentsTableHandler(w http.ResponseWriter, _ *http.Request) {
@@ -291,7 +293,7 @@ func getDeploymentsTableHandler(w http.ResponseWriter, _ *http.Request) {
 		resp = *discoverMsg
 	}
 
-	utils.SendJSONReplyOK(w, resp)
+	internalUtils.SendJSONReplyOK(w, resp)
 }
 
 func resolveHandler(w http.ResponseWriter, r *http.Request) {
@@ -305,7 +307,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reqLogger := log.WithField(utils.ReqIdHeaderField, reqBody.Id)
+	reqLogger := log.WithField(internalUtils.ReqIdHeaderField, reqBody.Id)
 	reqLogger.Level = log.DebugLevel
 
 	defer reqLogger.Debugf("took %f to answer", time.Since(start).Seconds())
@@ -346,7 +348,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 			reqLogger.Debugf("redirecting to %s from %s", redirectTo, reqBody.Location)
 			targetUrl = url.URL{
 				Scheme: "http",
-				Host:   redirectTo.Addr + ":" + strconv.Itoa(utils.ArchimedesPort),
+				Host:   redirectTo.Addr + ":" + strconv.Itoa(archimedes.Port),
 				Path:   api.GetResolvePath(),
 			}
 			clientsManager.RemoveFromExploring(reqBody.DeploymentId)
@@ -355,7 +357,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	deplClient := deplFactory.New(utils.DeployerLocalHostPort)
+	deplClient := deplFactory.New(internalUtils.DeployerLocalHostPort)
 
 	resolved, found := resolveLocally(reqBody.ToResolve, reqLogger)
 	if !found {
@@ -367,7 +369,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if fallback.Id == myself.Id {
-			utils.SendJSONReplyStatus(w, http.StatusNotFound, nil)
+			internalUtils.SendJSONReplyStatus(w, http.StatusNotFound, nil)
 			return
 		}
 
@@ -375,7 +377,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 		fallbackURL := url.URL{
 			Scheme: "http",
-			Host:   fallback.Addr + ":" + strconv.Itoa(utils.ArchimedesPort),
+			Host:   fallback.Addr + ":" + strconv.Itoa(archimedes.Port),
 			Path:   api.GetResolvePath(),
 		}
 		clientsManager.RemoveFromExploring(reqBody.DeploymentId)
@@ -393,7 +395,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	reqLogger.Debug("will remove from exploring")
 	clientsManager.RemoveFromExploring(reqBody.DeploymentId)
 	reqLogger.Debug("removed from exploring")
-	utils.SendJSONReplyOK(w, resp)
+	internalUtils.SendJSONReplyOK(w, resp)
 }
 
 func checkForLoadBalanceRedirections(hostToResolve string) (redirect bool, targetUrl url.URL) {
@@ -407,7 +409,7 @@ func checkForLoadBalanceRedirections(hostToResolve string) (redirect bool, targe
 			if current <= redirectConfig.Goal {
 				redirect, targetUrl = true, url.URL{
 					Scheme: "http",
-					Host:   redirectConfig.Target + ":" + strconv.Itoa(utils.ArchimedesPort),
+					Host:   redirectConfig.Target + ":" + strconv.Itoa(archimedes.Port),
 					Path:   api.GetResolvePath(),
 				}
 			}
@@ -465,7 +467,7 @@ func resolveLocally(toResolve *api.ToResolveDTO, reqLogger *log.Entry) (resolved
 }
 
 func redirectServiceHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 
 	var req api.RedirectRequestBody
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -500,7 +502,7 @@ func redirectServiceHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func canRedirectToYouHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 
 	if _, ok := sTable.deploymentsMap.Load(deploymentId); !ok {
 		w.WriteHeader(http.StatusConflict)
@@ -516,8 +518,8 @@ func canRedirectToYouHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func willRedirectToYouHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-	nodeId := utils.ExtractPathVar(r, nodeIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
+	nodeId := internalUtils.ExtractPathVar(r, nodeIdPathVar)
 
 	if _, ok := sTable.deploymentsMap.Load(deploymentId); !ok {
 		w.WriteHeader(http.StatusConflict)
@@ -538,8 +540,8 @@ func willRedirectToYouHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func stoppedRedirectingToYouHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-	nodeId := utils.ExtractPathVar(r, nodeIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
+	nodeId := internalUtils.ExtractPathVar(r, nodeIdPathVar)
 
 	value, ok := redirectingToMe.Load(deploymentId)
 	if ok {
@@ -550,26 +552,26 @@ func stoppedRedirectingToYouHandler(_ http.ResponseWriter, r *http.Request) {
 }
 
 func removeRedirectionHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 	redirectServicesMap.Delete(deploymentId)
 }
 
 func getRedirectedHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 
 	value, ok := redirectServicesMap.Load(deploymentId)
 	if !ok {
 		log.Debugf("deployment %s is not being redirected", deploymentId)
-		utils.SendJSONReplyStatus(w, http.StatusNotFound, 0)
+		internalUtils.SendJSONReplyStatus(w, http.StatusNotFound, 0)
 		return
 	}
 
 	redirected := value.(redirectionsMapValue)
-	utils.SendJSONReplyOK(w, redirected.Current)
+	internalUtils.SendJSONReplyOK(w, redirected.Current)
 }
 
 func setExploringClientLocationHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 
 	var reqBody api.SetExploringClientLocationRequestBody
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -583,7 +585,7 @@ func setExploringClientLocationHandler(_ http.ResponseWriter, r *http.Request) {
 }
 
 func addDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 
 	var reqBody api.AddDeploymentNodeRequestBody
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -602,8 +604,8 @@ func addDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
 }
 
 func removeDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-	nodeId := utils.ExtractPathVar(r, nodeIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
+	nodeId := internalUtils.ExtractPathVar(r, nodeIdPathVar)
 
 	redirectTargets.delete(deploymentId, nodeId)
 	exploringNodes.checkAndDelete(deploymentId, nodeId)
@@ -612,19 +614,19 @@ func removeDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
 }
 
 func getLoadHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 
 	load := clientsManager.GetLoad(deploymentId)
-	utils.SendJSONReplyOK(w, load)
+	internalUtils.SendJSONReplyOK(w, load)
 }
 
 func getClientCentroidsHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 	centroids, ok := clientsManager.GetDeploymentClientsCentroids(deploymentId)
 	if !ok {
-		utils.SendJSONReplyStatus(w, http.StatusNotFound, nil)
+		internalUtils.SendJSONReplyStatus(w, http.StatusNotFound, nil)
 	} else {
-		utils.SendJSONReplyOK(w, centroids)
+		internalUtils.SendJSONReplyOK(w, centroids)
 	}
 }
 
@@ -658,13 +660,13 @@ func checkForClosestNodeRedirection(deploymentId string, clientLocation s2.CellI
 	redirectTo = myself
 
 	var (
-		bestDiff = utils.ChordAngleToKM(myLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
+		bestDiff = internalUtils.ChordAngleToKM(myLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
 		status   int
 	)
 
 	redirectTargets.rangeOver(deploymentId, func(node *utils.Node, nodeLocId s2.CellID) bool {
 		auxLocation := s2.CellFromCellID(nodeLocId)
-		currDiff := utils.ChordAngleToKM(auxLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
+		currDiff := internalUtils.ChordAngleToKM(auxLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
 		if currDiff < bestDiff {
 			bestDiff = currDiff
 			redirectTo = node
@@ -681,7 +683,7 @@ func checkForClosestNodeRedirection(deploymentId string, clientLocation s2.CellI
 		// TODO this can be change by a load and delete probably
 		has := exploringNodes.checkAndDelete(deploymentId, redirectTo.Id)
 		if has {
-			autoClient := autoFactory.New(myself.Addr + ":" + strconv.Itoa(utils.ArchimedesPort))
+			autoClient := autoFactory.New(myself.Addr + ":" + strconv.Itoa(archimedes.Port))
 			status = autoClient.SetExploredSuccessfully(deploymentId, redirectTo.Id)
 			if status != http.StatusOK {
 				log.Errorf("got status %d when setting %s exploration as success", status, redirectTo)

@@ -44,8 +44,8 @@ var (
 
 	dockerClient        *client.Client
 	instanceToContainer sync.Map
-	fallback            *internalUtils.Node
-	myself              *internalUtils.Node
+	fallback            *utils.Node
+	myself              *utils.Node
 
 	stopContainerTimeoutVar = stopContainerTimeout * time.Second
 )
@@ -63,7 +63,7 @@ func InitServer(deplFactory deployer.ClientFactory) {
 
 	log.SetLevel(log.DebugLevel)
 
-	myself = internalUtils.NodeFromEnv()
+	myself = utils.NodeFromEnv()
 
 	var err error
 	dockerClient, err = client.NewEnvClient()

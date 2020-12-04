@@ -8,10 +8,11 @@ import (
 	autonomicAPI "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	deployerAPI "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	autonomicUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
@@ -45,6 +46,10 @@ type (
 	}
 )
 
+const (
+	initialDeploymentDelay = 20 * time.Second
+)
+
 func newSystem(deplFactory deployer.ClientFactory, archFactory archimedes.ClientFactory,
 	autoFactory autonomic.ClientFactory) *system {
 	return &system{
@@ -52,8 +57,8 @@ func newSystem(deplFactory deployer.ClientFactory, archFactory archimedes.Client
 		exitChans:        &sync.Map{},
 		env:              environment.NewEnvironment(),
 		suspected:        &sync.Map{},
-		deployerClient:   deplFactory.New(utils.DeployerLocalHostPort),
-		archimedesClient: archFactory.New(utils.ArchimedesLocalHostPort),
+		deployerClient:   deplFactory.New(internalUtils.DeployerLocalHostPort),
+		archimedesClient: archFactory.New(internalUtils.ArchimedesLocalHostPort),
 		deplFactory:      deplFactory,
 		autoFactory:      autoFactory,
 	}
@@ -223,8 +228,8 @@ func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]inter
 		iDistSum := 0.
 		jDistSum := 0.
 		for _, locationCell := range locationCells {
-			iDistSum += utils.ChordAngleToKM(iCell.DistanceToCell(locationCell))
-			jDistSum += utils.ChordAngleToKM(jCell.DistanceToCell(locationCell))
+			iDistSum += internalUtils.ChordAngleToKM(iCell.DistanceToCell(locationCell))
+			jDistSum += internalUtils.ChordAngleToKM(jCell.DistanceToCell(locationCell))
 		}
 
 		return iDistSum < jDistSum
@@ -270,7 +275,7 @@ func (a *system) getMyLocation() (s2.CellID, error) {
 }
 
 func (a *system) handleDeployment(deployment *deployment.Deployment, exit <-chan interface{}) {
-	time.Sleep(autonomicUtils.InitialDeploymentDelay)
+	time.Sleep(initialDeploymentDelay)
 
 	timer := time.NewTimer(autonomicUtils.DefaultGoalCycleTimeout)
 

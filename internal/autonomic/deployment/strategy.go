@@ -12,10 +12,10 @@ type strategy interface {
 
 type basicStrategy struct {
 	id    string
-	goals []Goal
+	goals []goal
 }
 
-func newBasicStrategy(id string, goals []Goal) *basicStrategy {
+func newBasicStrategy(id string, goals []goal) *basicStrategy {
 	return &basicStrategy{
 		id:    id,
 		goals: goals,
@@ -24,8 +24,8 @@ func newBasicStrategy(id string, goals []Goal) *basicStrategy {
 
 func (b *basicStrategy) Optimize() actions.Action {
 	var (
-		nextDomain             Domain
-		goalToChooseActionFrom Goal
+		nextDomain             domain
+		goalToChooseActionFrom goal
 		goalActionArgs         []interface{}
 	)
 

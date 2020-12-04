@@ -10,7 +10,9 @@ import (
 	deployerAPI "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
 	"github.com/golang/geo/s2"
 	"github.com/mitchellh/mapstructure"
@@ -22,7 +24,7 @@ const (
 
 	maximumDistancePercentage = 1.2
 	satisfiedDistance         = 20.
-	maxDistance               = utils.EarthRadius * math.Pi
+	maxDistance               = internalUtils.EarthRadius * math.Pi
 	maxChildren               = 4.
 	branchingCutoff           = 1
 
@@ -78,18 +80,16 @@ func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
 		panic("could not get location from environment")
 	}
 
-	goal := &idealLatency{
+	return &idealLatency{
 		deployment:        deployment,
 		dependencies:      dependencies,
 		myLocation:        s2.CellIDFromToken(value.(string)),
 		centroidsExtended: map[s2.CellID]interface{}{},
 		depthFactor:       deployment.DepthFactor,
 	}
-
-	return goal
 }
 
-func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range, actionArgs []interface{}) {
+func (i *idealLatency) Optimize(optDomain domain) (isAlreadyMax bool, optRange result, actionArgs []interface{}) {
 	isAlreadyMax = true
 	optRange = optDomain
 	actionArgs = nil
@@ -100,7 +100,7 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 		return
 	}
 
-	archClient := i.deployment.archFactory.New(utils.ArchimedesLocalHostPort)
+	archClient := i.deployment.archFactory.New(internalUtils.ArchimedesLocalHostPort)
 	centroids, status := archClient.GetClientCentroids(i.deployment.DeploymentId)
 	if status == http.StatusNotFound {
 		return
@@ -186,7 +186,7 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 	return
 }
 
-func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[string]interface{}, success bool) {
+func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[string]interface{}, success bool) {
 	value, ok := i.deployment.Exploring.Load(Myself.Id)
 	if ok {
 		exploringTTL := value.(exploringMapValue)
@@ -216,7 +216,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 	)
 	for _, centroid := range centroids {
 		centroidCell := s2.CellFromCellID(centroid)
-		myDists[centroid] = utils.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(centroidCell))
+		myDists[centroid] = internalUtils.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(centroidCell))
 		log.Debugf("mydist from %s to %s, %f", i.myLocation.ToToken(), centroid.ToToken(), myDists[centroid])
 		centroidCells[centroid] = centroidCell
 	}
@@ -245,7 +245,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 			nodeCentroidsMap sortingCriteriaType
 		)
 		for _, centroidId := range centroids {
-			delta := utils.ChordAngleToKM(s2.CellFromCellID(location).DistanceToCell(centroidCells[centroidId]))
+			delta := internalUtils.ChordAngleToKM(s2.CellFromCellID(location).DistanceToCell(centroidCells[centroidId]))
 
 			if i.deployment.Parent != nil && nodeId == i.deployment.Parent.Id {
 				nodeCentroidsMap = info[hiddenParentId].(sortingCriteriaType)
@@ -264,7 +264,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain Domain, info map[
 	return
 }
 
-func (i *idealLatency) Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range) {
+func (i *idealLatency) Order(candidates domain, sortingCriteria map[string]interface{}) (ordered result) {
 	ordered = candidates
 	sort.Slice(ordered, func(i, j int) bool {
 		return sortingCriteria[ordered[i].Id].(float64) < sortingCriteria[ordered[j].Id].(float64)
@@ -273,11 +273,11 @@ func (i *idealLatency) Order(candidates Domain, sortingCriteria map[string]inter
 	return
 }
 
-func (i *idealLatency) Filter(candidates, domain Domain) (filtered Range) {
-	return DefaultFilter(candidates, domain)
+func (i *idealLatency) Filter(candidates, domain domain) (filtered result) {
+	return defaultFilter(candidates, domain)
 }
 
-func (i *idealLatency) Cutoff(candidates Domain, candidatesCriteria map[string]interface{}) (cutoff Range,
+func (i *idealLatency) Cutoff(candidates domain, candidatesCriteria map[string]interface{}) (cutoff result,
 	maxed bool) {
 	maxed = true
 
@@ -286,7 +286,7 @@ func (i *idealLatency) Cutoff(candidates Domain, candidatesCriteria map[string]i
 		percentage := candidatesCriteria[candidate.Id].(float64)
 		log.Debugf("candidate %s distance percentage (me) %f", candidate, percentage)
 		if percentage < maximumDistancePercentage {
-			candidateClient.SetHostPort(candidate.Addr + ":" + strconv.Itoa(utils.DeployerPort))
+			candidateClient.SetHostPort(candidate.Addr + ":" + strconv.Itoa(deployer.Port))
 			has, _ := candidateClient.HasDeployment(i.deployment.DeploymentId)
 			if has {
 				log.Debugf("candidate %s already has deployment %s", candidate, i.deployment.DeploymentId)
@@ -302,7 +302,7 @@ func (i *idealLatency) Cutoff(candidates Domain, candidatesCriteria map[string]i
 	return
 }
 
-func (i *idealLatency) GenerateAction(targets Range, args ...interface{}) actions.Action {
+func (i *idealLatency) GenerateAction(targets result, args ...interface{}) actions.Action {
 	log.Debugf("generating action %s", (args[ilActionTypeArgIndex]).(string))
 
 	switch args[ilActionTypeArgIndex].(string) {
@@ -403,7 +403,8 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthes
 	i.deployment.Children.Range(func(key, value interface{}) bool {
 		childId := key.(deploymentChildrenMapKey)
 		child := value.(deploymentChildrenMapValue)
-		delta := utils.ChordAngleToKM(s2.CellFromCellID(child.Location).DistanceToCell(s2.CellFromCellID(avgLocation)))
+		delta := internalUtils.ChordAngleToKM(s2.CellFromCellID(child.Location).DistanceToCell(s2.CellFromCellID(
+			avgLocation)))
 
 		if delta > furthestChildDistance {
 			furthestChildDistance = delta
@@ -432,7 +433,7 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthes
 			panic(err)
 		}
 
-		furthestChildDistance = utils.ChordAngleToKM(s2.CellFromCellID(location).
+		furthestChildDistance = internalUtils.ChordAngleToKM(s2.CellFromCellID(location).
 			DistanceToCell(s2.CellFromCellID(avgLocation)))
 	}
 
@@ -479,7 +480,8 @@ func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
 
 	centroidDistSum := 0.
 	for _, centroid := range centroids {
-		centroidDistSum += utils.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(s2.CellFromCellID(centroid)))
+		centroidDistSum += internalUtils.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(s2.CellFromCellID(
+			centroid)))
 	}
 	avgDistanceToCentroids := centroidDistSum / float64(len(centroids))
 
@@ -507,8 +509,8 @@ func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
 	return validBranch
 }
 
-func (i *idealLatency) filterBlacklisted(original Range) (Range, bool) {
-	var newRange Range
+func (i *idealLatency) filterBlacklisted(original result) (result, bool) {
+	var newRange result
 	for _, node := range original {
 		if _, ok := i.deployment.Blacklist.Load(node); !ok {
 			newRange = append(newRange, node)

@@ -3,7 +3,7 @@ package metrics
 import (
 	"fmt"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 )
 
 type (

@@ -31,7 +31,7 @@ func NewArchimedesClient(addr string) *Client {
 	return archClient
 }
 
-func (c *Client) RegisterDeployment(deploymentId string, ports nat.PortSet, host *internalUtils.Node) (status int) {
+func (c *Client) RegisterDeployment(deploymentId string, ports nat.PortSet, host *utils.Node) (status int) {
 	reqBody := api.RegisterDeploymentRequestBody{
 		Deployment: &api.DeploymentDTO{Ports: ports},
 		Host:       host,

@@ -54,7 +54,7 @@ func (c *Client) GetDeployments() (deployments map[string]*api.DeploymentDTO, st
 	return
 }
 
-func (c *Client) AddDeploymentChild(deploymentId string, child *internalUtils.Node) (status int) {
+func (c *Client) AddDeploymentChild(deploymentId string, child *utils.Node) (status int) {
 	path := api.GetDeploymentChildPath(deploymentId)
 
 	var reqBody api.AddDeploymentChildRequestBody
@@ -76,7 +76,7 @@ func (c *Client) RemoveDeploymentChild(deploymentId, childId string) (status int
 	return
 }
 
-func (c *Client) SetDeploymentParent(deploymentId string, parent *internalUtils.Node) (status int) {
+func (c *Client) SetDeploymentParent(deploymentId string, parent *utils.Node) (status int) {
 	path := api.GetDeploymentParentPath(deploymentId)
 
 	var reqBody api.SetDeploymentParentRequestBody
@@ -104,7 +104,7 @@ func (c *Client) IsNodeInVicinity(nodeId string) (isInVicinity bool) {
 	return
 }
 
-func (c *Client) GetClosestNode(locations []s2.CellID, toExclude map[string]interface{}) (closest *internalUtils.Node) {
+func (c *Client) GetClosestNode(locations []s2.CellID, toExclude map[string]interface{}) (closest *utils.Node) {
 	reqBody := api.ClosestNodeRequestBody{
 		Locations: locations,
 		ToExclude: toExclude,

@@ -1,7 +1,6 @@
 package actions
 
 import (
-	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 )
 
@@ -57,7 +56,7 @@ type actionWithDeploymentTarget struct {
 	*actionWithDeployment
 }
 
-func newActionWithDeploymentTarget(actionId, deploymentId string, target *internalUtils.Node,
+func newActionWithDeploymentTarget(actionId, deploymentId string, target *utils.Node,
 	args ...interface{}) *actionWithDeploymentTarget {
 	newArgs := []interface{}{target}
 	newArgs = append(newArgs, args...)
@@ -67,15 +66,15 @@ func newActionWithDeploymentTarget(actionId, deploymentId string, target *intern
 	}
 }
 
-func (a *actionWithDeploymentTarget) GetTarget() *internalUtils.Node {
-	return a.Args[1].(*internalUtils.Node)
+func (a *actionWithDeploymentTarget) GetTarget() *utils.Node {
+	return a.Args[1].(*utils.Node)
 }
 
 type actionWithDeploymentTargets struct {
 	*actionWithDeployment
 }
 
-func newActionWithDeploymentTargets(actionId, deploymentId string, targets []*internalUtils.Node,
+func newActionWithDeploymentTargets(actionId, deploymentId string, targets []*utils.Node,
 	args ...interface{}) *actionWithDeploymentTargets {
 	newArgs := []interface{}{targets}
 	newArgs = append(newArgs, args...)
@@ -85,15 +84,15 @@ func newActionWithDeploymentTargets(actionId, deploymentId string, targets []*in
 	}
 }
 
-func (a *actionWithDeploymentTargets) GetTargets() []*internalUtils.Node {
-	return a.Args[1].([]*internalUtils.Node)
+func (a *actionWithDeploymentTargets) GetTargets() []*utils.Node {
+	return a.Args[1].([]*utils.Node)
 }
 
 type actionWithDeploymentOriginTarget struct {
 	*actionWithDeploymentTarget
 }
 
-func newActionWithDeploymentOriginTarget(actionId, deploymentId string, origin, target *internalUtils.Node,
+func newActionWithDeploymentOriginTarget(actionId, deploymentId string, origin, target *utils.Node,
 	args ...interface{}) *actionWithDeploymentOriginTarget {
 	newArgs := make([]interface{}, len(args)+1)
 	newArgs[0] = origin
@@ -106,6 +105,6 @@ func newActionWithDeploymentOriginTarget(actionId, deploymentId string, origin, 
 	}
 }
 
-func (a *actionWithDeploymentOriginTarget) GetOrigin() *internalUtils.Node {
-	return a.Args[2].(*internalUtils.Node)
+func (a *actionWithDeploymentOriginTarget) GetOrigin() *utils.Node {
+	return a.Args[2].(*utils.Node)
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	archimedesFactory "github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes/client_factory"
 	autonomicFactory "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic/client_factory"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	deployerFactory "github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer/client_factory"
 	schedulerFactory "github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler/client_factory"
 )
@@ -21,5 +22,5 @@ func main() {
 	schedFactory := &schedulerFactory.ClientFactory{}
 
 	internal.InitServer(autoFactory, archFactory, deplFactory, schedFactory)
-	utils.StartServer(serviceName, utils.DeployerPort, deployerAPI.PrefixPath, internal.Routes)
+	utils.StartServer(serviceName, deployer.Port, deployerAPI.PrefixPath, internal.Routes)
 }

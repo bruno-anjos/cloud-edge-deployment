@@ -5,14 +5,15 @@ import (
 	"net/http"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 )
 
 func deadChildHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-	deadChildId := utils.ExtractPathVar(r, nodeIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
+	deadChildId := internalUtils.ExtractPathVar(r, nodeIdPathVar)
 
 	body := api.DeadChildRequestBody{}
 	err := json.NewDecoder(r.Body).Decode(&body)
@@ -47,7 +48,7 @@ func deadChildHandler(_ http.ResponseWriter, r *http.Request) {
 }
 
 func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 
 	reqBody := api.FallbackRequestBody{}
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -68,7 +69,7 @@ func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
 }
 
 func setGrandparentHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 
 	reqBody := api.SetGrandparentRequestBody{}
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -84,7 +85,7 @@ func setGrandparentHandler(_ http.ResponseWriter, r *http.Request) {
 }
 
 func iAmYourParentHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
 
 	reqBody := api.IAmYourParentRequestBody{}
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -123,11 +124,11 @@ func iAmYourParentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHierarchyTableHandler(w http.ResponseWriter, _ *http.Request) {
-	utils.SendJSONReplyOK(w, hTable.toDTO())
+	internalUtils.SendJSONReplyOK(w, hTable.toDTO())
 }
 
 func parentAliveHandler(_ http.ResponseWriter, r *http.Request) {
-	parentId := utils.ExtractPathVar(r, nodeIdPathVar)
+	parentId := internalUtils.ExtractPathVar(r, nodeIdPathVar)
 	log.Debugf("parent %s is alive", parentId)
 	pTable.setParentUp(parentId)
 }

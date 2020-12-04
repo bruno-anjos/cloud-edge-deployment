@@ -9,8 +9,12 @@ import (
 	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
-	utils2 "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	autonomicUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
+	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
@@ -19,11 +23,11 @@ import (
 const (
 	maximumLoad            = 300
 	staleCyclesNumToRemove = int((float64(archimedesHTTPClient.ResetToFallbackTimeout) * (3. / 2.)) /
-		float64(utils.DefaultGoalCycleTimeout))
+		float64(autonomicUtils.DefaultGoalCycleTimeout))
 
 	loadBalanceGoalId          = "GOAL_LOAD_BALANCE"
 	overloadedCyclesToRedirect = int((float64(archimedesHTTPClient.CacheExpiringTime) * (3. / 2.)) /
-		float64(utils.DefaultGoalCycleTimeout))
+		float64(autonomicUtils.DefaultGoalCycleTimeout))
 )
 
 const (
@@ -36,7 +40,7 @@ const (
 type (
 	infoValueType struct {
 		Load int
-		Node *utils2.Node
+		Node *utils.Node
 	}
 )
 
@@ -59,7 +63,7 @@ func newLoadBalanceGoal(deployment *Deployment) *deploymentLoadBalanceGoal {
 	}
 }
 
-func (l *deploymentLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range,
+func (l *deploymentLoadBalanceGoal) Optimize(optDomain domain) (isAlreadyMax bool, optRange result,
 	actionArgs []interface{}) {
 	isAlreadyMax = true
 	optRange = optDomain
@@ -96,10 +100,10 @@ func (l *deploymentLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax boo
 			actionArgs[lbFromIndex] = origin
 			actionArgs[lbAmountIndex] = sortingCriteria[origin.Id].(infoValueType).Load / 4
 
-			var filteredRedirectedTargets Range
+			var filteredRedirectedTargets result
 			archClient := l.deployment.archFactory.New("")
 			for _, node := range optRange {
-				archClient.SetHostPort(node.Addr + ":" + strconv.Itoa(utils2.ArchimedesPort))
+				archClient.SetHostPort(node.Addr + ":" + strconv.Itoa(archimedes.Port))
 				can, _ := archClient.CanRedirectToYou(l.deployment.DeploymentId, Myself.Id)
 				log.Debugf("%s deployment %s to redirect: %t", node, l.deployment.DeploymentId, can)
 				if can {
@@ -122,7 +126,7 @@ func (l *deploymentLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax boo
 	return
 }
 
-func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, info map[string]interface{},
+func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain domain, info map[string]interface{},
 	success bool) {
 	domain = nil
 	info = nil
@@ -141,7 +145,7 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain
 	}
 
 	info = map[string]interface{}{}
-	archClient := l.deployment.archFactory.New(Myself.Addr + ":" + strconv.Itoa(utils2.ArchimedesPort))
+	archClient := l.deployment.archFactory.New(Myself.Addr + ":" + strconv.Itoa(archimedes.Port))
 	load, status := archClient.GetLoad(l.deployment.DeploymentId)
 	if status != http.StatusOK {
 		load = 0
@@ -160,7 +164,7 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain
 			continue
 		}
 		domain = append(domain, node)
-		archClient.SetHostPort(node.Addr + ":" + strconv.Itoa(utils2.ArchimedesPort))
+		archClient.SetHostPort(node.Addr + ":" + strconv.Itoa(archimedes.Port))
 		load, status = archClient.GetLoad(l.deployment.DeploymentId)
 		if status != http.StatusOK {
 			info[nodeId] = infoValueType{
@@ -181,7 +185,7 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain
 	return
 }
 
-func (l *deploymentLoadBalanceGoal) Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range) {
+func (l *deploymentLoadBalanceGoal) Order(candidates domain, sortingCriteria map[string]interface{}) (ordered result) {
 	ordered = candidates
 	sort.Slice(ordered, func(i, j int) bool {
 		loadI := sortingCriteria[ordered[i].Id].(infoValueType).Load
@@ -192,11 +196,11 @@ func (l *deploymentLoadBalanceGoal) Order(candidates Domain, sortingCriteria map
 	return
 }
 
-func (l *deploymentLoadBalanceGoal) Filter(candidates, domain Domain) (filtered Range) {
-	return DefaultFilter(candidates, domain)
+func (l *deploymentLoadBalanceGoal) Filter(candidates, domain domain) (filtered result) {
+	return defaultFilter(candidates, domain)
 }
 
-func (l *deploymentLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria map[string]interface{}) (cutoff Range,
+func (l *deploymentLoadBalanceGoal) Cutoff(candidates domain, candidatesCriteria map[string]interface{}) (cutoff result,
 	maxed bool) {
 
 	cutoff = nil
@@ -228,12 +232,12 @@ func (l *deploymentLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria
 	return
 }
 
-func (l *deploymentLoadBalanceGoal) GenerateAction(targets []*utils2.Node, args ...interface{}) actions.Action {
+func (l *deploymentLoadBalanceGoal) GenerateAction(targets []*utils.Node, args ...interface{}) actions.Action {
 	log.Debugf("generating action %s", (args[lbActionTypeArgIndex]).(string))
 
 	switch args[lbActionTypeArgIndex].(string) {
 	case actions.ExtendDeploymentId:
-		autoClient := l.deployment.autoFactory.New(targets[0].Addr + ":" + strconv.Itoa(utils2.AutonomicPort))
+		autoClient := l.deployment.autoFactory.New(targets[0].Addr + ":" + strconv.Itoa(autonomic.Port))
 		location, status := autoClient.GetLocation()
 		if status != http.StatusOK {
 			log.Errorf("got status %d while getting %s location", status, targets[0])
@@ -255,7 +259,7 @@ func (l *deploymentLoadBalanceGoal) GenerateAction(targets []*utils2.Node, args 
 		return actions.NewExtendDeploymentAction(l.deployment.DeploymentId, targets[0], deployer2.NotExploringTTL,
 			nil, location, toExclude, l.deployment.setNodeAsExploring, l.deployment.deplFactory)
 	case actions.RedirectClientsId:
-		return actions.NewRedirectAction(l.deployment.DeploymentId, args[lbFromIndex].(*utils2.Node), targets[0],
+		return actions.NewRedirectAction(l.deployment.DeploymentId, args[lbFromIndex].(*utils.Node), targets[0],
 			args[lbAmountIndex].(int))
 	case actions.RemoveDeploymentId:
 		return actions.NewRemoveDeploymentAction(l.deployment.DeploymentId)
@@ -272,8 +276,8 @@ func (l *deploymentLoadBalanceGoal) GetId() string {
 	return loadBalanceGoalId
 }
 
-func (l *deploymentLoadBalanceGoal) handleOverload(candidates Range) (
-	actionArgs []interface{}, newOptRange Range) {
+func (l *deploymentLoadBalanceGoal) handleOverload(candidates result) (
+	actionArgs []interface{}, newOptRange result) {
 	actionArgs = make([]interface{}, lbNumArgs, lbNumArgs)
 
 	actionArgs[lbActionTypeArgIndex] = actions.ExtendDeploymentId
@@ -281,7 +285,7 @@ func (l *deploymentLoadBalanceGoal) handleOverload(candidates Range) (
 	for _, candidate := range candidates {
 		_, okC := l.deployment.Children.Load(candidate)
 		if !okC {
-			deplClient.SetHostPort(candidate.Addr + ":" + strconv.Itoa(utils2.DeployerPort))
+			deplClient.SetHostPort(candidate.Addr + ":" + strconv.Itoa(deployer.Port))
 			hasDeployment, _ := deplClient.HasDeployment(l.deployment.DeploymentId)
 			if hasDeployment {
 				continue
@@ -310,7 +314,7 @@ func (l *deploymentLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 		return false
 	}
 
-	archClient := l.deployment.archFactory.New(utils2.ArchimedesLocalHostPort)
+	archClient := l.deployment.archFactory.New(internalUtils.ArchimedesLocalHostPort)
 	load, status := archClient.GetLoad(l.deployment.DeploymentId)
 	if status != http.StatusOK {
 		log.Errorf("got status %d when asking for load for deployment %s", status, l.deployment.DeploymentId)
@@ -339,7 +343,7 @@ func (l *deploymentLoadBalanceGoal) checkIfHasAlternatives(sortingCriteria map[s
 		infoValue := value.(infoValueType)
 		load := infoValue.Load
 		if float64(load) < maximumLoad && float64(load) < float64(myLoad)/2. {
-			deplClient.SetHostPort(infoValue.Node.Addr + ":" + strconv.Itoa(utils2.DeployerPort))
+			deplClient.SetHostPort(infoValue.Node.Addr + ":" + strconv.Itoa(deployer.Port))
 			hasDeployment, _ := deplClient.HasDeployment(l.deployment.DeploymentId)
 			if hasDeployment {
 				hasAlternatives = true

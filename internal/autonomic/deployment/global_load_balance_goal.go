@@ -7,7 +7,7 @@ import (
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
@@ -41,7 +41,7 @@ func newNodeLoadBalanceGoal(deployment *Deployment) *nodeLoadBalanceGoal {
 	}
 }
 
-func (nl *nodeLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range, actionArgs []interface{}) {
+func (nl *nodeLoadBalanceGoal) Optimize(optDomain domain) (isAlreadyMax bool, optRange result, actionArgs []interface{}) {
 	isAlreadyMax = true
 	optRange = nil
 
@@ -65,7 +65,7 @@ func (nl *nodeLoadBalanceGoal) Optimize(optDomain Domain) (isAlreadyMax bool, op
 	return
 }
 
-func (nl *nodeLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, info map[string]interface{},
+func (nl *nodeLoadBalanceGoal) GenerateDomain(_ interface{}) (domain domain, info map[string]interface{},
 	success bool) {
 	domain = nil
 
@@ -96,7 +96,7 @@ func (nl *nodeLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, inf
 
 		domain = append(domain, node)
 
-		deplClient.SetHostPort(node.Addr + ":" + strconv.Itoa(utils.DeployerPort))
+		deplClient.SetHostPort(node.Addr + ":" + strconv.Itoa(deployer.Port))
 		deployments, status := deplClient.GetDeployments()
 		if status != http.StatusOK {
 			info[nodeId] = &nodeCriteria{Deployments: []string{}}
@@ -112,11 +112,11 @@ func (nl *nodeLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, inf
 	return
 }
 
-func (nl *nodeLoadBalanceGoal) Filter(candidates, domain Domain) (filtered Range) {
-	return DefaultFilter(candidates, domain)
+func (nl *nodeLoadBalanceGoal) Filter(candidates, domain domain) (filtered result) {
+	return defaultFilter(candidates, domain)
 }
 
-func (nl *nodeLoadBalanceGoal) Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range) {
+func (nl *nodeLoadBalanceGoal) Order(candidates domain, sortingCriteria map[string]interface{}) (ordered result) {
 	ordered = candidates
 	sort.Slice(ordered, func(i, j int) bool {
 		loadI := len(sortingCriteria[ordered[i].Id].(*nodeCriteria).Deployments)
@@ -127,7 +127,7 @@ func (nl *nodeLoadBalanceGoal) Order(candidates Domain, sortingCriteria map[stri
 	return
 }
 
-func (nl *nodeLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria map[string]interface{}) (cutoff Range,
+func (nl *nodeLoadBalanceGoal) Cutoff(candidates domain, candidatesCriteria map[string]interface{}) (cutoff result,
 	maxed bool) {
 
 	cutoff = nil
@@ -152,7 +152,7 @@ func (nl *nodeLoadBalanceGoal) Cutoff(candidates Domain, candidatesCriteria map[
 	return
 }
 
-func (nl *nodeLoadBalanceGoal) GenerateAction(_ Range, _ ...interface{}) actions.Action {
+func (nl *nodeLoadBalanceGoal) GenerateAction(_ result, _ ...interface{}) actions.Action {
 	return nil
 }
 

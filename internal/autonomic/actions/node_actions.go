@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
-	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
@@ -42,8 +41,8 @@ type ExtendDeploymentAction struct {
 	deplFactory deployer.ClientFactory
 }
 
-func NewExtendDeploymentAction(deploymentId string, target *internalUtils.Node, exploringTTL int,
-	children []*internalUtils.Node, location s2.CellID, toExclude map[string]interface{},
+func NewExtendDeploymentAction(deploymentId string, target *utils.Node, exploringTTL int,
+	children []*utils.Node, location s2.CellID, toExclude map[string]interface{},
 	setNodeExploringCallback func(nodeId string), deplFactory deployer.ClientFactory) *ExtendDeploymentAction {
 	return &ExtendDeploymentAction{
 		actionWithDeploymentTarget: newActionWithDeploymentTarget(ExtendDeploymentId, deploymentId, target, exploringTTL,
@@ -56,8 +55,8 @@ func (m *ExtendDeploymentAction) exploringTTL() int {
 	return m.Args[2].(int)
 }
 
-func (m *ExtendDeploymentAction) getChildren() []*internalUtils.Node {
-	return m.Args[3].([]*internalUtils.Node)
+func (m *ExtendDeploymentAction) getChildren() []*utils.Node {
+	return m.Args[3].([]*utils.Node)
 }
 
 func (m *ExtendDeploymentAction) getLocation() s2.CellID {
@@ -76,7 +75,7 @@ func (m *ExtendDeploymentAction) Execute(client utils.GenericClient) {
 	log.Debugf("executing %s to %s", m.ActionId, m.GetTarget())
 	deployerClient := client.(deployer.Client)
 
-	targetClient := m.deplFactory.New(m.GetTarget().Addr + ":" + strconv.Itoa(internalUtils.DeployerPort))
+	targetClient := m.deplFactory.New(m.GetTarget().Addr + ":" + strconv.Itoa(deployer.Port))
 	has, _ := targetClient.HasDeployment(m.GetDeploymentId())
 	if has {
 		log.Debugf("%s already has deployment %s", m.GetTarget(), m.GetDeploymentId())
@@ -104,7 +103,7 @@ type MultipleExtendDeploymentAction struct {
 	deplFactory deployer.ClientFactory
 }
 
-func NewMultipleExtendDeploymentAction(deploymentId string, targets []*internalUtils.Node, locations map[string][]s2.CellID,
+func NewMultipleExtendDeploymentAction(deploymentId string, targets []*utils.Node, locations map[string][]s2.CellID,
 	targetsExploring map[string]int, centroidsExtendedCallback func(centroid s2.CellID),
 	toExclude map[string]interface{}, setNodeExploringCallback func(nodeId string),
 	deplFactory deployer.ClientFactory) *MultipleExtendDeploymentAction {
@@ -144,7 +143,7 @@ func (m *MultipleExtendDeploymentAction) Execute(client utils.GenericClient) {
 	toExclude := m.getToExclude()
 
 	for _, target := range m.GetTargets() {
-		targetClient := m.deplFactory.New(target.Addr + ":" + strconv.Itoa(internalUtils.DeployerPort))
+		targetClient := m.deplFactory.New(target.Addr + ":" + strconv.Itoa(deployer.Port))
 		has, _ := targetClient.HasDeployment(m.GetDeploymentId())
 		if has {
 			log.Debugf("%s already has deployment %s", target, m.GetDeploymentId())

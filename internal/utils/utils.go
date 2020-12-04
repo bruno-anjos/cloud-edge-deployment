@@ -5,6 +5,10 @@ import (
 	"math/rand"
 	"os"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/golang/geo/s1"
 )
@@ -12,45 +16,14 @@ import (
 const (
 	TCP string = "tcp"
 	UDP string = "udp"
-
-	ArchimedesPort = 50000
-	AutonomicPort  = 50003
-	DeployerPort   = 50002
-	SchedulerPort  = 50001
 )
 
 var (
-	ArchimedesLocalHostPort = getLocalHostPort(ArchimedesPort)
-	AutonomicLocalHostPort  = getLocalHostPort(AutonomicPort)
-	DeployerLocalHostPort   = getLocalHostPort(DeployerPort)
-	SchedulerLocalHostPort  = getLocalHostPort(SchedulerPort)
+	ArchimedesLocalHostPort = getLocalHostPort(archimedes.Port)
+	AutonomicLocalHostPort  = getLocalHostPort(autonomic.Port)
+	DeployerLocalHostPort   = getLocalHostPort(deployer.Port)
+	SchedulerLocalHostPort  = getLocalHostPort(scheduler.Port)
 )
-
-type Node struct {
-	Id   string
-	Addr string
-}
-
-func NodeFromEnv() *Node {
-	nodeId, exists := os.LookupEnv(utils.NodeIdEnvVarName)
-	if !exists {
-		panic("no NODE_ID set in environment")
-	}
-
-	nodeIP, exists := os.LookupEnv(utils.NodeIPEnvVarName)
-	if !exists {
-		panic("no NODE_IP set in environment")
-	}
-
-	return NewNode(nodeId, nodeIP)
-}
-
-func NewNode(id, addr string) *Node {
-	return &Node{
-		Id:   id,
-		Addr: addr,
-	}
-}
 
 func getLocalHostPort(port int) string {
 	nodeIP, exists := os.LookupEnv(utils.NodeIPEnvVarName)

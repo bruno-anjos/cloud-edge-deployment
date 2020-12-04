@@ -5,9 +5,10 @@ import (
 	"strconv"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	public "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -25,14 +26,14 @@ type idealLatencyStrategy struct {
 func newDefaultIdealLatencyStrategy(deployment *Deployment) *idealLatencyStrategy {
 	lbGoal := newLoadBalanceGoal(deployment)
 
-	defaultGoals := []Goal{
+	defaultGoals := []goal{
 		newIdealLatencyGoal(deployment),
 		lbGoal,
 	}
 
 	return &idealLatencyStrategy{
 		basicStrategy: newBasicStrategy(public.StrategyIdealLatencyId, defaultGoals),
-		archClient:    deployment.archFactory.New(utils.ArchimedesLocalHostPort),
+		archClient:    deployment.archFactory.New(internalUtils.ArchimedesLocalHostPort),
 		lbGoal:        lbGoal,
 		deployment:    deployment,
 	}
@@ -40,20 +41,20 @@ func newDefaultIdealLatencyStrategy(deployment *Deployment) *idealLatencyStrateg
 
 func (i *idealLatencyStrategy) Optimize() actions.Action {
 	var (
-		nextDomain             Domain
-		goalToChooseActionFrom Goal
+		nextDomain             domain
+		goalToChooseActionFrom goal
 		goalActionArgs         []interface{}
 	)
 
-	for _, goal := range i.goals {
-		log.Debugf("optimizing %s", goal.GetId())
-		isAlreadyMax, optRange, actionArgs := goal.Optimize(nextDomain)
-		log.Debugf("%s generated optRange %+v", goal.GetId(), optRange)
+	for _, strategyGoal := range i.goals {
+		log.Debugf("optimizing %s", strategyGoal.GetId())
+		isAlreadyMax, optRange, actionArgs := strategyGoal.Optimize(nextDomain)
+		log.Debugf("%s generated optRange %+v", strategyGoal.GetId(), optRange)
 		if isAlreadyMax {
-			log.Debugf("%s is already maximized", goal.GetId())
+			log.Debugf("%s is already maximized", strategyGoal.GetId())
 		} else if goalToChooseActionFrom == nil {
-			log.Debugf("%s not maximized", goal.GetId())
-			goalToChooseActionFrom = goal
+			log.Debugf("%s not maximized", strategyGoal.GetId())
+			goalToChooseActionFrom = strategyGoal
 			goalActionArgs = actionArgs
 		}
 
@@ -87,7 +88,7 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 
 			if int(redirected) >= i.redirectGoal {
 				targetArchClient := i.deployment.archFactory.New(i.redirectingTo.Addr + ":" + strconv.Itoa(
-					utils.ArchimedesPort))
+					archimedes.Port))
 				status = targetArchClient.RemoveRedirect(i.deployment.DeploymentId)
 				if status != http.StatusOK {
 					log.Errorf("got status %d while removing redirections for deployment %s at %s", status,

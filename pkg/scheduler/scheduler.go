@@ -1,13 +1,12 @@
 package scheduler
 
 import (
-	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/go-connections/nat"
 )
 
 const (
-	Port = internalUtils.SchedulerPort
+	Port = 50001
 )
 
 type Client interface {

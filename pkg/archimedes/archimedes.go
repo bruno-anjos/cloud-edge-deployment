@@ -2,19 +2,18 @@ package archimedes
 
 import (
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
-	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/go-connections/nat"
 	"github.com/golang/geo/s2"
 )
 
 const (
-	Port = internalUtils.ArchimedesPort
+	Port = 50000
 )
 
 type Client interface {
 	utils.GenericClient
-	RegisterDeployment(deploymentId string, ports nat.PortSet, host *internalUtils.Node) (status int)
+	RegisterDeployment(deploymentId string, ports nat.PortSet, host *utils.Node) (status int)
 	RegisterDeploymentInstance(deploymentId, instanceId string, static bool,
 		portTranslation nat.PortMap, local bool) (status int)
 	DeleteDeployment(deploymentId string) (status int)

@@ -7,6 +7,7 @@ import (
 	internal "github.com/bruno-anjos/cloud-edge-deployment/internal/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer/client_factory"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
 )
 
 const (
@@ -20,6 +21,6 @@ func main() {
 
 	deplFactory := &client_factory.ClientFactory{}
 	internal.InitServer(deplFactory)
-	utils.StartServerWithoutDefaultFlags(serviceName, utils.SchedulerPort, api.PrefixPath, internal.Routes, debug,
+	utils.StartServerWithoutDefaultFlags(serviceName, scheduler.Port, api.PrefixPath, internal.Routes, debug,
 		listenAddr)
 }

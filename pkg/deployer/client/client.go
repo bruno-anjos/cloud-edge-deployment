@@ -43,7 +43,7 @@ func (c *Client) GetDeployments() (deploymentIds []string, status int) {
 }
 
 func (c *Client) RegisterDeployment(deploymentId string, static bool, deploymentYamlBytes []byte,
-	grandparent, parent *internalUtils.Node, children []*internalUtils.Node, exploringTTL int) (status int) {
+	grandparent, parent *utils.Node, children []*utils.Node, exploringTTL int) (status int) {
 	reqBody := api.RegisterDeploymentRequestBody{
 		DeploymentConfig: &api.DeploymentDTO{
 			Children:            children,
@@ -63,7 +63,7 @@ func (c *Client) RegisterDeployment(deploymentId string, static bool, deployment
 	return
 }
 
-func (c *Client) ExtendDeploymentTo(deploymentId string, node *internalUtils.Node, exploringTTL int,
+func (c *Client) ExtendDeploymentTo(deploymentId string, node *utils.Node, exploringTTL int,
 	config *api.ExtendDeploymentConfig) (status int) {
 	reqBody := api.ExtendDeploymentRequestBody{
 		Node:         node,
@@ -121,8 +121,8 @@ func (c *Client) SendHearbeatDeploymentInstance(deploymentId, instanceId string)
 	return
 }
 
-func (c *Client) WarnOfDeadChild(deploymentId, deadChildId string, grandChild *internalUtils.Node,
-	alternatives map[string]*internalUtils.Node, locations []s2.CellID) (status int) {
+func (c *Client) WarnOfDeadChild(deploymentId, deadChildId string, grandChild *utils.Node,
+	alternatives map[string]*utils.Node, locations []s2.CellID) (status int) {
 	var reqBody api.DeadChildRequestBody
 	reqBody.Grandchild = grandChild
 	reqBody.Alternatives = alternatives
@@ -136,7 +136,7 @@ func (c *Client) WarnOfDeadChild(deploymentId, deadChildId string, grandChild *i
 	return
 }
 
-func (c *Client) SetGrandparent(deploymentId string, grandparent *internalUtils.Node) (status int) {
+func (c *Client) SetGrandparent(deploymentId string, grandparent *utils.Node) (status int) {
 	var reqBody api.SetGrandparentRequestBody
 	reqBody = *grandparent
 
@@ -148,7 +148,7 @@ func (c *Client) SetGrandparent(deploymentId string, grandparent *internalUtils.
 	return
 }
 
-func (c *Client) WarnThatIAmParent(deploymentId string, parent, grandparent *internalUtils.Node) (status int) {
+func (c *Client) WarnThatIAmParent(deploymentId string, parent, grandparent *utils.Node) (status int) {
 	reqBody := api.IAmYourParentRequestBody{
 		Parent:      parent,
 		Grandparent: grandparent,
@@ -221,7 +221,7 @@ func (c *Client) SendInstanceHeartbeatToDeployerPeriodically() {
 	}
 }
 
-func (c *Client) SendAlternatives(myId string, alternatives []*internalUtils.Node) (status int) {
+func (c *Client) SendAlternatives(myId string, alternatives []*utils.Node) (status int) {
 	var reqBody api.AlternativesRequestBody
 	reqBody = alternatives
 
@@ -233,7 +233,7 @@ func (c *Client) SendAlternatives(myId string, alternatives []*internalUtils.Nod
 	return
 }
 
-func (c *Client) Fallback(deploymentId string, orphan *internalUtils.Node, orphanLocation s2.CellID) (status int) {
+func (c *Client) Fallback(deploymentId string, orphan *utils.Node, orphanLocation s2.CellID) (status int) {
 	var reqBody api.FallbackRequestBody
 	reqBody.Orphan = orphan
 	reqBody.OrphanLocation = orphanLocation
@@ -246,7 +246,7 @@ func (c *Client) Fallback(deploymentId string, orphan *internalUtils.Node, orpha
 	return
 }
 
-func (c *Client) GetFallback() (fallback *internalUtils.Node, status int) {
+func (c *Client) GetFallback() (fallback *utils.Node, status int) {
 	path := api.GetGetFallbackIdPath()
 	req := internalUtils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 

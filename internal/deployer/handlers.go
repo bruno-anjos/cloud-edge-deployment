@@ -13,6 +13,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
 	"github.com/docker/go-connections/nat"
 	"github.com/golang/geo/s2"
@@ -22,8 +23,8 @@ import (
 )
 
 type (
-	typeMyAlternativesMapValue = *internalUtils.Node
-	typeChildrenMapValue       = *internalUtils.Node
+	typeMyAlternativesMapValue = *utils.Node
+	typeChildrenMapValue       = *utils.Node
 
 	typeSuspectedChildMapKey = string
 )
@@ -52,11 +53,11 @@ var (
 
 var (
 	location s2.Cell
-	fallback *internalUtils.Node
-	myself   *internalUtils.Node
+	fallback *utils.Node
+	myself   *utils.Node
 
 	myAlternatives       sync.Map
-	nodeAlternatives     map[string][]*internalUtils.Node
+	nodeAlternatives     map[string][]*utils.Node
 	nodeAlternativesLock sync.RWMutex
 
 	hTable *hierarchyTable
@@ -78,7 +79,7 @@ var (
 
 func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimedes.ClientFactory,
 	deplFactoryAux deployer.ClientFactory, schedFactoryAux scheduler.ClientFactory) {
-	myself = internalUtils.NodeFromEnv()
+	myself = utils.NodeFromEnv()
 
 	autoFactory = autoFactoryAux
 	archFactory = archFactoryAux
@@ -90,7 +91,7 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 	schedulerClient = schedFactory.New(internalUtils.SchedulerLocalHostPort)
 
 	myAlternatives = sync.Map{}
-	nodeAlternatives = map[string][]*internalUtils.Node{}
+	nodeAlternatives = map[string][]*utils.Node{}
 	nodeAlternativesLock = sync.RWMutex{}
 	hTable = newHierarchyTable()
 	pTable = newParentsTable()
@@ -150,7 +151,7 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deplClient := deplFactory.New(parent.Addr + ":" + strconv.Itoa(internalUtils.DeployerPort))
+	deplClient := deplFactory.New(parent.Addr + ":" + strconv.Itoa(deployer.Port))
 	log.Debugf("propagating %s location for deployments %+v to %s", reqBody.ChildId, deploymentId, parent.Id)
 	deplClient.PropagateLocationToHorizon(deploymentId, reqBody.ChildId, reqBody.Location, reqBody.TTL+1,
 		reqBody.Operation)
@@ -318,11 +319,11 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	takeChildren(deploymentId, parent, deploymentDTO.Children...)
 }
 
-func takeChildren(deploymentId string, parent *internalUtils.Node, children ...*internalUtils.Node) {
+func takeChildren(deploymentId string, parent *utils.Node, children ...*utils.Node) {
 	deplClient := deplFactory.New("")
 
 	for _, child := range children {
-		deplClient.SetHostPort(child.Addr + ":" + strconv.Itoa(internalUtils.DeployerPort))
+		deplClient.SetHostPort(child.Addr + ":" + strconv.Itoa(deployer.Port))
 		status := deplClient.WarnThatIAmParent(deploymentId, myself, parent)
 		if status == http.StatusConflict {
 			log.Debugf("can not be %s parent since it already has a live parent", child.Id)
@@ -336,7 +337,7 @@ func takeChildren(deploymentId string, parent *internalUtils.Node, children ...*
 	}
 }
 
-func checkChildren(parent *internalUtils.Node, children ...*internalUtils.Node) bool {
+func checkChildren(parent *utils.Node, children ...*utils.Node) bool {
 	for _, child := range children {
 		if parent != nil && child.Id != parent.Id {
 			log.Debugf("can take child %s, my parent is %s", child.Id, parent.Id)
@@ -380,7 +381,7 @@ func hasDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 
 // TODO function simulating lower API
 func getNodeCloserTo(locations []s2.CellID, maxHopsToLookFor int,
-	excludeNodes map[string]interface{}) (closest *internalUtils.Node, found bool) {
+	excludeNodes map[string]interface{}) (closest *utils.Node, found bool) {
 	closest = autonomicClient.GetClosestNode(locations, excludeNodes)
 	found = closest != nil
 	return
@@ -477,7 +478,7 @@ func addNode(nodeDeployerId, addr string) bool {
 
 	log.Debugf("added node %s", nodeDeployerId)
 
-	neighbor := internalUtils.NewNode(nodeDeployerId, addr)
+	neighbor := utils.NewNode(nodeDeployerId, addr)
 
 	myAlternatives.Store(nodeDeployerId, neighbor)
 	return true
@@ -494,11 +495,11 @@ func onNodeUp(id, addr string) {
 	timer.Reset(sendAlternativesTimeout * time.Second)
 }
 
-func getParentAlternatives(parentId string) (alternatives map[string]*internalUtils.Node) {
+func getParentAlternatives(parentId string) (alternatives map[string]*utils.Node) {
 	nodeAlternativesLock.RLock()
 	defer nodeAlternativesLock.RUnlock()
 
-	alternatives = map[string]*internalUtils.Node{}
+	alternatives = map[string]*utils.Node{}
 
 	for _, alternative := range nodeAlternatives[parentId] {
 		alternatives[alternative.Id] = alternative
@@ -513,7 +514,7 @@ func deleteDeployment(deploymentId string) (success bool, parentStatus int) {
 
 	parent := hTable.getParent(deploymentId)
 	if parent != nil {
-		client := deplFactory.New(parent.Addr + ":" + strconv.Itoa(internalUtils.DeployerPort))
+		client := deplFactory.New(parent.Addr + ":" + strconv.Itoa(deployer.Port))
 		status := client.ChildDeletedDeployment(deploymentId, myself.Id)
 		if status != http.StatusOK {
 			log.Errorf("got status %d from child deleted deployment", status)

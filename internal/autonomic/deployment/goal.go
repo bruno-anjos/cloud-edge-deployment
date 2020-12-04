@@ -2,26 +2,26 @@ package deployment
 
 import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 )
 
 type (
-	Domain = []*utils.Node
-	Range  = []*utils.Node
+	domain = []*utils.Node
+	result = []*utils.Node
 )
 
-type Goal interface {
-	Optimize(optDomain Domain) (isAlreadyMax bool, optRange Range, actionArgs []interface{})
-	GenerateAction(targets Range, args ...interface{}) actions.Action
-	GenerateDomain(arg interface{}) (domain Domain, info map[string]interface{}, success bool)
-	Order(candidates Domain, sortingCriteria map[string]interface{}) (ordered Range)
-	Filter(candidates, domain Domain) (filtered Range)
-	Cutoff(candidates Domain, candidatesCriteria map[string]interface{}) (cutoff Range, maxed bool)
+type goal interface {
+	Optimize(optDomain domain) (isAlreadyMax bool, optRange result, actionArgs []interface{})
+	GenerateAction(targets result, args ...interface{}) actions.Action
+	GenerateDomain(arg interface{}) (domain domain, info map[string]interface{}, success bool)
+	Order(candidates domain, sortingCriteria map[string]interface{}) (ordered result)
+	Filter(candidates, domain domain) (filtered result)
+	Cutoff(candidates domain, candidatesCriteria map[string]interface{}) (cutoff result, maxed bool)
 	GetDependencies() (metrics []string)
 	GetId() string
 }
 
-func DefaultFilter(candidates, domain Domain) (filtered Range) {
+func defaultFilter(candidates, domain domain) (filtered result) {
 	if domain == nil {
 		filtered = candidates
 		return

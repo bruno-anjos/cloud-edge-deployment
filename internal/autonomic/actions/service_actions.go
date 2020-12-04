@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"strconv"
 
-	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 )
@@ -18,7 +17,7 @@ type RedirectAction struct {
 	ErrorRedirectingCallback func()
 }
 
-func NewRedirectAction(deploymentId string, from, to *internalUtils.Node, amount int) *RedirectAction {
+func NewRedirectAction(deploymentId string, from, to *utils.Node, amount int) *RedirectAction {
 	return &RedirectAction{
 		actionWithDeploymentOriginTarget: newActionWithDeploymentOriginTarget(RedirectClientsId, deploymentId, from, to,
 			amount),
@@ -39,13 +38,13 @@ func (r *RedirectAction) getErrorRedirectingCallback() func() {
 
 func (r *RedirectAction) Execute(client utils.GenericClient) {
 	assertedClient := client.(archimedes.Client)
-	assertedClient.SetHostPort(r.GetTarget().Addr + ":" + strconv.Itoa(internalUtils.ArchimedesPort))
+	assertedClient.SetHostPort(r.GetTarget().Addr + ":" + strconv.Itoa(archimedes.Port))
 	status := assertedClient.WillRedirectToYou(r.GetDeploymentId(), r.GetOrigin().Id)
 	if status != http.StatusOK {
 		return
 	}
 
-	assertedClient.SetHostPort(r.GetOrigin().Addr + ":" + strconv.Itoa(internalUtils.ArchimedesPort))
+	assertedClient.SetHostPort(r.GetOrigin().Addr + ":" + strconv.Itoa(archimedes.Port))
 	status = assertedClient.Redirect(r.GetDeploymentId(), r.GetTarget().Addr, r.GetAmount())
 	if status != http.StatusOK {
 		r.getErrorRedirectingCallback()()
