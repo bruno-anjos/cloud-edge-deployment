@@ -19,7 +19,7 @@ func main() {
 	flag.Parse()
 
 	deplFactory := &client_factory.ClientFactory{}
-	internal.InitHandlers(deplFactory)
+	internal.InitServer(deplFactory)
 	utils.StartServerWithoutDefaultFlags(serviceName, utils.SchedulerPort, api.PrefixPath, internal.Routes, debug,
 		listenAddr)
 }

@@ -10,12 +10,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	childrenClient = deplFactory.New("")
-)
-
 func sendHeartbeatsPeriodically() {
 	ticker := time.NewTicker(heartbeatTimeout * time.Second)
+
+	childrenClient := deplFactory.New("")
 
 	var childrenToRemove []string
 	for {

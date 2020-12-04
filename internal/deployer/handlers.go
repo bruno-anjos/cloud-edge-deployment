@@ -77,7 +77,7 @@ var (
 )
 
 func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimedes.ClientFactory,
-	schedFactoryAux scheduler.ClientFactory, deplFactoryAux deployer.ClientFactory) {
+	deplFactoryAux deployer.ClientFactory, schedFactoryAux scheduler.ClientFactory) {
 	myself = internalUtils.NodeFromEnv()
 
 	autoFactory = autoFactoryAux

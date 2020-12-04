@@ -50,7 +50,7 @@ var (
 	stopContainerTimeoutVar = stopContainerTimeout * time.Second
 )
 
-func InitHandlers(deplFactory deployer.ClientFactory) {
+func InitServer(deplFactory deployer.ClientFactory) {
 	deplClient = deplFactory.New(internalUtils.DeployerLocalHostPort)
 
 	for {

@@ -13,10 +13,10 @@ const (
 	TCP string = "tcp"
 	UDP string = "udp"
 
-	ArchimedesPort = 5000
-	AutonomicPort  = 5000
-	DeployerPort   = 5000
-	SchedulerPort  = 5000
+	ArchimedesPort = 50000
+	AutonomicPort  = 50003
+	DeployerPort   = 50002
+	SchedulerPort  = 50001
 )
 
 var (

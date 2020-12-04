@@ -2,8 +2,10 @@ package main
 
 import (
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
+	internal "github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	autonomicFactory "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic/client_factory"
+	deployerFactory "github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer/client_factory"
 )
 
 const (
@@ -11,5 +13,9 @@ const (
 )
 
 func main() {
-	utils.StartServer(serviceName, utils.ArchimedesPort, api.PrefixPath, archimedes.Routes)
+	autoFactory := &autonomicFactory.ClientFactory{}
+	deplFactory := &deployerFactory.ClientFactory{}
+
+	internal.InitServer(autoFactory, deplFactory)
+	utils.StartServer(serviceName, utils.ArchimedesPort, api.PrefixPath, internal.Routes)
 }

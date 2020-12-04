@@ -16,8 +16,8 @@ var (
 	autonomicSystem *system
 )
 
-func InitServer(deplFactory deployer.ClientFactory, archFactory archimedes.ClientFactory,
-	autoFactory autonomic.ClientFactory) {
+func InitServer(autoFactory autonomic.ClientFactory, archFactory archimedes.ClientFactory,
+	deplFactory deployer.ClientFactory, ) {
 	log.SetLevel(log.DebugLevel)
 	autonomicSystem = newSystem(deplFactory, archFactory, autoFactory)
 
