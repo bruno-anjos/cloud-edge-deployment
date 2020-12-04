@@ -4,17 +4,20 @@ import (
 	"net/http"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils/client"
+
 	"github.com/golang/geo/s2"
 )
 
 type Client struct {
-	*utils.GenericClient
+	utils.GenericClient
 }
 
 func NewAutonomicClient(addr string) *Client {
 	return &Client{
-		GenericClient: utils.NewGenericClient(addr),
+		GenericClient: client.NewGenericClient(addr),
 	}
 }
 
@@ -27,69 +30,69 @@ func (c *Client) RegisterDeployment(deploymentId, strategyId string, depthFactor
 	}
 
 	path := api.GetDeploymentPath(deploymentId)
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
 func (c *Client) DeleteDeployment(deploymentId string) (status int) {
 	path := api.GetDeploymentPath(deploymentId)
-	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
 func (c *Client) GetDeployments() (deployments map[string]*api.DeploymentDTO, status int) {
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), api.GetDeploymentsPath(), nil)
+	req := internalUtils.BuildRequest(http.MethodGet, c.GetHostPort(), api.GetDeploymentsPath(), nil)
 
 	deployments = api.GetAllDeploymentsResponseBody{}
-	status, _ = utils.DoRequest(c.Client, req, &deployments)
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, &deployments)
 	return
 }
 
-func (c *Client) AddDeploymentChild(deploymentId string, child *utils.Node) (status int) {
+func (c *Client) AddDeploymentChild(deploymentId string, child *internalUtils.Node) (status int) {
 	path := api.GetDeploymentChildPath(deploymentId)
 
 	var reqBody api.AddDeploymentChildRequestBody
 	reqBody = *child
 
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
 func (c *Client) RemoveDeploymentChild(deploymentId, childId string) (status int) {
 	path := api.GetDeploymentChildWithChildPath(deploymentId, childId)
-	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) SetDeploymentParent(deploymentId string, parent *utils.Node) (status int) {
+func (c *Client) SetDeploymentParent(deploymentId string, parent *internalUtils.Node) (status int) {
 	path := api.GetDeploymentParentPath(deploymentId)
 
 	var reqBody api.SetDeploymentParentRequestBody
 	reqBody = *parent
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
 func (c *Client) IsNodeInVicinity(nodeId string) (isInVicinity bool) {
 	path := api.GetIsNodeInVicinityPath(nodeId)
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
-	status, _ := utils.DoRequest(c.Client, req, nil)
+	status, _ := internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 	if status == http.StatusOK {
 		isInVicinity = true
 	} else if status == http.StatusNotFound {
@@ -101,16 +104,16 @@ func (c *Client) IsNodeInVicinity(nodeId string) (isInVicinity bool) {
 	return
 }
 
-func (c *Client) GetClosestNode(locations []s2.CellID, toExclude map[string]interface{}) (closest *utils.Node) {
+func (c *Client) GetClosestNode(locations []s2.CellID, toExclude map[string]interface{}) (closest *internalUtils.Node) {
 	reqBody := api.ClosestNodeRequestBody{
 		Locations: locations,
 		ToExclude: toExclude,
 	}
 	path := api.GetClosestNodePath()
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodGet, c.GetHostPort(), path, reqBody)
 
 	respBody := api.ClosestNodeResponseBody{}
-	utils.DoRequest(c.Client, req, &respBody)
+	internalUtils.DoRequest(c.GetHTTPClient(), req, &respBody)
 
 	closest = &respBody
 
@@ -119,10 +122,10 @@ func (c *Client) GetClosestNode(locations []s2.CellID, toExclude map[string]inte
 
 func (c *Client) GetVicinity() (vicinity *api.Vicinity, status int) {
 	path := api.GetVicinityPath()
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
 	respBody := api.GetVicinityResponseBody{}
-	status, _ = utils.DoRequest(c.Client, req, &respBody)
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, &respBody)
 
 	vicinity = &respBody
 
@@ -131,17 +134,17 @@ func (c *Client) GetVicinity() (vicinity *api.Vicinity, status int) {
 
 func (c *Client) GetLocation() (location s2.CellID, status int) {
 	path := api.GetMyLocationPath()
-	req := utils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, &location)
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, &location)
 	return
 }
 
 func (c *Client) SetExploredSuccessfully(deploymentId, childId string) (status int) {
 	path := api.GetExploredPath(deploymentId, childId)
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
@@ -150,8 +153,8 @@ func (c *Client) BlacklistNodes(deploymentId, origin string, nodes ...string) (s
 	path := api.GetBlacklistPath(deploymentId)
 	reqBody := api.BlacklistNodeRequestBody{Origin: origin, Nodes: nodes}
 
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }

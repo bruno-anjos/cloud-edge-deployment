@@ -13,7 +13,7 @@ import (
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/clients"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
-
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 
 	"github.com/golang/geo/s2"
 
@@ -53,13 +53,19 @@ var (
 	archimedesId string
 	myself       *utils.Node
 	myLocation   s2.Cell
+
+	autoFactory autonomic.ClientFactory
+	deplFactory deployer.ClientFactory
 )
 
-func InitServer(autoFactory autonomic.ClientFactory) {
+func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.ClientFactory) {
 	sTable = newDeploymentsTable()
 	clientsManager = clients.NewManager()
 
 	myself = utils.NodeFromEnv()
+
+	autoFactory = autoFactoryAux
+	deplFactory = deplFactoryAux
 
 	var (
 		locationId s2.CellID
@@ -349,7 +355,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	deplClient := client2.NewDeployerClient(utils.DeployerLocalHostPort)
+	deplClient := deplFactory.New(utils.DeployerLocalHostPort)
 
 	resolved, found := resolveLocally(reqBody.ToResolve, reqLogger)
 	if !found {
@@ -675,7 +681,7 @@ func checkForClosestNodeRedirection(deploymentId string, clientLocation s2.CellI
 		// TODO this can be change by a load and delete probably
 		has := exploringNodes.checkAndDelete(deploymentId, redirectTo.Id)
 		if has {
-			autoClient := client.NewAutonomicClient(myself.Addr + ":" + strconv.Itoa(utils.ArchimedesPort))
+			autoClient := autoFactory.New(myself.Addr + ":" + strconv.Itoa(utils.ArchimedesPort))
 			status = autoClient.SetExploredSuccessfully(deploymentId, redirectTo.Id)
 			if status != http.StatusOK {
 				log.Errorf("got status %d when setting %s exploration as success", status, redirectTo)

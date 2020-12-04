@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	childrenClient = client.NewDeployerClient("")
+	childrenClient = deplFactory.New("")
 )
 
 func sendHeartbeatsPeriodically() {

@@ -16,8 +16,9 @@ import (
 	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	client2 "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils/client"
 
-	pkgUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
@@ -40,7 +41,8 @@ const (
 )
 
 var (
-	deplClient          = client2.NewDeployerClient(utils.DeployerLocalHostPort)
+	deplClient deployer.Client
+
 	dockerClient        *client.Client
 	instanceToContainer sync.Map
 	fallback            *utils.Node
@@ -49,7 +51,9 @@ var (
 	stopContainerTimeoutVar = stopContainerTimeout * time.Second
 )
 
-func InitHandlers() {
+func InitHandlers(deplFactory deployer.ClientFactory) {
+	deplClient = deplFactory.New(utils.DeployerLocalHostPort)
+
 	for {
 		var status int
 		fallback, status = deplClient.GetFallback()
@@ -123,19 +127,19 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	portBindings := generatePortBindings(containerInstance.Ports)
 
 	// Create container and get containers id in response
-	instanceId := containerInstance.DeploymentName + "-" + utils.RandomString(10) + "-" + hostname
+	instanceId := containerInstance.DeploymentName + "-" + utils.RandomString(10) + "-" + myself.Id
 
 	log.Debugf("instance %s has following portBindings: %+v", instanceId, portBindings)
 
-	deploymentIdEnvVar := fmt.Sprintf(envVarFormatString, pkgUtils.DeploymentEnvVarName, containerInstance.DeploymentName)
-	instanceIdEnvVar := fmt.Sprintf(envVarFormatString, pkgUtils.InstanceEnvVarName, instanceId)
+	deploymentIdEnvVar := fmt.Sprintf(envVarFormatString, client2.DeploymentEnvVarName, containerInstance.DeploymentName)
+	instanceIdEnvVar := fmt.Sprintf(envVarFormatString, client2.InstanceEnvVarName, instanceId)
 	fallbackEnvVar := fmt.Sprintf(envVarFormatString, archimedesHTTPClient.FallbackEnvVar, fallback.Addr)
-	nodeIpEnvVar := fmt.Sprintf(envVarFormatString, pkgUtils.NodeIPEnvVarName, myself.Addr)
-	replicaNumEnvVar := fmt.Sprintf(envVarFormatString, pkgUtils.ReplicaNumEnvVarName,
+	nodeIpEnvVar := fmt.Sprintf(envVarFormatString, client2.NodeIPEnvVarName, myself.Addr)
+	replicaNumEnvVar := fmt.Sprintf(envVarFormatString, client2.ReplicaNumEnvVarName,
 		strconv.Itoa(containerInstance.ReplicaNumber))
 
 	// TODO CHANGE THIS TO USE THE ACTUAL LOCATION TOKEN
-	locationEnvVar := fmt.Sprintf(envVarFormatString, pkgUtils.LocationEnvVarName, "0c")
+	locationEnvVar := fmt.Sprintf(envVarFormatString, client2.LocationEnvVarName, "0c")
 
 	for idx, envVar := range containerInstance.EnvVars {
 		if envVar == instanceIdEnvVarReplace {
@@ -279,7 +283,7 @@ func deleteAllInstances() {
 
 	for _, containerListed := range containers {
 		for _, name := range containerListed.Names {
-			if strings.Contains(name, hostname) {
+			if strings.Contains(name, myself.Id) {
 				log.Warnf("deleting orphan container %s", containerListed.ID)
 				err = dockerClient.ContainerStop(context.Background(), containerListed.ID, &stopContainerTimeoutVar)
 				if err != nil {

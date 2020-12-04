@@ -85,7 +85,7 @@ func (nl *nodeLoadBalanceGoal) GenerateDomain(_ interface{}) (domain Domain, inf
 	}
 
 	info = map[string]interface{}{}
-	deplClient := client.NewDeployerClient("")
+	deplClient := nl.deployment.deplFactory.New("")
 
 	for nodeId, node := range vicinity.Nodes {
 		_, okS := nl.deployment.Suspected.Load(nodeId)

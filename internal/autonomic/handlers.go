@@ -6,6 +6,9 @@ import (
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -13,9 +16,10 @@ var (
 	autonomicSystem *system
 )
 
-func InitServer() {
+func InitServer(deplFactory deployer.ClientFactory, archFactory archimedes.ClientFactory,
+	autoFactory autonomic.ClientFactory) {
 	log.SetLevel(log.DebugLevel)
-	autonomicSystem = newSystem()
+	autonomicSystem = newSystem(deplFactory, archFactory, autoFactory)
 
 	log.SetLevel(log.InfoLevel)
 }

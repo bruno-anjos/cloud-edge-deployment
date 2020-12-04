@@ -5,11 +5,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
-	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
+	autonomicAPI "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
+	deployerAPI "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	autonomicUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
@@ -35,26 +37,32 @@ type (
 		env         *environment.Environment
 		suspected   *sync.Map
 
-		deployerClient   *client.Client
-		archimedesClient *archimedes.Client
+		deployerClient   deployer.Client
+		archimedesClient archimedes.Client
+
+		deplFactory deployer.ClientFactory
+		autoFactory autonomic.ClientFactory
 	}
 )
 
-func newSystem() *system {
+func newSystem(deplFactory deployer.ClientFactory, archFactory archimedes.ClientFactory,
+	autoFactory autonomic.ClientFactory) *system {
 	return &system{
 		deployments:      &sync.Map{},
 		exitChans:        &sync.Map{},
 		env:              environment.NewEnvironment(),
 		suspected:        &sync.Map{},
-		deployerClient:   client.NewDeployerClient(utils.DeployerLocalHostPort),
-		archimedesClient: archimedes.NewArchimedesClient(utils.ArchimedesLocalHostPort),
+		deployerClient:   deplFactory.New(utils.DeployerLocalHostPort),
+		archimedesClient: archFactory.New(utils.ArchimedesLocalHostPort),
+		deplFactory:      deplFactory,
+		autoFactory:      autoFactory,
 	}
 }
 
 func (a *system) addDeployment(deploymentId, strategyId string, depthFactor float64, exploringTTL int) {
 	if value, ok := a.deployments.Load(deploymentId); ok {
 		depl := value.(deploymentsMapValue)
-		if exploringTTL != deployer2.NotExploringTTL {
+		if exploringTTL != deployerAPI.NotExploringTTL {
 			depl.Exploring.Store(deployment.Myself.Id, exploringTTL)
 		} else {
 			depl.Exploring.Delete(deployment.Myself.Id)
@@ -66,12 +74,12 @@ func (a *system) addDeployment(deploymentId, strategyId string, depthFactor floa
 
 	log.Debugf("new deployment %s has exploringTTL %d", deploymentId, exploringTTL)
 
-	s, err := deployment.New(deploymentId, strategyId, a.suspected, depthFactor, a.env)
+	s, err := deployment.New(deploymentId, strategyId, a.suspected, depthFactor, a.env, a.autoFactory)
 	if err != nil {
 		panic(err)
 	}
 
-	if exploringTTL != deployer2.NotExploringTTL {
+	if exploringTTL != deployerAPI.NotExploringTTL {
 		s.Exploring.Store(deployment.Myself.Id, exploringTTL)
 	}
 
@@ -229,7 +237,7 @@ func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]inter
 	return ordered[0]
 }
 
-func (a *system) getVicinity() *autonomic.Vicinity {
+func (a *system) getVicinity() *autonomicAPI.Vicinity {
 	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		return nil
@@ -241,7 +249,7 @@ func (a *system) getVicinity() *autonomic.Vicinity {
 		panic(err)
 	}
 
-	vicinity := &autonomic.Vicinity{
+	vicinity := &autonomicAPI.Vicinity{
 		Nodes:     vicinityMetric.Nodes,
 		Locations: map[string]s2.CellID{},
 	}

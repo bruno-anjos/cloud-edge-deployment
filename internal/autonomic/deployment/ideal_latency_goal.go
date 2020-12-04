@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	deployerAPI "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -101,7 +100,7 @@ func (i *idealLatency) Optimize(optDomain Domain) (isAlreadyMax bool, optRange R
 		return
 	}
 
-	archClient := archimedes.NewArchimedesClient(utils.ArchimedesLocalHostPort)
+	archClient := i.deployment.archFactory.New(utils.ArchimedesLocalHostPort)
 	centroids, status := archClient.GetClientCentroids(i.deployment.DeploymentId)
 	if status == http.StatusNotFound {
 		return
@@ -282,7 +281,7 @@ func (i *idealLatency) Cutoff(candidates Domain, candidatesCriteria map[string]i
 	maxed bool) {
 	maxed = true
 
-	candidateClient := client.NewDeployerClient("")
+	candidateClient := i.deployment.deplFactory.New("")
 	for _, candidate := range candidates {
 		percentage := candidatesCriteria[candidate.Id].(float64)
 		log.Debugf("candidate %s distance percentage (me) %f", candidate, percentage)
@@ -382,7 +381,8 @@ func (i *idealLatency) GenerateAction(targets Range, args ...interface{}) action
 		})
 
 		return actions.NewMultipleExtendDeploymentAction(i.deployment.DeploymentId, nodesToExtendTo, nodeCells,
-			targetsExploring, i.extendedCentroidCallback, toExclude, i.deployment.setNodeAsExploring)
+			targetsExploring, i.extendedCentroidCallback, toExclude, i.deployment.setNodeAsExploring,
+			i.deployment.deplFactory)
 	}
 
 	return nil

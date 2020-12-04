@@ -4,17 +4,19 @@ import (
 	"net/http"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils/client"
 	"github.com/docker/go-connections/nat"
 )
 
 type Client struct {
-	*utils.GenericClient
+	utils.GenericClient
 }
 
 func NewSchedulerClient(addr string) *Client {
 	return &Client{
-		GenericClient: utils.NewGenericClient(addr),
+		GenericClient: client.NewGenericClient(addr),
 	}
 }
 
@@ -23,34 +25,35 @@ func (c *Client) StartInstance(deploymentName, imageName string, ports nat.PortS
 	reqBody := api.StartInstanceRequestBody{
 		DeploymentName: deploymentName,
 		ImageName:      imageName,
+		Command:        command,
 		Ports:          ports,
 		Static:         static,
 		EnvVars:        envVars,
-		Command:        command,
+		ReplicaNumber:  replicaNum,
 	}
 
 	path := api.GetInstancesPath()
-	req := utils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
 func (c *Client) StopInstance(instanceId string) (status int) {
 	path := api.GetInstancePath(instanceId)
-	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
 func (c *Client) StopAllInstances() (status int) {
 	path := api.GetInstancesPath()
-	req := utils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
-	status, _ = utils.DoRequest(c.Client, req, nil)
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }

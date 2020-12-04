@@ -6,6 +6,7 @@ import (
 	"time"
 
 	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer/client"
 
 	log "github.com/sirupsen/logrus"
 )

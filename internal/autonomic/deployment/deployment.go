@@ -5,12 +5,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
+	autonomicAPI "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
-	public "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
 
 	"github.com/golang/geo/s2"
 	"github.com/pkg/errors"
@@ -39,6 +42,10 @@ type (
 		Blacklist    *sync.Map
 		Exploring    *sync.Map
 		DepthFactor  float64
+		autoFactory  autonomic.ClientFactory
+		archFactory  archimedes.ClientFactory
+		deplFactory  deployer.ClientFactory
+		schedFactory scheduler.ClientFactory
 	}
 )
 
@@ -51,7 +58,7 @@ func init() {
 }
 
 func New(deploymentId, strategyId string, suspected *sync.Map, depthFactor float64,
-	env *environment.Environment) (*Deployment, error) {
+	env *environment.Environment, autoFactory autonomic.ClientFactory) (*Deployment, error) {
 	s := &Deployment{
 		Children:     &sync.Map{},
 		Parent:       nil,
@@ -61,13 +68,14 @@ func New(deploymentId, strategyId string, suspected *sync.Map, depthFactor float
 		Blacklist:    &sync.Map{},
 		Exploring:    &sync.Map{},
 		DepthFactor:  depthFactor,
+		autoFactory:  autoFactory,
 	}
 
 	var strat strategy
 	switch strategyId {
-	case public.StrategyLoadBalanceId:
+	case autonomic.StrategyLoadBalanceId:
 		strat = newDefaultLoadBalanceStrategy(s)
-	case public.StrategyIdealLatencyId:
+	case autonomic.StrategyIdealLatencyId:
 		strat = newDefaultIdealLatencyStrategy(s)
 	default:
 		return nil, errors.Errorf("invalid strategy: %s", strategyId)
@@ -118,7 +126,7 @@ func (a *Deployment) GenerateAction() actions.Action {
 	return a.Strategy.Optimize()
 }
 
-func (a *Deployment) ToDTO() *autonomic.DeploymentDTO {
+func (a *Deployment) ToDTO() *autonomicAPI.DeploymentDTO {
 	var children []string
 	a.Children.Range(func(key, value interface{}) bool {
 		childId := key.(string)
@@ -126,7 +134,7 @@ func (a *Deployment) ToDTO() *autonomic.DeploymentDTO {
 		return true
 	})
 
-	return &autonomic.DeploymentDTO{
+	return &autonomicAPI.DeploymentDTO{
 		DeploymentId: a.DeploymentId,
 		StrategyId:   a.Strategy.GetId(),
 		Children:     children,
@@ -151,7 +159,7 @@ func (a *Deployment) BlacklistNodes(origin string, nodes ...string) {
 		a.Blacklist.Store(node, nil)
 	}
 
-	autoClient := client.NewAutonomicClient(a.Parent.Addr + ":" + strconv.Itoa(utils.AutonomicPort))
+	autoClient := a.autoFactory.New(a.Parent.Addr + ":" + strconv.Itoa(utils.AutonomicPort))
 	if a.Parent != nil && origin != a.Parent.Id {
 		autoClient.BlacklistNodes(a.DeploymentId, Myself.Id, nodes...)
 	}
