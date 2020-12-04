@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	SchedulerPort = internalUtils.SchedulerPort
+	Port = internalUtils.SchedulerPort
 )
 
 type Client interface {

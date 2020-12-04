@@ -6,16 +6,6 @@ import (
 	"time"
 )
 
-const (
-	DeploymentEnvVarName = "DEPLOYMENT_ID"
-	InstanceEnvVarName   = "INSTANCE_ID"
-	LocationEnvVarName   = "LOCATION"
-	ReplicaNumEnvVarName = "REPLICA_NUM"
-
-	NodeIdEnvVarName = "NODE_ID"
-	NodeIPEnvVarName = "NODE_IP"
-)
-
 type Client struct {
 	hostPort     string
 	hostPortLock sync.RWMutex

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ArchimedesPort = internalUtils.ArchimedesPort
+	Port = internalUtils.ArchimedesPort
 )
 
 type Client interface {

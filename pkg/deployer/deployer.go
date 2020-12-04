@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	DeployerPort = internalUtils.DeployerPort
+	Port = internalUtils.DeployerPort
 )
 
 type Client interface {

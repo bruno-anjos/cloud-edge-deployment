@@ -193,8 +193,8 @@ func (c *Client) SetParentAlive(parentId string) (status int) {
 }
 
 func (c *Client) SendInstanceHeartbeatToDeployerPeriodically() {
-	deploymentId := os.Getenv(client.DeploymentEnvVarName)
-	instanceId := os.Getenv(client.InstanceEnvVarName)
+	deploymentId := os.Getenv(utils.DeploymentEnvVarName)
+	instanceId := os.Getenv(utils.InstanceEnvVarName)
 
 	status := c.RegisterHearbeatDeploymentInstance(deploymentId, instanceId)
 	switch status {
