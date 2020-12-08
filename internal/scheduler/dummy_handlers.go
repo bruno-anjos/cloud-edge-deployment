@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -27,7 +28,7 @@ func dummyStartInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("[DUMMY] starting random instance for deployment %s", containerInstance.DeploymentName)
 
-	instanceId := containerInstance.DeploymentName + "-" + utils.RandomString(10)
+	instanceId := containerInstance.DeploymentName + "-" + servers.RandomString(10)
 
 	portBindings := generatePortBindings(containerInstance.Ports)
 

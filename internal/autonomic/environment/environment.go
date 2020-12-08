@@ -50,7 +50,7 @@ func (e *Environment) loadSimFile() {
 	for metricId, metricValue := range metrics {
 		log.Debugf("loaded metric %s with value %v", metricId, metricValue)
 		e.TrackMetric(metricId)
-		e.SetMetric(metricId, metricValue)
+		e.setMetric(metricId, metricValue)
 	}
 }
 
@@ -67,15 +67,15 @@ func (e *Environment) GetMetric(metricId string) (value interface{}, ok bool) {
 	return e.metrics.Load(metricId)
 }
 
-func (e *Environment) SetMetric(metricId string, value interface{}) {
+func (e *Environment) setMetric(metricId string, value interface{}) {
 	e.metrics.Store(metricId, value)
 }
 
-func (e *Environment) DeleteMetric(metricId string) {
+func (e *Environment) deleteMetric(metricId string) {
 	e.metrics.Delete(metricId)
 }
 
-func (e *Environment) Copy() (copy *Environment) {
+func (e *Environment) copy() (copy *Environment) {
 	newMap := &sync.Map{}
 	copy = &Environment{metrics: newMap}
 

@@ -10,7 +10,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	autonomicUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
-	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -314,7 +314,7 @@ func (l *deploymentLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 		return false
 	}
 
-	archClient := l.deployment.archFactory.New(internalUtils.ArchimedesLocalHostPort)
+	archClient := l.deployment.archFactory.New(servers.ArchimedesLocalHostPort)
 	load, status := archClient.GetLoad(l.deployment.DeploymentId)
 	if status != http.StatusOK {
 		log.Errorf("got status %d when asking for load for deployment %s", status, l.deployment.DeploymentId)

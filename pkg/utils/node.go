@@ -10,7 +10,7 @@ type Node struct {
 }
 
 func NodeFromEnv() *Node {
-	nodeId, exists := os.LookupEnv(NodeIdEnvVarName)
+	nodeId, exists := os.LookupEnv(nodeIdEnvVarName)
 	if !exists {
 		panic("no NODE_ID set in environment")
 	}

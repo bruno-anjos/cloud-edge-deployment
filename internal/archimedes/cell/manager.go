@@ -16,8 +16,8 @@ type (
 
 	cellsByDeploymentKey = string
 	cellsByDeployment    struct {
-		topCells *Collection
-		cells    *Collection
+		topCells *collection
+		cells    *collection
 	}
 
 	cellsByDeploymentValue = *cellsByDeployment
@@ -77,7 +77,7 @@ func (cm *Manager) AddClientToDownmostCell(deploymentId string, clientCellId s2.
 	topCellId, topCell := cm.getTopCell(deploymentId, deployment, clientCellId)
 
 	downmostId, downmost := cm.findDownmostCellAndRLock(topCellId, topCell, clientCellId, deployment.cells)
-	numClients := downmost.AddClientAndReturnCurrent(clientCellId)
+	numClients := downmost.addClientAndReturnCurrent(clientCellId)
 	deployment.cells.RUnlock()
 
 	if numClients > maxCellLevel {
@@ -93,7 +93,7 @@ func (cm *Manager) RemoveClientsFromCells(deploymentId string, locations *sync.M
 
 	var (
 		topCellId s2.CellID
-		topCell   *Cell
+		topCell   *cell
 	)
 
 	locations.Range(func(key, value interface{}) bool {
@@ -104,15 +104,15 @@ func (cm *Manager) RemoveClientsFromCells(deploymentId string, locations *sync.M
 
 		_, downmostCell := cm.findDownmostCellAndRLock(topCellId, topCell, cellId, deploymentCells.cells)
 
-		downmostCell.RemoveClients(cellId, int(atomic.LoadInt64(amount)))
+		downmostCell.removeClients(cellId, int(atomic.LoadInt64(amount)))
 		deploymentCells.cells.RUnlock()
 
 		return true
 	})
 }
 
-func (cm *Manager) findDownmostCellAndRLock(topCellId s2.CellID, topCell *Cell, clientCellId s2.CellID,
-	deploymentCells *Collection) (downmostCellId s2.CellID, downmostCell *Cell) {
+func (cm *Manager) findDownmostCellAndRLock(topCellId s2.CellID, topCell *cell, clientCellId s2.CellID,
+	deploymentCells *collection) (downmostCellId s2.CellID, downmostCell *cell) {
 	level := topCellId.Level()
 	downmostCellId = topCellId
 	downmostCell = topCell
@@ -130,12 +130,12 @@ func (cm *Manager) findDownmostCellAndRLock(topCellId s2.CellID, topCell *Cell, 
 
 		for childId := range downmostCell.Children {
 			if childId.Contains(clientCellId) {
-				cell, ok := deploymentCells.LoadCell(childId)
+				c, ok := deploymentCells.loadCell(childId)
 				if !ok {
 					log.Panicf("%s should have child %s", downmostCellId, childId)
 				}
 				downmostCellId = childId
-				downmostCell = cell
+				downmostCell = c
 				level++
 				break
 			}
@@ -167,9 +167,9 @@ func (cm *Manager) getDeploymentCells(deploymentId string) (deployment *cellsByD
 	return
 }
 
-func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collection, cellId s2.CellID, cell *Cell) {
+func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *collection, cellId s2.CellID, c *cell) {
 	toSplitIds := []s2.CellID{cellId}
-	toSplitCells := []*Cell{cell}
+	toSplitCells := []*cell{c}
 
 	deploymentCells.Lock()
 	defer func() {
@@ -177,8 +177,8 @@ func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collecti
 	}()
 
 	var ok bool
-	cell, ok = deploymentCells.LoadCell(cellId)
-	if !ok || len(cell.Children) > 0 || cell.GetNumClientsNoLock() < maxClientsToSplit {
+	c, ok = deploymentCells.loadCell(cellId)
+	if !ok || len(c.Children) > 0 || c.getNumClientsNoLock() < maxClientsToSplit {
 		return
 	}
 
@@ -191,16 +191,16 @@ func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collecti
 
 		log.Debugf("splitting cell %d", splittingCellId)
 
-		newCells := map[s2.CellID]*Cell{}
+		newCells := map[s2.CellID]*cell{}
 
-		splittingCell.IterateLocationsNoLock(func(locId s2.CellID, amount int) bool {
+		splittingCell.iterateLocationsNoLock(func(locId s2.CellID, amount int) bool {
 			newCellId := locId.Parent(splittingCellId.Level() + 1)
 			tempCell, tempOk := newCells[newCellId]
 			if !tempOk {
-				newTempCell := NewCell(newCellId, amount, map[s2.CellID]int{locId: amount}, splittingCellId, true)
+				newTempCell := newCell(newCellId, amount, map[s2.CellID]int{locId: amount}, splittingCellId, true)
 				newCells[newCellId] = newTempCell
 			} else {
-				tempCell.AddClientNoLock(locId)
+				tempCell.addClientNoLock(locId)
 			}
 			return true
 		})
@@ -211,17 +211,17 @@ func (cm *Manager) splitMaxedCell(deploymentId string, deploymentCells *Collecti
 			panic(fmt.Sprintf("should have active cells for deployment %s", deploymentId))
 		}
 		for tempCellId, tempCell := range newCells {
-			if tempCell.GetNumClientsNoLock() > maxClientsToSplit {
+			if tempCell.getNumClientsNoLock() > maxClientsToSplit {
 				toSplitIds = append(toSplitIds, tempCellId)
 				toSplitCells = append(toSplitCells, tempCell)
 			}
 
 			log.Debugf("added new cell %d to %d", tempCellId, splittingCellId)
 
-			splittingCell.AddChild(tempCellId)
+			splittingCell.addChild(tempCellId)
 			activeCells.Store(tempCellId, tempCell)
 		}
-		splittingCell.ClearNoLock()
+		splittingCell.clearNoLock()
 		activeCells.Delete(splittingCellId)
 	}
 
@@ -237,10 +237,10 @@ func (cm *Manager) getActiveCellsForDeployment(deploymentId string) (*sync.Map, 
 
 // Get one of the 4 top cells for a given deployment
 func (cm *Manager) getTopCell(deploymentId string, deploymentCells cellsByDeploymentValue,
-	clientCellId s2.CellID) (topCellId s2.CellID, topCell *Cell) {
+	clientCellId s2.CellID) (topCellId s2.CellID, topCell *cell) {
 
 	// search for the top cell that contains the client cell
-	deploymentCells.topCells.IterateCells(func(id s2.CellID, cell *Cell) bool {
+	deploymentCells.topCells.iterateCells(func(id s2.CellID, cell *cell) bool {
 		if id.Contains(clientCellId) {
 			topCellId = id
 			topCell = cell
@@ -252,17 +252,17 @@ func (cm *Manager) getTopCell(deploymentId string, deploymentCells cellsByDeploy
 	if topCell == nil {
 		// top cell didn't exist yet create it
 		cellId := clientCellId.Parent(minCellLevel)
-		cell := NewCell(cellId, 0, map[s2.CellID]int{}, 0, false)
+		c := newCell(cellId, 0, map[s2.CellID]int{}, 0, false)
 
 		var loaded bool
-		topCell, loaded = deploymentCells.topCells.LoadOrStoreCell(cellId, cell)
+		topCell, loaded = deploymentCells.topCells.loadOrStoreCell(cellId, c)
 
 		// loadOrStore to sync map, so if it doens't load this thread is the one that created the cell
 		if !loaded {
 			// add the cell to activeCells
 			var value activeCellsByDeploymentValue
 			value = &sync.Map{}
-			value.Store(cellId, cell)
+			value.Store(cellId, c)
 			cm.activeCells.Store(deploymentId, value)
 		}
 	}
@@ -298,7 +298,7 @@ func (cm *Manager) mergeDeploymentCells(deploymentId string, deployment *cellsBy
 
 	wg := &sync.WaitGroup{}
 
-	deployment.topCells.IterateCells(func(id s2.CellID, cell *Cell) bool {
+	deployment.topCells.iterateCells(func(id s2.CellID, cell *cell) bool {
 		wg.Add(1)
 		go cm.mergeFromTopCell(deploymentId, deployment.cells, cell, wg)
 		return true
@@ -313,13 +313,13 @@ func (cm *Manager) mergeDeploymentCells(deploymentId string, deployment *cellsBy
 	topWg.Done()
 }
 
-func (cm *Manager) mergeFromTopCell(deploymentId string, deploymentCells *Collection, topCell *Cell,
+func (cm *Manager) mergeFromTopCell(deploymentId string, deploymentCells *collection, topCell *cell,
 	wg *sync.WaitGroup) {
 
 	evaluateSet := cm.createEvaluateSet(topCell, deploymentCells)
 
 	var (
-		mergingCell       *Cell
+		mergingCell       *cell
 		totalChildClients int
 	)
 	for i := len(evaluateSet) - 1; i >= 0; i-- {
@@ -327,11 +327,11 @@ func (cm *Manager) mergeFromTopCell(deploymentId string, deploymentCells *Collec
 
 		totalChildClients = 0
 		for childId := range mergingCell.Children {
-			child, ok := deploymentCells.LoadCell(childId)
+			child, ok := deploymentCells.loadCell(childId)
 			if !ok {
 				panic(fmt.Sprintf("has child %s, but child is not in deploymentCells", childId))
 			}
-			totalChildClients += child.GetNumClientsNoLock()
+			totalChildClients += child.getNumClientsNoLock()
 		}
 
 		if totalChildClients < minClientsToMerge {
@@ -340,19 +340,19 @@ func (cm *Manager) mergeFromTopCell(deploymentId string, deploymentCells *Collec
 				panic(fmt.Sprintf("should have active cells for deployment %s", deploymentId))
 			}
 
-			var child *Cell
+			var child *cell
 			for childId := range mergingCell.Children {
-				child, ok = deploymentCells.LoadCell(childId)
+				child, ok = deploymentCells.loadCell(childId)
 				if !ok {
 					panic(fmt.Sprintf("has child %s, but child is not in deploymentCells", childId))
 				}
 
-				child.IterateLocationsNoLock(func(locId s2.CellID, amount int) bool {
-					mergingCell.AddClientsNoLock(locId, amount)
+				child.iterateLocationsNoLock(func(locId s2.CellID, amount int) bool {
+					mergingCell.addClientsNoLock(locId, amount)
 					return true
 				})
 
-				deploymentCells.DeleteCell(childId)
+				deploymentCells.deleteCell(childId)
 				activeCells.Delete(childId)
 			}
 
@@ -364,7 +364,7 @@ func (cm *Manager) mergeFromTopCell(deploymentId string, deploymentCells *Collec
 	wg.Done()
 }
 
-func (cm *Manager) createEvaluateSet(topCell *Cell, deploymentCells *Collection) (evaluateSet []*Cell) {
+func (cm *Manager) createEvaluateSet(topCell *cell, deploymentCells *collection) (evaluateSet []*cell) {
 	if len(topCell.Children) == 0 {
 		return
 	}
@@ -376,7 +376,7 @@ func (cm *Manager) createEvaluateSet(topCell *Cell, deploymentCells *Collection)
 		toExplore := evaluateSet[currentIdx]
 
 		for childId := range toExplore.Children {
-			child, ok := deploymentCells.LoadCell(childId)
+			child, ok := deploymentCells.loadCell(childId)
 			if !ok {
 				panic(fmt.Sprintf("should have cell %d", childId))
 			}

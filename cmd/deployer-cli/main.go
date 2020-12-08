@@ -7,7 +7,7 @@ import (
 	"os"
 
 	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer/client"
 
 	log "github.com/sirupsen/logrus"
@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	deployerClient = client.NewDeployerClient(utils.DeployerLocalHostPort)
+	deployerClient = client.NewDeployerClient(servers.DeployerLocalHostPort)
 )
 
 func main() {

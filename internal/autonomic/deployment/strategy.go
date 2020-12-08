@@ -29,12 +29,12 @@ func (b *basicStrategy) Optimize() actions.Action {
 		goalActionArgs         []interface{}
 	)
 
-	for _, goal := range b.goals {
-		isAlreadyMax, optRange, actionArgs := goal.Optimize(nextDomain)
+	for _, g := range b.goals {
+		isAlreadyMax, optRange, actionArgs := g.Optimize(nextDomain)
 		if isAlreadyMax {
 			nextDomain = optRange
 		} else {
-			goalToChooseActionFrom = goal
+			goalToChooseActionFrom = g
 			goalActionArgs = actionArgs
 		}
 	}
@@ -47,8 +47,8 @@ func (b *basicStrategy) Optimize() actions.Action {
 }
 
 func (b *basicStrategy) GetDependencies() (metricIds []string) {
-	for _, goal := range b.goals {
-		metricIds = append(metricIds, goal.GetDependencies()...)
+	for _, g := range b.goals {
+		metricIds = append(metricIds, g.GetDependencies()...)
 	}
 
 	return

@@ -6,7 +6,7 @@ import (
 	"github.com/docker/go-connections/nat"
 )
 
-type Deployment struct {
+type deployment struct {
 	DeploymentId      string
 	NumberOfInstances int
 	Command           []string
@@ -17,7 +17,7 @@ type Deployment struct {
 	Lock              *sync.RWMutex
 }
 
-type PairDeploymentIdStatus struct {
+type pairDeploymentIdStatus struct {
 	DeploymentId string
 	IsUp         bool
 	Mutex        *sync.Mutex

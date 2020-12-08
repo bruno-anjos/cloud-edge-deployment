@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 )
 
 // Route names
@@ -42,9 +42,9 @@ const (
 )
 
 var (
-	_deploymentIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, deploymentIdPathVar)
-	_instanceIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, instanceIdPathVar)
-	_nodeIdPathVarFormatted       = fmt.Sprintf(utils.PathVarFormat, nodeIdPathVar)
+	_deploymentIdPathVarFormatted = fmt.Sprintf(servers.PathVarFormat, deploymentIdPathVar)
+	_instanceIdPathVarFormatted   = fmt.Sprintf(servers.PathVarFormat, instanceIdPathVar)
+	_nodeIdPathVarFormatted       = fmt.Sprintf(servers.PathVarFormat, nodeIdPathVar)
 
 	deploymentsRoute        = archimedes.DeploymentsPath
 	deploymentRoute         = fmt.Sprintf(archimedes.DeploymentPath, _deploymentIdPathVarFormatted)
@@ -66,7 +66,7 @@ var (
 		_nodeIdPathVarFormatted)
 )
 
-var Routes = []utils.Route{
+var Routes = []servers.Route{
 	{
 		Name:        canRedirectToYouName,
 		Method:      http.MethodGet,

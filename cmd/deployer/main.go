@@ -3,7 +3,7 @@ package main
 import (
 	deployerAPI "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	internal "github.com/bruno-anjos/cloud-edge-deployment/internal/deployer"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	archimedesFactory "github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes/client_factory"
 	autonomicFactory "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic/client_factory"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -22,5 +22,5 @@ func main() {
 	schedFactory := &schedulerFactory.ClientFactory{}
 
 	internal.InitServer(autoFactory, archFactory, deplFactory, schedFactory)
-	utils.StartServer(serviceName, deployer.Port, deployerAPI.PrefixPath, internal.Routes)
+	servers.StartServer(serviceName, deployer.Port, deployerAPI.PrefixPath, internal.Routes)
 }

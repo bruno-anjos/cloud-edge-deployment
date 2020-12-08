@@ -5,7 +5,7 @@ import (
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
 	internal "github.com/bruno-anjos/cloud-edge-deployment/internal/scheduler"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer/client_factory"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
 )
@@ -16,11 +16,11 @@ const (
 
 func main() {
 	debug := flag.Bool("d", false, "add debug logs")
-	listenAddr := flag.String("l", utils.LocalhostAddr, "address to listen on")
+	listenAddr := flag.String("l", servers.LocalhostAddr, "address to listen on")
 	flag.Parse()
 
 	deplFactory := &client_factory.ClientFactory{}
 	internal.InitServer(deplFactory)
-	utils.StartServerWithoutDefaultFlags(serviceName, scheduler.Port, api.PrefixPath, internal.Routes, debug,
+	servers.StartServerWithoutDefaultFlags(serviceName, scheduler.Port, api.PrefixPath, internal.Routes, debug,
 		listenAddr)
 }

@@ -30,9 +30,9 @@ func NewRemoveDeploymentAction(deploymentId string) *RemoveDeploymentAction {
 
 func (m *RemoveDeploymentAction) Execute(client utils.GenericClient) {
 	deployerClient := client.(deployer.Client)
-	status := deployerClient.DeleteDeployment(m.GetDeploymentId())
+	status := deployerClient.DeleteDeployment(m.getDeploymentId())
 	if status != http.StatusOK {
-		log.Errorf("got status %d while attempting to delete deployment %s", status, m.GetDeploymentId())
+		log.Errorf("got status %d while attempting to delete deployment %s", status, m.getDeploymentId())
 	}
 }
 
@@ -76,9 +76,9 @@ func (m *ExtendDeploymentAction) Execute(client utils.GenericClient) {
 	deployerClient := client.(deployer.Client)
 
 	targetClient := m.deplFactory.New(m.GetTarget().Addr + ":" + strconv.Itoa(deployer.Port))
-	has, _ := targetClient.HasDeployment(m.GetDeploymentId())
+	has, _ := targetClient.HasDeployment(m.getDeploymentId())
 	if has {
-		log.Debugf("%s already has deployment %s", m.GetTarget(), m.GetDeploymentId())
+		log.Debugf("%s already has deployment %s", m.GetTarget(), m.getDeploymentId())
 		return
 	}
 
@@ -87,7 +87,7 @@ func (m *ExtendDeploymentAction) Execute(client utils.GenericClient) {
 		Locations: []s2.CellID{m.getLocation()},
 		ToExclude: m.getToExclude(),
 	}
-	status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), m.GetTarget(), m.exploringTTL(), config)
+	status := deployerClient.ExtendDeploymentTo(m.getDeploymentId(), m.GetTarget(), m.exploringTTL(), config)
 	if status != http.StatusOK {
 		log.Errorf("got status code %d while extending deployment", status)
 		return
@@ -135,18 +135,18 @@ func (m *MultipleExtendDeploymentAction) getSetNodeAsExploringCallback() func(no
 }
 
 func (m *MultipleExtendDeploymentAction) Execute(client utils.GenericClient) {
-	log.Debugf("executing %s to %+v", m.ActionId, m.GetTargets())
+	log.Debugf("executing %s to %+v", m.ActionId, m.getTargets())
 	deployerClient := client.(deployer.Client)
 	locations := m.getLocations()
 	extendedCentroidCallback := m.getCentroidCallback()
 	targetsExploring := m.getTargetsExploring()
 	toExclude := m.getToExclude()
 
-	for _, target := range m.GetTargets() {
+	for _, target := range m.getTargets() {
 		targetClient := m.deplFactory.New(target.Addr + ":" + strconv.Itoa(deployer.Port))
-		has, _ := targetClient.HasDeployment(m.GetDeploymentId())
+		has, _ := targetClient.HasDeployment(m.getDeploymentId())
 		if has {
-			log.Debugf("%s already has deployment %s", target, m.GetDeploymentId())
+			log.Debugf("%s already has deployment %s", target, m.getDeploymentId())
 			continue
 		}
 
@@ -156,7 +156,7 @@ func (m *MultipleExtendDeploymentAction) Execute(client utils.GenericClient) {
 			ToExclude: toExclude,
 		}
 
-		status := deployerClient.ExtendDeploymentTo(m.GetDeploymentId(), target, targetsExploring[target.Id], config)
+		status := deployerClient.ExtendDeploymentTo(m.getDeploymentId(), target, targetsExploring[target.Id], config)
 		if status != http.StatusOK {
 			log.Errorf("got status code %d while extending deployment", status)
 			return

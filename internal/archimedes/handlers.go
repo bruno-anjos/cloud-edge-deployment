@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/clients"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
@@ -72,7 +73,7 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.
 	var (
 		locationId s2.CellID
 		status     int
-		autoClient = autoFactory.New(internalUtils.AutonomicLocalHostPort)
+		autoClient = autoFactory.New(servers.AutonomicLocalHostPort)
 	)
 	for status != http.StatusOK {
 		locationId, status = autoClient.GetLocation()
@@ -357,7 +358,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	deplClient := deplFactory.New(internalUtils.DeployerLocalHostPort)
+	deplClient := deplFactory.New(servers.DeployerLocalHostPort)
 
 	resolved, found := resolveLocally(reqBody.ToResolve, reqLogger)
 	if !found {
@@ -651,7 +652,7 @@ func resolveInstance(originalPort nat.Port, instance *api.Instance) (*api.Resolv
 	}, true
 }
 
-func broadcastMsgWithHorizon(discoverMsg *api.DiscoverMsg, hops int) {
+func broadcastMsgWithHorizon(_ *api.DiscoverMsg, _ int) {
 	// TODO this simulates the lower level layer
 	return
 }
@@ -660,13 +661,13 @@ func checkForClosestNodeRedirection(deploymentId string, clientLocation s2.CellI
 	redirectTo = myself
 
 	var (
-		bestDiff = internalUtils.ChordAngleToKM(myLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
+		bestDiff = servers.ChordAngleToKM(myLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
 		status   int
 	)
 
 	redirectTargets.rangeOver(deploymentId, func(node *utils.Node, nodeLocId s2.CellID) bool {
 		auxLocation := s2.CellFromCellID(nodeLocId)
-		currDiff := internalUtils.ChordAngleToKM(auxLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
+		currDiff := servers.ChordAngleToKM(auxLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
 		if currDiff < bestDiff {
 			bestDiff = currDiff
 			redirectTo = node

@@ -48,7 +48,7 @@ func newActionWithDeployment(actionId, deploymentId string, args ...interface{})
 	}
 }
 
-func (a *actionWithDeployment) GetDeploymentId() string {
+func (a *actionWithDeployment) getDeploymentId() string {
 	return a.Args[0].(string)
 }
 
@@ -84,7 +84,7 @@ func newActionWithDeploymentTargets(actionId, deploymentId string, targets []*ut
 	}
 }
 
-func (a *actionWithDeploymentTargets) GetTargets() []*utils.Node {
+func (a *actionWithDeploymentTargets) getTargets() []*utils.Node {
 	return a.Args[1].([]*utils.Node)
 }
 

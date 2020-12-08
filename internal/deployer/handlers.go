@@ -8,6 +8,7 @@ import (
 	"time"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
@@ -86,9 +87,9 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 	deplFactory = deplFactoryAux
 	schedFactory = schedFactoryAux
 
-	autonomicClient = autoFactory.New(internalUtils.AutonomicLocalHostPort)
-	archimedesClient = archFactory.New(internalUtils.ArchimedesLocalHostPort)
-	schedulerClient = schedFactory.New(internalUtils.SchedulerLocalHostPort)
+	autonomicClient = autoFactory.New(servers.AutonomicLocalHostPort)
+	archimedesClient = archFactory.New(servers.ArchimedesLocalHostPort)
+	schedulerClient = schedFactory.New(servers.SchedulerLocalHostPort)
 
 	myAlternatives = sync.Map{}
 	nodeAlternatives = map[string][]*utils.Node{}
@@ -312,8 +313,8 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	hTable.Unlock()
 
 	if !alreadyHadDeployment {
-		deployment := deploymentYAMLToDeployment(&deploymentYAML, deploymentDTO.Static)
-		go addDeploymentAsync(deployment, deploymentDTO.DeploymentId)
+		d := deploymentYAMLToDeployment(&deploymentYAML, deploymentDTO.Static)
+		go addDeploymentAsync(d, deploymentDTO.DeploymentId)
 	}
 
 	takeChildren(deploymentId, parent, deploymentDTO.Children...)
@@ -380,14 +381,14 @@ func hasDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // TODO function simulating lower API
-func getNodeCloserTo(locations []s2.CellID, maxHopsToLookFor int,
+func getNodeCloserTo(locations []s2.CellID, _ int,
 	excludeNodes map[string]interface{}) (closest *utils.Node, found bool) {
 	closest = autonomicClient.GetClosestNode(locations, excludeNodes)
 	found = closest != nil
 	return
 }
 
-func addDeploymentAsync(deployment *Deployment, deploymentId string) {
+func addDeploymentAsync(deployment *deployment, deploymentId string) {
 	log.Debugf("adding deployment %s (ni: %d, s: %t)", deploymentId, deployment.NumberOfInstances, deployment.Static)
 
 	status := archimedesClient.RegisterDeployment(deploymentId, deployment.Ports, myself)
@@ -417,7 +418,7 @@ func deleteDeploymentAsync(deploymentId string) {
 	autonomicClient.DeleteDeployment(deploymentId)
 }
 
-func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool) *Deployment {
+func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool) *deployment {
 	log.Debugf("%+v", deploymentYAML)
 
 	numContainers := len(deploymentYAML.Containers)
@@ -436,7 +437,7 @@ func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool)
 
 	ports := nat.PortSet{}
 	for _, port := range containerSpec.Ports {
-		natPort, err := nat.NewPort(internalUtils.TCP, port.ContainerPort)
+		natPort, err := nat.NewPort(servers.TCP, port.ContainerPort)
 		if err != nil {
 			panic(err)
 		}
@@ -444,7 +445,7 @@ func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool)
 		ports[natPort] = struct{}{}
 	}
 
-	deployment := Deployment{
+	d := deployment{
 		DeploymentId:      deploymentYAML.DeploymentName,
 		NumberOfInstances: deploymentYAML.Replicas,
 		Image:             containerSpec.Image,
@@ -455,9 +456,9 @@ func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool)
 		Lock:              &sync.RWMutex{},
 	}
 
-	log.Debugf("%+v", deployment)
+	log.Debugf("%+v", d)
 
-	return &deployment
+	return &d
 }
 
 func addNode(nodeDeployerId, addr string) bool {

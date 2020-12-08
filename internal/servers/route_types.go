@@ -1,4 +1,4 @@
-package utils
+package servers
 
 import (
 	"net/http"
@@ -22,8 +22,8 @@ type Route struct {
 	HandlerFunc http.HandlerFunc
 }
 
-// NewRouter Creates new router with prefix and handlers for routes specified
-func NewRouter(prefix string, routes []Route) (r *mux.Router) {
+// newRouter Creates new router with prefix and handlers for routes specified
+func newRouter(prefix string, routes []Route) (r *mux.Router) {
 	r = mux.NewRouter().StrictSlash(true)
 	s := r.PathPrefix(prefix).Subrouter()
 	for _, route := range routes {

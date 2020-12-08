@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 )
 
 // Route names
@@ -41,9 +41,9 @@ const (
 )
 
 var (
-	_deploymentIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, deploymentIdPathVar)
-	_instanceIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, instanceIdPathVar)
-	_deployerIdPathVarFormatted   = fmt.Sprintf(utils.PathVarFormat, nodeIdPathVar)
+	_deploymentIdPathVarFormatted = fmt.Sprintf(servers.PathVarFormat, deploymentIdPathVar)
+	_instanceIdPathVarFormatted   = fmt.Sprintf(servers.PathVarFormat, instanceIdPathVar)
+	_deployerIdPathVarFormatted   = fmt.Sprintf(servers.PathVarFormat, nodeIdPathVar)
 
 	deploymentsRoute                = deployer.DeploymentsPath
 	deploymentRoute                 = fmt.Sprintf(deployer.DeploymentPath, _deploymentIdPathVarFormatted)
@@ -68,7 +68,7 @@ var (
 	parentAliveRoute = fmt.Sprintf(deployer.ParentAlivePath, _deployerIdPathVarFormatted)
 )
 
-var Routes = []utils.Route{
+var Routes = []servers.Route{
 
 	{
 		Name:        propagateLocationToHorizonName,

@@ -8,10 +8,11 @@ import (
 	autonomicAPI "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	deployerAPI "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	autonomicUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
-	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
 	"github.com/mitchellh/mapstructure"
@@ -41,8 +42,10 @@ type (
 		deployerClient   deployer.Client
 		archimedesClient archimedes.Client
 
-		deplFactory deployer.ClientFactory
-		autoFactory autonomic.ClientFactory
+		archFactory  archimedes.ClientFactory
+		autoFactory  autonomic.ClientFactory
+		deplFactory  deployer.ClientFactory
+		schedFactory scheduler.ClientFactory
 	}
 )
 
@@ -50,17 +53,19 @@ const (
 	initialDeploymentDelay = 20 * time.Second
 )
 
-func newSystem(deplFactory deployer.ClientFactory, archFactory archimedes.ClientFactory,
-	autoFactory autonomic.ClientFactory) *system {
+func newSystem(autoFactory autonomic.ClientFactory, archFactory archimedes.ClientFactory,
+	deplFactory deployer.ClientFactory, schedFactory scheduler.ClientFactory) *system {
 	return &system{
 		deployments:      &sync.Map{},
 		exitChans:        &sync.Map{},
 		env:              environment.NewEnvironment(),
 		suspected:        &sync.Map{},
-		deployerClient:   deplFactory.New(internalUtils.DeployerLocalHostPort),
-		archimedesClient: archFactory.New(internalUtils.ArchimedesLocalHostPort),
-		deplFactory:      deplFactory,
+		deployerClient:   deplFactory.New(servers.DeployerLocalHostPort),
+		archimedesClient: archFactory.New(servers.ArchimedesLocalHostPort),
+		archFactory:      archFactory,
 		autoFactory:      autoFactory,
+		deplFactory:      deplFactory,
+		schedFactory:     schedFactory,
 	}
 }
 
@@ -79,7 +84,8 @@ func (a *system) addDeployment(deploymentId, strategyId string, depthFactor floa
 
 	log.Debugf("new deployment %s has exploringTTL %d", deploymentId, exploringTTL)
 
-	s, err := deployment.New(deploymentId, strategyId, a.suspected, depthFactor, a.env, a.autoFactory)
+	s, err := deployment.New(deploymentId, strategyId, a.suspected, depthFactor, a.env, a.autoFactory, a.archFactory,
+		a.deplFactory, a.schedFactory)
 	if err != nil {
 		panic(err)
 	}
@@ -228,8 +234,8 @@ func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]inter
 		iDistSum := 0.
 		jDistSum := 0.
 		for _, locationCell := range locationCells {
-			iDistSum += internalUtils.ChordAngleToKM(iCell.DistanceToCell(locationCell))
-			jDistSum += internalUtils.ChordAngleToKM(jCell.DistanceToCell(locationCell))
+			iDistSum += servers.ChordAngleToKM(iCell.DistanceToCell(locationCell))
+			jDistSum += servers.ChordAngleToKM(jCell.DistanceToCell(locationCell))
 		}
 
 		return iDistSum < jDistSum

@@ -15,7 +15,6 @@ type (
 		DeploymentConfig *DeploymentDTO
 		ExploringTTL     int
 	}
-	AddNodeRequestBody   = string
 	DeadChildRequestBody struct {
 		Grandchild   *utils.Node
 		Alternatives map[string]*utils.Node

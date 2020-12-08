@@ -18,7 +18,6 @@ type (
 		Id           string
 		Redirects    []string
 	}
-	ResolveLocallyRequestBody      = ToResolveDTO
 	RedirectRequestBody            = redirectDTO
 	SetResolutionAnswerRequestBody struct {
 		Resolved *ResolvedDTO

@@ -14,7 +14,6 @@ const (
 	DeploymentPath              = "/deployments/%s"
 	DeploymentInstancePath      = "/deployments/%s/%s"
 	InstancePath                = "/instances/%s"
-	DiscoverPath                = "/discover"
 	WhoAreYouPath               = "/who"
 	TablePath                   = "/table"
 	ResolvePath                 = "/resolve"

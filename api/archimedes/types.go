@@ -9,13 +9,6 @@ type Deployment struct {
 	Ports nat.PortSet
 }
 
-func (s *Deployment) ToTransfarable() *Deployment {
-	return &Deployment{
-		Id:    s.Id,
-		Ports: s.Ports,
-	}
-}
-
 type Instance struct {
 	Id              string
 	DeploymentId    string

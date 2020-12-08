@@ -11,7 +11,7 @@ import (
 
 	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
-	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -538,9 +538,9 @@ func (t *hierarchyTable) getDeploymentConfig(deploymentId string) []byte {
 func (t *hierarchyTable) getDeploymentsWithParent(parentId string) (deploymentIds []string) {
 	t.hierarchyEntries.Range(func(key, value interface{}) bool {
 		deploymentId := key.(typeHierarchyEntriesMapKey)
-		deployment := value.(typeHierarchyEntriesMapValue)
+		d := value.(typeHierarchyEntriesMapValue)
 
-		if deployment.hasParent() && deployment.getParent().Id == parentId {
+		if d.hasParent() && d.getParent().Id == parentId {
 			deploymentIds = append(deploymentIds, deploymentId)
 		}
 
@@ -686,7 +686,7 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 		)
 		locations, status = archimedesClient.GetClientCentroids(deploymentId)
 		if status == http.StatusNotFound {
-			autoClient := autoFactory.New(internalUtils.AutonomicLocalHostPort)
+			autoClient := autoFactory.New(servers.AutonomicLocalHostPort)
 			var myLoc s2.CellID
 			myLoc, status = autoClient.GetLocation()
 			if status != http.StatusOK {

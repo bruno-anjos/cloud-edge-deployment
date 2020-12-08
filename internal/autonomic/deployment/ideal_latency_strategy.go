@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
-	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	public "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
@@ -33,7 +33,7 @@ func newDefaultIdealLatencyStrategy(deployment *Deployment) *idealLatencyStrateg
 
 	return &idealLatencyStrategy{
 		basicStrategy: newBasicStrategy(public.StrategyIdealLatencyId, defaultGoals),
-		archClient:    deployment.archFactory.New(internalUtils.ArchimedesLocalHostPort),
+		archClient:    deployment.archFactory.New(servers.ArchimedesLocalHostPort),
 		lbGoal:        lbGoal,
 		deployment:    deployment,
 	}

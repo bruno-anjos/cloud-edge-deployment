@@ -1,4 +1,4 @@
-package utils
+package servers
 
 import (
 	"flag"
@@ -29,7 +29,7 @@ func StartServer(deploymentName string, port int, prefixPath string, routes []Ro
 	}
 
 	log.Debug("starting log in debug mode")
-	r := NewRouter(prefixPath, routes)
+	r := newRouter(prefixPath, routes)
 
 	var listenAddrPort string
 	if *listenAddr != "" {
@@ -51,7 +51,7 @@ func StartServerWithoutDefaultFlags(deploymentName string, port int, prefixPath 
 	}
 
 	log.Debug("starting log in debug mode")
-	r := NewRouter(prefixPath, routes)
+	r := newRouter(prefixPath, routes)
 
 	var listenAddrPort string
 	if *listenAddr != "" {

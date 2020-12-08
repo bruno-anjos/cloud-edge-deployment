@@ -50,7 +50,7 @@ func registerHeartbeatDeploymentInstanceHandler(w http.ResponseWriter, r *http.R
 	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
 	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
 
-	pairDeploymentStatus := &PairDeploymentIdStatus{
+	pairDeploymentStatus := &pairDeploymentIdStatus{
 		DeploymentId: deploymentId,
 		IsUp:         true,
 		Mutex:        &sync.Mutex{},

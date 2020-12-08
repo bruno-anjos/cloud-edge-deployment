@@ -10,7 +10,7 @@ import (
 	deployerAPI "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
-	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
@@ -24,7 +24,7 @@ const (
 
 	maximumDistancePercentage = 1.2
 	satisfiedDistance         = 20.
-	maxDistance               = internalUtils.EarthRadius * math.Pi
+	maxDistance               = servers.EarthRadius * math.Pi
 	maxChildren               = 4.
 	branchingCutoff           = 1
 
@@ -100,7 +100,7 @@ func (i *idealLatency) Optimize(optDomain domain) (isAlreadyMax bool, optRange r
 		return
 	}
 
-	archClient := i.deployment.archFactory.New(internalUtils.ArchimedesLocalHostPort)
+	archClient := i.deployment.archFactory.New(servers.ArchimedesLocalHostPort)
 	centroids, status := archClient.GetClientCentroids(i.deployment.DeploymentId)
 	if status == http.StatusNotFound {
 		return
@@ -216,7 +216,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 	)
 	for _, centroid := range centroids {
 		centroidCell := s2.CellFromCellID(centroid)
-		myDists[centroid] = internalUtils.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(centroidCell))
+		myDists[centroid] = servers.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(centroidCell))
 		log.Debugf("mydist from %s to %s, %f", i.myLocation.ToToken(), centroid.ToToken(), myDists[centroid])
 		centroidCells[centroid] = centroidCell
 	}
@@ -245,7 +245,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 			nodeCentroidsMap sortingCriteriaType
 		)
 		for _, centroidId := range centroids {
-			delta := internalUtils.ChordAngleToKM(s2.CellFromCellID(location).DistanceToCell(centroidCells[centroidId]))
+			delta := servers.ChordAngleToKM(s2.CellFromCellID(location).DistanceToCell(centroidCells[centroidId]))
 
 			if i.deployment.Parent != nil && nodeId == i.deployment.Parent.Id {
 				nodeCentroidsMap = info[hiddenParentId].(sortingCriteriaType)
@@ -403,7 +403,7 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthes
 	i.deployment.Children.Range(func(key, value interface{}) bool {
 		childId := key.(deploymentChildrenMapKey)
 		child := value.(deploymentChildrenMapValue)
-		delta := internalUtils.ChordAngleToKM(s2.CellFromCellID(child.Location).DistanceToCell(s2.CellFromCellID(
+		delta := servers.ChordAngleToKM(s2.CellFromCellID(child.Location).DistanceToCell(s2.CellFromCellID(
 			avgLocation)))
 
 		if delta > furthestChildDistance {
@@ -433,7 +433,7 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthes
 			panic(err)
 		}
 
-		furthestChildDistance = internalUtils.ChordAngleToKM(s2.CellFromCellID(location).
+		furthestChildDistance = servers.ChordAngleToKM(s2.CellFromCellID(location).
 			DistanceToCell(s2.CellFromCellID(avgLocation)))
 	}
 
@@ -480,7 +480,7 @@ func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
 
 	centroidDistSum := 0.
 	for _, centroid := range centroids {
-		centroidDistSum += internalUtils.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(s2.CellFromCellID(
+		centroidDistSum += servers.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(s2.CellFromCellID(
 			centroid)))
 	}
 	avgDistanceToCentroids := centroidDistSum / float64(len(centroids))

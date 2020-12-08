@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 )
 
 // Route names
@@ -33,9 +33,9 @@ const (
 )
 
 var (
-	_deploymentIdPathVarFormatted = fmt.Sprintf(utils.PathVarFormat, deploymentIdPathVar)
-	_childIdPathVarFormatted      = fmt.Sprintf(utils.PathVarFormat, childIdPathVar)
-	_nodeIdPathVarFormatted       = fmt.Sprintf(utils.PathVarFormat, nodeIdPathVar)
+	_deploymentIdPathVarFormatted = fmt.Sprintf(servers.PathVarFormat, deploymentIdPathVar)
+	_childIdPathVarFormatted      = fmt.Sprintf(servers.PathVarFormat, childIdPathVar)
+	_nodeIdPathVarFormatted       = fmt.Sprintf(servers.PathVarFormat, nodeIdPathVar)
 
 	deploymentsRoute              = autonomic.DeploymentsPath
 	deploymentRoute               = fmt.Sprintf(autonomic.DeploymentPath, _deploymentIdPathVarFormatted)
@@ -52,7 +52,7 @@ var (
 	blacklistRoute                = fmt.Sprintf(autonomic.BlacklistPath, _deploymentIdPathVarFormatted)
 )
 
-var Routes = []utils.Route{
+var Routes = []servers.Route{
 	{
 		Name:        blacklistName,
 		Method:      http.MethodPost,

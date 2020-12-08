@@ -58,7 +58,8 @@ func init() {
 }
 
 func New(deploymentId, strategyId string, suspected *sync.Map, depthFactor float64,
-	env *environment.Environment, autoFactory autonomic.ClientFactory) (*Deployment, error) {
+	env *environment.Environment, autoFactory autonomic.ClientFactory, archFactory archimedes.ClientFactory,
+	deplFactory deployer.ClientFactory, schedFactory scheduler.ClientFactory) (*Deployment, error) {
 	s := &Deployment{
 		Children:     &sync.Map{},
 		Parent:       nil,
@@ -69,6 +70,9 @@ func New(deploymentId, strategyId string, suspected *sync.Map, depthFactor float
 		Exploring:    &sync.Map{},
 		DepthFactor:  depthFactor,
 		autoFactory:  autoFactory,
+		archFactory:  archFactory,
+		deplFactory:  deplFactory,
+		schedFactory: schedFactory,
 	}
 
 	var strat strategy

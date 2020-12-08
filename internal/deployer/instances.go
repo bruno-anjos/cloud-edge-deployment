@@ -13,7 +13,7 @@ import (
 
 type (
 	typeHeartbeatsMapKey   = string
-	typeHeartbeatsMapValue = *PairDeploymentIdStatus
+	typeHeartbeatsMapValue = *pairDeploymentIdStatus
 
 	typeInitChansMapValue = chan struct{}
 )

@@ -7,7 +7,7 @@ import (
 )
 
 type (
-	Cell struct {
+	cell struct {
 		Id              s2.CellID
 		numClients      int
 		clientLocations map[s2.CellID]int
@@ -18,8 +18,8 @@ type (
 	}
 )
 
-func NewCell(id s2.CellID, numClients int, clientLocations map[s2.CellID]int, parent s2.CellID, hasParent bool) *Cell {
-	return &Cell{
+func newCell(id s2.CellID, numClients int, clientLocations map[s2.CellID]int, parent s2.CellID, hasParent bool) *cell {
+	return &cell{
 		Id:              id,
 		numClients:      numClients,
 		clientLocations: clientLocations,
@@ -30,30 +30,30 @@ func NewCell(id s2.CellID, numClients int, clientLocations map[s2.CellID]int, pa
 	}
 }
 
-func (c *Cell) AddClientAndReturnCurrent(loc s2.CellID) int {
+func (c *cell) addClientAndReturnCurrent(loc s2.CellID) int {
 	c.Lock()
 	defer c.Unlock()
-	c.AddClientNoLock(loc)
+	c.addClientNoLock(loc)
 	return c.numClients
 }
 
-func (c *Cell) AddClientNoLock(loc s2.CellID) {
+func (c *cell) addClientNoLock(loc s2.CellID) {
 	c.numClients++
 	c.clientLocations[loc]++
 }
 
-func (c *Cell) AddClientsNoLock(loc s2.CellID, amount int) {
+func (c *cell) addClientsNoLock(loc s2.CellID, amount int) {
 	c.numClients += amount
 	c.clientLocations[loc] += amount
 }
 
-func (c *Cell) RemoveClient(loc s2.CellID) {
+func (c *cell) removeClient(loc s2.CellID) {
 	c.Lock()
 	defer c.Unlock()
-	c.RemoveClientNoLock(loc)
+	c.removeClientNoLock(loc)
 }
 
-func (c *Cell) RemoveClients(loc s2.CellID, amount int) {
+func (c *cell) removeClients(loc s2.CellID, amount int) {
 	c.Lock()
 	defer c.Unlock()
 	_, ok := c.clientLocations[loc]
@@ -68,7 +68,7 @@ func (c *Cell) RemoveClients(loc s2.CellID, amount int) {
 	}
 }
 
-func (c *Cell) RemoveClientsNoLock(loc s2.CellID, amount int) {
+func (c *cell) removeClientsNoLock(loc s2.CellID, amount int) {
 	c.numClients -= amount
 	c.clientLocations[loc]--
 	if c.clientLocations[loc] == 0 {
@@ -76,7 +76,7 @@ func (c *Cell) RemoveClientsNoLock(loc s2.CellID, amount int) {
 	}
 }
 
-func (c *Cell) RemoveClientNoLock(loc s2.CellID) {
+func (c *cell) removeClientNoLock(loc s2.CellID) {
 	c.numClients--
 	c.clientLocations[loc]--
 	if c.clientLocations[loc] == 0 {
@@ -84,17 +84,17 @@ func (c *Cell) RemoveClientNoLock(loc s2.CellID) {
 	}
 }
 
-func (c *Cell) GetNumClients() int {
+func (c *cell) getNumClients() int {
 	c.RLock()
 	defer c.RUnlock()
-	return c.GetNumClientsNoLock()
+	return c.getNumClientsNoLock()
 }
 
-func (c *Cell) GetNumClientsNoLock() int {
+func (c *cell) getNumClientsNoLock() int {
 	return c.numClients
 }
 
-func (c *Cell) IterateLocationsNoLock(f func(locId s2.CellID, amount int) bool) {
+func (c *cell) iterateLocationsNoLock(f func(locId s2.CellID, amount int) bool) {
 	for locId, amount := range c.clientLocations {
 		if !f(locId, amount) {
 			break
@@ -102,21 +102,21 @@ func (c *Cell) IterateLocationsNoLock(f func(locId s2.CellID, amount int) bool) 
 	}
 }
 
-func (c *Cell) ClearNoLock() {
+func (c *cell) clearNoLock() {
 	c.numClients = 0
 	c.clientLocations = nil
 	c.Children = map[s2.CellID]interface{}{}
 }
 
-func (c *Cell) AddChild(childId s2.CellID) {
+func (c *cell) addChild(childId s2.CellID) {
 	c.Children[childId] = nil
 }
 
-func (c *Cell) DeleteChild(childId s2.CellID) {
+func (c *cell) deleteChild(childId s2.CellID) {
 	delete(c.Children, childId)
 }
 
-func (c *Cell) HasChild(childId s2.CellID) bool {
+func (c *cell) hasChild(childId s2.CellID) bool {
 	_, ok := c.Children[childId]
 	return ok
 }

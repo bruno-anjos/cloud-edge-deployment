@@ -9,6 +9,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -17,9 +18,9 @@ var (
 )
 
 func InitServer(autoFactory autonomic.ClientFactory, archFactory archimedes.ClientFactory,
-	deplFactory deployer.ClientFactory, ) {
+	deplFactory deployer.ClientFactory, schedFactory scheduler.ClientFactory) {
 	log.SetLevel(log.DebugLevel)
-	autonomicSystem = newSystem(deplFactory, archFactory, autoFactory)
+	autonomicSystem = newSystem(autoFactory, archFactory, deplFactory, schedFactory)
 
 	log.SetLevel(log.InfoLevel)
 }

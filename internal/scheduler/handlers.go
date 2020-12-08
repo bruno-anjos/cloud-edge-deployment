@@ -15,6 +15,7 @@ import (
 
 	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
@@ -51,7 +52,7 @@ var (
 )
 
 func InitServer(deplFactory deployer.ClientFactory) {
-	deplClient = deplFactory.New(internalUtils.DeployerLocalHostPort)
+	deplClient = deplFactory.New(servers.DeployerLocalHostPort)
 
 	for {
 		var status int
@@ -59,9 +60,13 @@ func InitServer(deplFactory deployer.ClientFactory) {
 		if status != http.StatusOK {
 			break
 		}
+
+		time.Sleep(2 * time.Second)
 	}
 
 	log.SetLevel(log.DebugLevel)
+
+	log.Debugf("fallback: %+v", fallback)
 
 	myself = utils.NodeFromEnv()
 
@@ -126,7 +131,7 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	portBindings := generatePortBindings(containerInstance.Ports)
 
 	// Create container and get containers id in response
-	instanceId := containerInstance.DeploymentName + "-" + internalUtils.RandomString(10) + "-" + myself.Id
+	instanceId := containerInstance.DeploymentName + "-" + servers.RandomString(10) + "-" + myself.Id
 
 	log.Debugf("instance %s has following portBindings: %+v", instanceId, portBindings)
 
@@ -296,13 +301,13 @@ func deleteAllInstances() {
 
 func getFreePort(protocol string) string {
 	switch protocol {
-	case internalUtils.TCP:
-		addr, err := net.ResolveTCPAddr(internalUtils.TCP, "0.0.0.0:0")
+	case servers.TCP:
+		addr, err := net.ResolveTCPAddr(servers.TCP, "0.0.0.0:0")
 		if err != nil {
 			panic(err)
 		}
 
-		l, err := net.ListenTCP(internalUtils.TCP, addr)
+		l, err := net.ListenTCP(servers.TCP, addr)
 		if err != nil {
 			panic(err)
 		}
@@ -314,19 +319,19 @@ func getFreePort(protocol string) string {
 			}
 		}()
 
-		natPort, err := nat.NewPort(internalUtils.TCP, strconv.Itoa(l.Addr().(*net.TCPAddr).Port))
+		natPort, err := nat.NewPort(servers.TCP, strconv.Itoa(l.Addr().(*net.TCPAddr).Port))
 		if err != nil {
 			panic(err)
 		}
 
 		return natPort.Port()
-	case internalUtils.UDP:
-		addr, err := net.ResolveUDPAddr(internalUtils.UDP, "0.0.0.0:0")
+	case servers.UDP:
+		addr, err := net.ResolveUDPAddr(servers.UDP, "0.0.0.0:0")
 		if err != nil {
 			panic(err)
 		}
 
-		l, err := net.ListenUDP(internalUtils.UDP, addr)
+		l, err := net.ListenUDP(servers.UDP, addr)
 		if err != nil {
 			panic(err)
 		}
@@ -338,7 +343,7 @@ func getFreePort(protocol string) string {
 			}
 		}()
 
-		natPort, err := nat.NewPort(internalUtils.UDP, strconv.Itoa(l.LocalAddr().(*net.UDPAddr).Port))
+		natPort, err := nat.NewPort(servers.UDP, strconv.Itoa(l.LocalAddr().(*net.UDPAddr).Port))
 		if err != nil {
 			panic(err)
 		}
