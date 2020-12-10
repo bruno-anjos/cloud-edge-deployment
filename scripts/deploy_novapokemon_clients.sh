@@ -16,6 +16,8 @@ if [ -n "$(ls -A /tmp/client_logs)" ]; then
 	docker run -v /tmp/client_logs:/logs debian:latest sh -c "rm -rf /logs/*"
 fi
 
+docker run -v /tmp/services:/services debian:latest sh -c "rm -rf /services/*"
+
 bash "$NOVAPOKEMON"/scripts/build_client.sh
 
 num_clients=$1
@@ -24,4 +26,4 @@ fallback=$3
 
 docker run -d --env NUM_CLIENTS="$num_clients" --env REGION="$region" \
 	--env FALLBACK_URL="$fallback" --env-file "$CLOUD_EDGE_DEPLOYMENT"/scripts/client-env.list \
-	--network dummies-network -v /tmp/client_logs:/logs brunoanjos/client:latest
+	--network dummies-network -v /tmp/client_logs:/logs -v /tmp/services:/services brunoanjos/client:latest

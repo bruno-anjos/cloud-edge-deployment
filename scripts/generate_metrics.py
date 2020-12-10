@@ -112,28 +112,11 @@ def get_vicinity_metric(visible_nodes, nodes_locations):
     return vicinity
 
 
-def generate_node_metrics(node_id, loc, visible_nodes, children, nodes_locations, services, service_latencies,
-                          processing_times, client_locations):
+def generate_node_metrics(node_id, loc, visible_nodes, nodes_locations):
     print(f"Generating metrics for {node_id}")
 
     vicinity = get_vicinity_metric(visible_nodes, nodes_locations)
     print(vicinity)
-
-    other = []
-    for s in services:
-        cell_token = s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(client_locations[s]["lat"],
-                                                                               client_locations[s]["lng"])).to_token()
-        other += [f"\"METRIC_LOAD_PER_DEPLOYMENT_{s}_IN_CHILDREN\": {{}}",
-                  f"\"METRIC_AGG_LOAD_PER_DEPLOYMENT_{s}_IN_CHILDREN\": 0",
-                  f"\"METRIC_CLIENT_LATENCY_PER_DEPLOYMENT_{s}\": {service_latencies[s]}",
-                  f"\"METRIC_PROCESSING_TIME_PER_DEPLOYMENT_{s}\": {processing_times[s]}",
-                  f"\"METRIC_NUMBER_OF_INSTANCES_PER_DEPLOYMENT_{s}\": 0",
-                  f"\"METRIC_LOAD_PER_DEPLOYMENT_{s}\": 0",
-                  f"""\"METRIC_AVERAGE_CLIENT_LOCATION_PER_DEPLOYMENT_{s}\": "{cell_token}" """]
-        for child in children:
-            other += [f"\"METRIC_LOAD_PER_DEPLOYMENT_{s}_IN_CHILD_{child}\": 0"]
-
-    other_strings = ",\n".join(other)
 
     m = f"""{{
         "METRIC_NODE_ADDR": "{node_id}",
@@ -141,8 +124,6 @@ def generate_node_metrics(node_id, loc, visible_nodes, children, nodes_locations
         .to_token()}",
         "METRIC_LOCATION_VICINITY":
             {json.dumps(vicinity)}
-        ,
-        {other_strings}
     }}"""
 
     return m
@@ -230,26 +211,6 @@ def generate_locations():
     return nodes_locations, mid_node
 
 
-def gen_services():
-    services = []
-    client_locations = {}
-    processing_times = {}
-    service_latencies = {}
-
-    with open(f"{os.path.dirname(os.path.realpath(__file__))}/../deployments/clients_config.json", "r") as config_fp:
-        configs = json.load(config_fp)
-        for config in configs:
-            service_name = config
-            services.append(service_name)
-            service_location, processing_time, service_latency = generate_dicts_for_service_tree()
-            client_locations[service_name] = service_location
-            print(f"service {service_name} is at {service_location}")
-            processing_times[service_name] = processing_time
-            service_latencies[service_name] = service_latency
-
-    return services, client_locations, processing_times, service_latencies
-
-
 def load_services_from_config(services_config):
     services = []
     client_locations, processing_times, service_latencies = {}, {}, {}
@@ -275,12 +236,6 @@ def gen_trees(neigh_size, config):
     else:
         nodes_locations, mid_node = generate_locations()
 
-    if config and services_config_name in config:
-        services, client_locations, processing_times, service_latencies = load_services_from_config(
-            config[services_config_name])
-    else:
-        services, client_locations, processing_times, service_latencies = gen_services()
-
     new_neighborhoods = {}
     nodes_children = {}
     for node in nodes:
@@ -302,27 +257,15 @@ def gen_trees(neigh_size, config):
     print(f"fallback is {new_fallback}")
 
     last_nodes = {}
-    for service in services:
-        tree, tree_size, last_node = generate_service_tree(
-            new_fallback["Id"], service, nodes_children, nodes_locations, client_locations)
-        print(f"{last_node} is last node for service {service}")
-        new_trees.append(tree)
-        tree_sizes.append(tree_size)
-        if last_node in last_nodes:
-            last_nodes[last_node].append(service)
-        else:
-            last_nodes[last_node] = [service]
 
     for node in nodes:
-        metrics = generate_node_metrics(node, nodes_locations[node], new_neighborhoods[node], nodes_children[node],
-                                        nodes_locations, services, service_latencies, processing_times,
-                                        client_locations)
-        with open(f"{outputDir}{node}.met", 'w') as nodeFp:
+        metrics = generate_node_metrics(node, nodes_locations[node], new_neighborhoods[node], nodes_locations)
+        with open(f"{outputDir}{node}.met", 'w') as node_fp:
             parsed = json.loads(metrics)
             metrics = json.dumps(parsed, indent=4, sort_keys=False)
-            nodeFp.write(metrics)
+            node_fp.write(metrics)
 
-    return new_trees, tree_sizes, new_fallback, nodes_locations, nodes_children, client_locations, new_neighborhoods
+    return new_trees, tree_sizes, new_fallback, nodes_locations, nodes_children, new_neighborhoods
 
 
 def load_config(nodes_config, services_config):
@@ -355,7 +298,7 @@ def write_final_tree(nodes_locations, output_dir):
     with open(f"{output_dir}services.tree", 'w') as treeFp:
         treeFp.write(trees_string)
 
-    locations = {"services": clientLocations, "nodes": nodes_locations}
+    locations = {"nodes": nodes_locations}
     with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/locations.json", 'w') as locFp:
         locs = json.dumps(locations, indent=4, sort_keys=False)
         locFp.write(locs)
@@ -461,30 +404,9 @@ trees = []
 neighSize = int(len(nodes) / 20)
 print(f"neighborhood size: {neighSize}")
 
-while True:
-    print("-------------------------------- TREE --------------------------------")
+print("-------------------------------- TREE --------------------------------")
 
-    trees, treeSizes, fallback, nodesLocations, nodesChildren, \
-    clientLocations, neighborhoods = gen_trees(neighSize, loadedConfig)
-
-    minMet = True
-    atLeast = False
-
-    maxSize = 0
-    minSize = -1
-    for treeSize in treeSizes:
-        if treeSize < minTreeSize:
-            minMet = False
-        if treeSize >= atLeastOneTreeSize:
-            atLeast = True
-        if treeSize > maxSize:
-            maxSize = treeSize
-        if minSize == -1 or treeSize < minSize:
-            minSize = treeSize
-
-    print(f"min: {minSize}, max: {maxSize}")
-
-    if minMet and atLeast:
-        break
+trees, treeSizes, fallback, nodesLocations, nodesChildren, \
+neighborhoods = gen_trees(neighSize, loadedConfig)
 
 write_final_tree(nodesLocations, outputDir)

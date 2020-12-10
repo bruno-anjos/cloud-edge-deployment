@@ -449,6 +449,7 @@ func (i *idealLatency) checkProcessingTime() bool {
 	value, ok := i.deployment.Environment.GetMetric(processintTimeMetric)
 	if !ok {
 		log.Debugf("no value for metric %s", processintTimeMetric)
+		return false
 	} else {
 		processingTime := value.(float64)
 
@@ -456,7 +457,7 @@ func (i *idealLatency) checkProcessingTime() bool {
 		value, ok = i.deployment.Environment.GetMetric(clientLatencyMetric)
 		if !ok {
 			log.Debugf("no value for metric %s", clientLatencyMetric)
-			return true
+			return false
 		}
 
 		latency := value.(float64)

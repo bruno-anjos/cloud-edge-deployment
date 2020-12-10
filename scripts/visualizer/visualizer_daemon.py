@@ -127,8 +127,13 @@ def graph_combined_deployments(graph, deployments, node_tables, deployment_color
         else:
             graph.add_vertex(node, color="red", service=False)
 
-    for deployment_id in deployments:
-        graph.add_vertex(deployment_id, color=deployment_colors[deployment_id], service=True)
+    services = [file_name for file_name in os.listdir(services_path)]
+    for service in services:
+        with open(f"{services_path}/{service}") as service_fp:
+            service_loc = json.load(service_fp)
+            graph.add_vertex(service, color="yellow", service=True)
+            if service not in locations["services"]:
+                locations["services"][service] = service_loc
 
     for node, auxTable in node_tables.items():
         if not auxTable or "dead" in auxTable:
@@ -160,6 +165,7 @@ def graph_combined_deployments(graph, deployments, node_tables, deployment_color
     visual_style["layout"] = layout
     visual_style["bbox"] = (4000, 4000)
     visual_style["margin"] = 200
+    print("plotting combined")
     plot(graph, f"/home/b.anjos/deployer_pngs/combined_plot.png", **visual_style, autocurve=True)
 
 
@@ -272,11 +278,12 @@ def graph_deployer():
                 i += 1
 
     deployer_processes = {}
-    for deployment_id in deployments:
-        deployer_processes[deployment_id] = pool.apply_async(graph_deployment, (
-            deployment_id, graphs[deployment_id], node_tables, deployment_colors[deployment_id], loads))
+    # for deployment_id in deployments:
+    #     deployer_processes[deployment_id] = pool.apply_async(graph_deployment, (
+    #         deployment_id, graphs[deployment_id], node_tables, deployment_colors[deployment_id], loads))
 
-    pool.apply_async(graph_combined_deployments, (combined_graph, deployments, node_tables, deployment_colors, loads))
+    combined = pool.apply_async(graph_combined_deployments,
+                                (combined_graph, deployments, node_tables, deployment_colors, loads))
 
     resulting_trees = {}
     for deployment_id, dp in deployer_processes.items():
@@ -286,10 +293,12 @@ def graph_deployer():
             return
         resulting_trees[deployment_id] = res
 
-    with open(f"/home/b.anjos/results/results.json", "w") as resultsFp:
+    combined.get()
+
+    with open(f"/home/b.anjos/results/results.json", "w") as results_fp:
         print("writing results.json")
         results = json.dumps(resulting_trees, indent=4, sort_keys=False)
-        resultsFp.write(results)
+        results_fp.write(results)
 
     # if not has_tables:
     #     mypath = "/home/b.anjos/deployer_pngs/"
@@ -366,6 +375,7 @@ deployerURLf = 'http://%s:50002/deployer'
 archimedesURLf = 'http://%s:50000/archimedes'
 dummyContainerFormatf = "192.168.19%d.%d"
 tablePath = '/table'
+services_path = "/tmp/services"
 
 args = sys.argv[1:]
 
@@ -398,11 +408,12 @@ if os.path.exists("/home/b.anjos/results/results.json"):
 for f in os.listdir("/home/b.anjos/deployer_pngs/"):
     os.remove(os.path.join("/home/b.anjos/deployer_pngs/", f))
 
-with open(f"{os.path.dirname(os.path.realpath(__file__))}/../../build/deployer/fallback.txt", 'r') as fallbackFp:
-    fallback = fallbackFp.readline()
+with open(f"{os.path.dirname(os.path.realpath(__file__))}/../../build/deployer/fallback.json", 'r') as fallback_fp:
+    fallback_node = json.load(fallback_fp)
+fallback = fallback_node["Id"]
 
-with open(f"{os.path.dirname(os.path.realpath(__file__))}/neighborhoods.json", 'r') as neighsFp:
-    neighborhoods = json.load(neighsFp)
+with open(f"{os.path.dirname(os.path.realpath(__file__))}/neighborhoods.json", 'r') as neighs_fp:
+    neighborhoods = json.load(neighs_fp)
 
 with open(f"{os.path.dirname(os.path.realpath(__file__))}/locations.json", 'r') as f:
     locations = json.load(f)

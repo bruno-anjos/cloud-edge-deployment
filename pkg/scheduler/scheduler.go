@@ -11,7 +11,7 @@ const (
 
 type Client interface {
 	utils.GenericClient
-	StartInstance(deploymentName, imageName string, ports nat.PortSet, replicaNum int, static bool,
+	StartInstance(deploymentName, imageName, instanceName string, ports nat.PortSet, replicaNum int, static bool,
 		envVars []string, command []string) (status int)
 	StopInstance(instanceId string) (status int)
 	StopAllInstances() (status int)

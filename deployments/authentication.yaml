@@ -1,4 +1,4 @@
-replicas: 1
+replicas: 2
 deploymentName: authentication
 containers:
   - image: docker.io/brunoanjos/authentication:latest
@@ -11,3 +11,4 @@ containers:
       - name: TRAINERS_URL
         value: "trainers:8009"
 static: False
+instanceNameFmt: [ "$DEPLOYMENT_NAME", "-", "$REPLICA_NUM" ]

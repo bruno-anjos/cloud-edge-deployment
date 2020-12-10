@@ -1,4 +1,4 @@
-replicas: 1
+replicas: 2
 deploymentName: microtransactions
 containers:
   - image: docker.io/brunoanjos/microtransactions:latest
@@ -15,3 +15,4 @@ containers:
       - name: HEADLESS_SERVICE_NAME
         value: "$instance"
 static: False
+instanceNameFmt: [ "$DEPLOYMENT_NAME", "-", "$REPLICA_NUM"]

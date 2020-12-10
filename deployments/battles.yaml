@@ -1,4 +1,4 @@
-replicas: 1
+replicas: 2
 deploymentName: battles
 containers:
   - image: docker.io/brunoanjos/battles:latest
@@ -13,3 +13,4 @@ containers:
       - name: HEADLESS_SERVICE_NAME
         value: "$instance"
 static: False
+instanceNameFmt: [ "$DEPLOYMENT_NAME", "-", "$REPLICA_NUM"]

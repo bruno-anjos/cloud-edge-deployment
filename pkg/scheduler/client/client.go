@@ -20,8 +20,8 @@ func NewSchedulerClient(addr string) *Client {
 	}
 }
 
-func (c *Client) StartInstance(deploymentName, imageName string, ports nat.PortSet, replicaNum int, static bool,
-	envVars []string, command []string) (status int) {
+func (c *Client) StartInstance(deploymentName, imageName, instanceName string, ports nat.PortSet,
+	replicaNum int, static bool, envVars []string, command []string) (status int) {
 	reqBody := api.StartInstanceRequestBody{
 		DeploymentName: deploymentName,
 		ImageName:      imageName,
@@ -30,6 +30,7 @@ func (c *Client) StartInstance(deploymentName, imageName string, ports nat.PortS
 		Static:         static,
 		EnvVars:        envVars,
 		ReplicaNumber:  replicaNum,
+		InstanceName:   instanceName,
 	}
 
 	path := api.GetInstancesPath()

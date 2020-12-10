@@ -11,3 +11,4 @@ containers:
       - name: HEADLESS_SERVICE_NAME
         value: "$instance"
 static: False
+instanceNameFmt: [ "$DEPLOYMENT_NAME", "-", "$REPLICA_NUM"]

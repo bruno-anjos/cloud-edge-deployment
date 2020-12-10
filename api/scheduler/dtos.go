@@ -12,4 +12,5 @@ type ContainerInstanceDTO struct {
 	Static         bool
 	EnvVars        []string
 	ReplicaNumber  int
+	InstanceName   string
 }

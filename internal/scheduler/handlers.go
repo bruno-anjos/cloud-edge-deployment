@@ -57,7 +57,7 @@ func InitServer(deplFactory deployer.ClientFactory) {
 	for {
 		var status int
 		fallback, status = deplClient.GetFallback()
-		if status != http.StatusOK {
+		if status == http.StatusOK {
 			break
 		}
 
@@ -131,7 +131,12 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	portBindings := generatePortBindings(containerInstance.Ports)
 
 	// Create container and get containers id in response
-	instanceId := containerInstance.DeploymentName + "-" + servers.RandomString(10) + "-" + myself.Id
+	var instanceId string
+	if containerInstance.InstanceName == "" {
+		instanceId = containerInstance.DeploymentName + "-" + servers.RandomString(10) + "-" + myself.Id
+	} else {
+		instanceId = containerInstance.InstanceName
+	}
 
 	log.Debugf("instance %s has following portBindings: %+v", instanceId, portBindings)
 

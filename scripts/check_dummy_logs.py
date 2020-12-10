@@ -53,6 +53,29 @@ def process_node_logs(data):
     return True, f"[OK] {node_to_process} {log_to_process}", ""
 
 
+def process_other_logs(node_to_process):
+    inside_docker_cmd = ["docker", "ps", "--format", "{{.Names}}"]
+    cmd = dockerExecCmd + [node_to_process] + [" ".join(inside_docker_cmd)]
+    containers = subprocess.getoutput(" ".join(cmd))
+
+    returns = []
+    for line in containers.split("\n"):
+        container_name = line.strip()
+        if container_name in logs:
+            continue
+
+        inside_docker_cmd = ["docker", "logs", "2>&1", container_name]
+        inside_docker_cmd.extend(filterSuffix)
+        cmd = dockerExecCmd + [node_to_process] + [" ".join(inside_docker_cmd)]
+        out = subprocess.getoutput(" ".join(cmd))
+        if out:
+            returns.append((container_name, False, f"[ERROR] {node_to_process} {container_name}", out))
+        else:
+            returns.append((container_name, True, f"[OK] {node_to_process} {container_name}", ""))
+
+    return returns
+
+
 nodes = []
 path = f"{os.path.dirname(os.path.realpath(__file__))}/../build/autonomic/metrics"
 for f in os.listdir(path):
@@ -76,6 +99,7 @@ print("[INFO] nodes:", nodes)
 
 pool = Pool(processes=cpu_count)
 results = pool.map(process_node_logs, logs_per_node)
+other_results = pool.map(process_other_logs, nodes)
 pool.close()
 
 for idx, log_per_node in enumerate(logs_per_node):
@@ -86,3 +110,13 @@ for idx, log_per_node in enumerate(logs_per_node):
     if not success:
         with open(f"{logs_errors_path}/{node}_{log}", "w") as error_fp:
             error_fp.write(output)
+
+for idx, node in enumerate(nodes):
+    other_logs_per_node = other_results[idx]
+    for other_logs in other_logs_per_node:
+        container, success, to_log, output = other_logs
+        if flag_all or not success:
+            print(to_log)
+        if not success:
+            with open(f"{logs_errors_path}/{node}_{container}", "w") as error_fp:
+                error_fp.write(output)

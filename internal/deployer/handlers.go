@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -46,6 +47,11 @@ const (
 	maxHopslocationHorizon = 3
 )
 
+const (
+	deploymentNameFmt = "DEPLOYMENT_NAME"
+	replicaNumFmt     = "REPLICA_NUM"
+)
+
 var (
 	autonomicClient  autonomic.Client
 	archimedesClient archimedes.Client
@@ -80,6 +86,8 @@ var (
 
 func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimedes.ClientFactory,
 	deplFactoryAux deployer.ClientFactory, schedFactoryAux scheduler.ClientFactory) {
+	log.SetLevel(log.DebugLevel)
+
 	myself = utils.NodeFromEnv()
 
 	autoFactory = autoFactoryAux
@@ -107,7 +115,7 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 
 	// TODO change this for location from lower API
 	fallback = loadFallbackHostname(fallbackFilename)
-	log.Debugf("loaded fallback %s", fallback)
+	log.Debugf("loaded fallback %+v", fallback)
 
 	simulateAlternatives()
 
@@ -122,7 +130,7 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 
 	location = s2.CellFromCellID(locationId)
 
-	log.Debugf("got location %f", location)
+	log.Debugf("got location %s", location.ID().ToToken())
 
 	go sendHeartbeatsPeriodically()
 	go sendAlternativesPeriodically()
@@ -314,7 +322,7 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !alreadyHadDeployment {
 		d := deploymentYAMLToDeployment(&deploymentYAML, deploymentDTO.Static)
-		go addDeploymentAsync(d, deploymentDTO.DeploymentId)
+		go addDeploymentAsync(d, deploymentDTO.DeploymentId, deploymentYAML.InstanceNameFmt)
 	}
 
 	takeChildren(deploymentId, parent, deploymentDTO.Children...)
@@ -367,8 +375,12 @@ func whoAreYouHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 func getFallbackHandler(w http.ResponseWriter, _ *http.Request) {
+	log.Debugf("handling get fallback request")
+
 	var respBody api.GetFallbackResponseBody
 	respBody = *fallback
+
+	log.Debugf("sending %+v", fallback)
 
 	internalUtils.SendJSONReplyOK(w, respBody)
 }
@@ -388,8 +400,28 @@ func getNodeCloserTo(locations []s2.CellID, _ int,
 	return
 }
 
-func addDeploymentAsync(deployment *deployment, deploymentId string) {
-	log.Debugf("adding deployment %s (ni: %d, s: %t)", deploymentId, deployment.NumberOfInstances, deployment.Static)
+func fmtInstanceName(instanceFmt []string, deploymentId string, replicaNum int) string {
+	var result []string
+	for _, fmtString := range instanceFmt {
+		if fmtString[0] != '$' {
+			result = append(result, fmtString)
+			continue
+		}
+
+		switch fmtString[1:] {
+		case deploymentNameFmt:
+			result = append(result, deploymentId)
+		case replicaNumFmt:
+			result = append(result, strconv.Itoa(replicaNum))
+		}
+	}
+
+	return strings.Join(result, "")
+}
+
+func addDeploymentAsync(deployment *deployment, deploymentId string, instanceNameFmt []string) {
+	log.Debugf("adding deployment %s (ni: %d, s: %t, fmt: %+v)", deploymentId, deployment.NumberOfInstances,
+		deployment.Static, instanceNameFmt)
 
 	status := archimedesClient.RegisterDeployment(deploymentId, deployment.Ports, myself)
 	if status != http.StatusOK {
@@ -398,8 +430,16 @@ func addDeploymentAsync(deployment *deployment, deploymentId string) {
 	}
 
 	for i := 0; i < deployment.NumberOfInstances; i++ {
-		status = schedulerClient.StartInstance(deploymentId, deployment.Image, deployment.Ports, i, deployment.Static,
-			deployment.EnvVars, deployment.Command)
+		var instanceName string
+		if len(instanceNameFmt) == 0 {
+			instanceName = ""
+		} else {
+			instanceName = fmtInstanceName(instanceNameFmt, deploymentId, i)
+			log.Debugf("formatted instance name: %s", instanceName)
+		}
+
+		status = schedulerClient.StartInstance(deploymentId, deployment.Image, instanceName, deployment.Ports, i,
+			deployment.Static, deployment.EnvVars, deployment.Command)
 		if status != http.StatusOK {
 			log.Errorf("got status code %d from scheduler", status)
 

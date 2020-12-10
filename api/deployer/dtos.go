@@ -24,7 +24,7 @@ type (
 
 	DeploymentYAML struct {
 		Replicas       int
-		DeploymentName string
+		DeploymentName string `yaml:"deploymentName"`
 		Containers     []struct {
 			Image   string
 			Command []string
@@ -36,7 +36,8 @@ type (
 				Value string
 			}
 		}
-		DepthFactor float64
-		Static      bool
+		DepthFactor     float64 `yaml:"depthFactor"`
+		Static          bool
+		InstanceNameFmt []string `yaml:"instanceNameFmt"`
 	}
 )
