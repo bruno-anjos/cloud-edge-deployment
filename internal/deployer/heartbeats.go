@@ -16,28 +16,31 @@ func sendHeartbeatsPeriodically() {
 	childrenClient := deplFactory.New("")
 
 	var childrenToRemove []string
+
 	for {
 		childrenToRemove = []string{}
+
 		children.Range(func(key, value interface{}) bool {
-			childId := key.(string)
-			log.Debugf("sending heartbeat to %s", childId)
+			childID := key.(string)
+			log.Debugf("sending heartbeat to %s", childID)
 			child := value.(typeChildrenMapValue)
 			childrenClient.SetHostPort(child.Addr + ":" + strconv.Itoa(deployer.Port))
-			status := childrenClient.SetParentAlive(myself.Id)
+			status := childrenClient.SetParentAlive(myself.ID)
 			if status != http.StatusOK {
-				log.Errorf("got status %d while telling %s that i was alive", status, child.Id)
-				childrenToRemove = append(childrenToRemove, childId)
+				log.Errorf("got status %d while telling %s that i was alive", status, child.ID)
+				childrenToRemove = append(childrenToRemove, childID)
 			}
 
 			return true
 		})
 
-		for _, deploymentId := range hTable.getDeployments() {
-			depChildren := hTable.getChildren(deploymentId)
-			for _, childId := range childrenToRemove {
-				if _, ok := depChildren[childId]; ok {
-					hTable.removeChild(deploymentId, childId)
-					children.Delete(childId)
+		for _, deploymentID := range hTable.getDeployments() {
+			depChildren := hTable.getChildren(deploymentID)
+
+			for _, childID := range childrenToRemove {
+				if _, ok := depChildren[childID]; ok {
+					hTable.removeChild(deploymentID, childID)
+					children.Delete(childID)
 				}
 			}
 		}
@@ -48,18 +51,22 @@ func sendHeartbeatsPeriodically() {
 
 func checkParentHeartbeatsPeriodically() {
 	ticker := time.NewTicker(checkParentsTimeout * time.Second)
+
 	for {
 		<-ticker.C
+
 		deadParents := pTable.checkDeadParents()
+
 		if len(deadParents) == 0 {
 			log.Debugf("all parents alive")
+
 			continue
 		}
 
 		for _, deadParent := range deadParents {
 			log.Debugf("dead parent: %+v", deadParent)
-			pTable.removeParent(deadParent.Id)
-			renegotiateParent(deadParent, getParentAlternatives(deadParent.Id))
+			pTable.removeParent(deadParent.ID)
+			renegotiateParent(deadParent, getParentAlternatives(deadParent.ID))
 		}
 	}
 }

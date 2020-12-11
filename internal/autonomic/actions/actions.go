@@ -5,22 +5,22 @@ import (
 )
 
 type Action interface {
-	GetActionId() string
+	GetActionID() string
 	Execute(client utils.GenericClient)
 }
 
 type basicAction struct {
-	ActionId string
+	ActionID string
 }
 
-func newBasicAction(actionId string) *basicAction {
+func newBasicAction(actionID string) *basicAction {
 	return &basicAction{
-		ActionId: actionId,
+		ActionID: actionID,
 	}
 }
 
-func (b *basicAction) GetActionId() string {
-	return b.ActionId
+func (b *basicAction) GetActionID() string {
+	return b.ActionID
 }
 
 type actionWithArgs struct {
@@ -28,9 +28,9 @@ type actionWithArgs struct {
 	Args []interface{}
 }
 
-func newActionWithArgs(actionId string, args ...interface{}) *actionWithArgs {
+func newActionWithArgs(actionID string, args ...interface{}) *actionWithArgs {
 	return &actionWithArgs{
-		basicAction: newBasicAction(actionId),
+		basicAction: newBasicAction(actionID),
 		Args:        args,
 	}
 }
@@ -39,16 +39,16 @@ type actionWithDeployment struct {
 	*actionWithArgs
 }
 
-func newActionWithDeployment(actionId, deploymentId string, args ...interface{}) *actionWithDeployment {
-	newArgs := []interface{}{deploymentId}
+func newActionWithDeployment(actionID, deploymentID string, args ...interface{}) *actionWithDeployment {
+	newArgs := []interface{}{deploymentID}
 	newArgs = append(newArgs, args...)
 
 	return &actionWithDeployment{
-		actionWithArgs: newActionWithArgs(actionId, newArgs...),
+		actionWithArgs: newActionWithArgs(actionID, newArgs...),
 	}
 }
 
-func (a *actionWithDeployment) getDeploymentId() string {
+func (a *actionWithDeployment) getDeploymentID() string {
 	return a.Args[0].(string)
 }
 
@@ -56,13 +56,13 @@ type actionWithDeploymentTarget struct {
 	*actionWithDeployment
 }
 
-func newActionWithDeploymentTarget(actionId, deploymentId string, target *utils.Node,
+func newActionWithDeploymentTarget(actionID, deploymentID string, target *utils.Node,
 	args ...interface{}) *actionWithDeploymentTarget {
 	newArgs := []interface{}{target}
 	newArgs = append(newArgs, args...)
 
 	return &actionWithDeploymentTarget{
-		actionWithDeployment: newActionWithDeployment(actionId, deploymentId, newArgs...),
+		actionWithDeployment: newActionWithDeployment(actionID, deploymentID, newArgs...),
 	}
 }
 
@@ -74,13 +74,13 @@ type actionWithDeploymentTargets struct {
 	*actionWithDeployment
 }
 
-func newActionWithDeploymentTargets(actionId, deploymentId string, targets []*utils.Node,
+func newActionWithDeploymentTargets(actionID, deploymentID string, targets []*utils.Node,
 	args ...interface{}) *actionWithDeploymentTargets {
 	newArgs := []interface{}{targets}
 	newArgs = append(newArgs, args...)
 
 	return &actionWithDeploymentTargets{
-		actionWithDeployment: newActionWithDeployment(actionId, deploymentId, newArgs...),
+		actionWithDeployment: newActionWithDeployment(actionID, deploymentID, newArgs...),
 	}
 }
 
@@ -92,16 +92,17 @@ type actionWithDeploymentOriginTarget struct {
 	*actionWithDeploymentTarget
 }
 
-func newActionWithDeploymentOriginTarget(actionId, deploymentId string, origin, target *utils.Node,
+func newActionWithDeploymentOriginTarget(actionID, deploymentID string, origin, target *utils.Node,
 	args ...interface{}) *actionWithDeploymentOriginTarget {
 	newArgs := make([]interface{}, len(args)+1)
+
 	newArgs[0] = origin
 	for i, arg := range args {
 		newArgs[i+1] = arg
 	}
 
 	return &actionWithDeploymentOriginTarget{
-		actionWithDeploymentTarget: newActionWithDeploymentTarget(actionId, deploymentId, target, newArgs...),
+		actionWithDeploymentTarget: newActionWithDeploymentTarget(actionID, deploymentID, target, newArgs...),
 	}
 }
 

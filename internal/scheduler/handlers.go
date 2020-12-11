@@ -33,11 +33,12 @@ type (
 )
 
 const (
-	stopContainerTimeout = 10
+	retryTimeout         = 2 * time.Second
+	stopContainerTimeout = 10 * time.Second
 
 	envVarFormatString = "%s=%s"
 
-	instanceIdEnvVarReplace = "$instance"
+	instanceIDEnvVarReplace = "$instance"
 )
 
 var (
@@ -48,7 +49,7 @@ var (
 	fallback            *utils.Node
 	myself              *utils.Node
 
-	stopContainerTimeoutVar = stopContainerTimeout * time.Second
+	stopContainerTimeoutVar = stopContainerTimeout
 )
 
 func InitServer(deplFactory deployer.ClientFactory) {
@@ -56,12 +57,13 @@ func InitServer(deplFactory deployer.ClientFactory) {
 
 	for {
 		var status int
+
 		fallback, status = deplClient.GetFallback()
 		if status == http.StatusOK {
 			break
 		}
 
-		time.Sleep(2 * time.Second)
+		time.Sleep(retryTimeout)
 	}
 
 	log.SetLevel(log.DebugLevel)
@@ -71,6 +73,7 @@ func InitServer(deplFactory deployer.ClientFactory) {
 	myself = utils.NodeFromEnv()
 
 	var err error
+
 	dockerClient, err = client.NewEnvClient()
 	if err != nil {
 		log.Error("unable to create docker client")
@@ -86,16 +89,19 @@ func startInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling start instance")
 
 	var containerInstance api.ContainerInstanceDTO
+
 	err := json.NewDecoder(r.Body).Decode(&containerInstance)
 	if err != nil {
 		log.Error(err)
 		w.WriteHeader(http.StatusBadRequest)
+
 		return
 	}
 
 	if containerInstance.DeploymentName == "" || containerInstance.ImageName == "" {
 		log.Errorf("invalid container instance: %v", containerInstance)
 		w.WriteHeader(http.StatusBadRequest)
+
 		return
 	}
 
@@ -105,22 +111,24 @@ func startInstanceHandler(w http.ResponseWriter, r *http.Request) {
 func stopInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling delete instance")
 
-	instanceId := internalUtils.ExtractPathVar(r, instanceIdPathVar)
+	instanceID := internalUtils.ExtractPathVar(r, instanceIDPathVar)
 
-	if instanceId == "" {
-		log.Errorf("no instance provided %s", instanceId)
+	if instanceID == "" {
+		log.Errorf("no instance provided %s", instanceID)
 		w.WriteHeader(http.StatusBadRequest)
+
 		return
 	}
 
-	value, ok := instanceToContainer.Load(instanceId)
+	value, ok := instanceToContainer.Load(instanceID)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
+
 		return
 	}
 
-	contId := value.(typeInstanceToContainerMapValue)
-	go stopContainerAsync(instanceId, contId)
+	contID := value.(typeInstanceToContainerMapValue)
+	go stopContainerAsync(instanceID, contID)
 }
 
 func stopAllInstancesHandler(_ http.ResponseWriter, _ *http.Request) {
@@ -131,19 +139,19 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	portBindings := generatePortBindings(containerInstance.Ports)
 
 	// Create container and get containers id in response
-	var instanceId string
+	var instanceID string
 	if containerInstance.InstanceName == "" {
-		instanceId = containerInstance.DeploymentName + "-" + servers.RandomString(10) + "-" + myself.Id
+		instanceID = containerInstance.DeploymentName + "-" + servers.RandomString(randomChars) + "-" + myself.ID
 	} else {
-		instanceId = containerInstance.InstanceName
+		instanceID = containerInstance.InstanceName
 	}
 
-	log.Debugf("instance %s has following portBindings: %+v", instanceId, portBindings)
+	log.Debugf("instance %s has following portBindings: %+v", instanceID, portBindings)
 
-	deploymentIdEnvVar := fmt.Sprintf(envVarFormatString, utils.DeploymentEnvVarName, containerInstance.DeploymentName)
-	instanceIdEnvVar := fmt.Sprintf(envVarFormatString, utils.InstanceEnvVarName, instanceId)
+	deploymentIDEnvVar := fmt.Sprintf(envVarFormatString, utils.DeploymentEnvVarName, containerInstance.DeploymentName)
+	instanceIDEnvVar := fmt.Sprintf(envVarFormatString, utils.InstanceEnvVarName, instanceID)
 	fallbackEnvVar := fmt.Sprintf(envVarFormatString, archimedesHTTPClient.FallbackEnvVar, fallback.Addr)
-	nodeIpEnvVar := fmt.Sprintf(envVarFormatString, utils.NodeIPEnvVarName, myself.Addr)
+	nodeIPEnvVar := fmt.Sprintf(envVarFormatString, utils.NodeIPEnvVarName, myself.Addr)
 	replicaNumEnvVar := fmt.Sprintf(envVarFormatString, utils.ReplicaNumEnvVarName,
 		strconv.Itoa(containerInstance.ReplicaNumber))
 
@@ -151,13 +159,15 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	locationEnvVar := fmt.Sprintf(envVarFormatString, utils.LocationEnvVarName, "0c")
 
 	for idx, envVar := range containerInstance.EnvVars {
-		if envVar == instanceIdEnvVarReplace {
-			containerInstance.EnvVars[idx] = instanceId
+		if envVar == instanceIDEnvVarReplace {
+			containerInstance.EnvVars[idx] = instanceID
 		}
 	}
 
-	envVars := []string{deploymentIdEnvVar, instanceIdEnvVar, locationEnvVar, fallbackEnvVar, nodeIpEnvVar,
-		replicaNumEnvVar}
+	envVars := []string{
+		deploymentIDEnvVar, instanceIDEnvVar, locationEnvVar, fallbackEnvVar, nodeIPEnvVar,
+		replicaNumEnvVar,
+	}
 	envVars = append(envVars, containerInstance.EnvVars...)
 
 	images, err := dockerClient.ImageList(context.Background(), types.ImageListOptions{})
@@ -166,7 +176,9 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	}
 
 	splits := strings.Split(containerInstance.ImageName, "/")[1:]
+
 	var imageName string
+
 	if splits[0] == "library" {
 		imageName = splits[1]
 	} else {
@@ -176,21 +188,24 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	log.Debugf("imagename: %s", imageName)
 
 	hasImage := false
+
 	for _, image := range images {
 		if image.RepoTags[0] == imageName {
 			log.Debugf("%s matches %s", image.RepoTags[0], imageName)
+
 			hasImage = true
 		}
 	}
 
-	var (
-		containerConfig container.Config
-	)
+	var containerConfig container.Config
+
 	if !hasImage {
 		log.Debugf("pulling image %s", imageName)
 
 		var reader io.ReadCloser
-		reader, err = dockerClient.ImagePull(context.Background(), containerInstance.ImageName, types.ImagePullOptions{})
+
+		reader, err = dockerClient.ImagePull(context.Background(), containerInstance.ImageName,
+			types.ImagePullOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -210,6 +225,7 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 		log.Debugf("image %s already exists locally", imageName)
 	}
 
+	//nolint:exhaustivestruct
 	containerConfig = container.Config{
 		Cmd:          containerInstance.Command,
 		Env:          envVars,
@@ -218,13 +234,14 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 		ExposedPorts: containerInstance.Ports,
 	}
 
+	//nolint:exhaustivestruct
 	hostConfig := container.HostConfig{
 		NetworkMode:  "bridge",
 		PortBindings: portBindings,
 	}
 
 	cont, err := dockerClient.ContainerCreate(context.Background(), &containerConfig, &hostConfig, nil,
-		instanceId)
+		instanceID)
 	if err != nil {
 		panic(err)
 	}
@@ -236,14 +253,16 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	}
 
 	// Add container instance to deployer
-	status := deplClient.RegisterDeploymentInstance(containerInstance.DeploymentName, instanceId,
+	status := deplClient.RegisterDeploymentInstance(containerInstance.DeploymentName, instanceID,
 		containerInstance.Static, portBindings, true)
 	if status != http.StatusOK {
 		err = dockerClient.ContainerStop(context.Background(), cont.ID, &stopContainerTimeoutVar)
 		if err != nil {
 			log.Error(err)
 		}
+
 		log.Panicf("got status code %d while adding instances to deployer", status)
+
 		return
 	}
 
@@ -253,39 +272,42 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 		panic(err)
 	}
 
-	instanceToContainer.Store(instanceId, cont.ID)
+	instanceToContainer.Store(instanceID, cont.ID)
 
-	log.Debugf("container %s started for instance %s", cont.ID, instanceId)
+	log.Debugf("container %s started for instance %s", cont.ID, instanceID)
 }
 
-func stopContainerAsync(instanceId, contId string) {
-	err := dockerClient.ContainerStop(context.Background(), contId, &stopContainerTimeoutVar)
+func stopContainerAsync(instanceID, contID string) {
+	err := dockerClient.ContainerStop(context.Background(), contID, &stopContainerTimeoutVar)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	err = dockerClient.ContainerRemove(context.Background(), contId, types.ContainerRemoveOptions{
+	//nolint:exhaustivestruct
+	err = dockerClient.ContainerRemove(context.Background(), contID, types.ContainerRemoveOptions{
+		//nolint:exhaustivestruct
 		Force: true,
 	})
 	if err != nil {
 		log.Panic(err)
 	}
 
-	log.Debugf("deleted instance %s corresponding to container %s", instanceId, contId)
+	log.Debugf("deleted instance %s corresponding to container %s", instanceID, contID)
 }
 
 func deleteAllInstances() {
 	log.Debugf("stopping all containers")
 
 	instanceToContainer.Range(func(key, value interface{}) bool {
-		instanceId := value.(typeInstanceToContainerMapKey)
-		contId := value.(typeInstanceToContainerMapValue)
+		instanceID := value.(typeInstanceToContainerMapKey)
+		contID := value.(typeInstanceToContainerMapValue)
 
-		log.Debugf("stopping instance %s (container %s)", instanceId, contId)
+		log.Debugf("stopping instance %s (container %s)", instanceID, contID)
 
-		err := dockerClient.ContainerStop(context.Background(), contId, &stopContainerTimeoutVar)
+		err := dockerClient.ContainerStop(context.Background(), contID, &stopContainerTimeoutVar)
 		if err != nil {
-			log.Warnf("error while stopping instance %s (container %s): %s", instanceId, contId, err)
+			log.Warnf("error while stopping instance %s (container %s): %s", instanceID, contID, err)
+
 			return true
 		}
 
@@ -299,12 +321,14 @@ func deleteAllInstances() {
 
 	for _, containerListed := range containers {
 		for _, name := range containerListed.Names {
-			if strings.Contains(name, myself.Id) {
+			if strings.Contains(name, myself.ID) {
 				log.Warnf("deleting orphan container %s", containerListed.ID)
+
 				err = dockerClient.ContainerStop(context.Background(), containerListed.ID, &stopContainerTimeoutVar)
 				if err != nil {
 					log.Errorf("error stopping orphan container %s: %s", containerListed.ID, err)
 				}
+
 				break
 			}
 		}
@@ -370,7 +394,6 @@ func generatePortBindings(containerPorts nat.PortSet) (portMap nat.PortMap) {
 	portMap = nat.PortMap{}
 
 	for containerPort := range containerPorts {
-
 		hostBinding := nat.PortBinding{
 			HostIP:   myself.Addr,
 			HostPort: getFreePort(containerPort.Proto()),

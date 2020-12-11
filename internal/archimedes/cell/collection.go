@@ -20,9 +20,10 @@ func newCollection() *collection {
 	}
 }
 
-func (cc *collection) loadCell(cellId s2.CellID) (c *cell, loaded bool) {
+func (cc *collection) loadCell(cellID s2.CellID) (c *cell, loaded bool) {
 	var value interface{}
-	value, loaded = cc.cells.Load(cellId)
+
+	value, loaded = cc.cells.Load(cellID)
 	if loaded {
 		c = value.(*cell)
 	}
@@ -30,18 +31,15 @@ func (cc *collection) loadCell(cellId s2.CellID) (c *cell, loaded bool) {
 	return
 }
 
-func (cc *collection) loadOrStoreCell(cellId s2.CellID, c *cell) (actual *cell, loaded bool) {
+func (cc *collection) loadOrStoreCell(cellID s2.CellID, c *cell) (actual *cell, loaded bool) {
 	var value interface{}
-	value, loaded = cc.cells.LoadOrStore(cellId, c)
+	value, loaded = cc.cells.LoadOrStore(cellID, c)
+
 	return value.(*cell), loaded
 }
 
-func (cc *collection) storeCell(cellId s2.CellID, cell *cell) {
-	cc.cells.Store(cellId, cell)
-}
-
-func (cc *collection) deleteCell(cellId s2.CellID) {
-	cc.cells.Delete(cellId)
+func (cc *collection) deleteCell(cellID s2.CellID) {
+	cc.cells.Delete(cellID)
 }
 
 func (cc *collection) iterateCells(f func(id s2.CellID, cell *cell) bool) {

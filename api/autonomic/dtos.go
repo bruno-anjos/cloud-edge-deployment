@@ -6,13 +6,13 @@ import (
 
 type deploymentConfig struct {
 	DepthFactor  float64
-	StrategyId   string
+	StrategyID   string
 	ExploringTTL int
 }
 
 type DeploymentDTO struct {
-	DeploymentId string
-	StrategyId   string
+	DeploymentID string
+	StrategyID   string
 	Children     []string
 	Parent       *utils.Node
 }

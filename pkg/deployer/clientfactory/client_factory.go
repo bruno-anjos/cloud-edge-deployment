@@ -1,4 +1,4 @@
-package client_factory
+package clientfactory
 
 import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -10,4 +10,3 @@ type ClientFactory struct{}
 func (cf *ClientFactory) New(addr string) deployer.Client {
 	return client.NewDeployerClient(addr)
 }
-

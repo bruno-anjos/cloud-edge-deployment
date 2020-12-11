@@ -7,7 +7,7 @@ import (
 type strategy interface {
 	Optimize() actions.Action
 	GetDependencies() (metricIds []string)
-	GetId() string
+	GetID() string
 }
 
 type basicStrategy struct {
@@ -54,6 +54,6 @@ func (b *basicStrategy) GetDependencies() (metricIds []string) {
 	return
 }
 
-func (b *basicStrategy) GetId() string {
+func (b *basicStrategy) GetID() string {
 	return b.id
 }

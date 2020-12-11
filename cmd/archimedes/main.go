@@ -5,8 +5,8 @@ import (
 	internal "github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
-	autonomicFactory "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic/client_factory"
-	deployerFactory "github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer/client_factory"
+	autonomicFactory "github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic/clientfactory"
+	deployerFactory "github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer/clientfactory"
 )
 
 const (

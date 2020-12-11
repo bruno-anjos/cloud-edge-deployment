@@ -13,26 +13,27 @@ import (
 )
 
 const (
-	ExtendDeploymentId         = "ACTION_EXTEND_DEPLOYMENT"
-	RemoveDeploymentId         = "ACTION_REMOVE_DEPLOYMENT"
-	MultipleExtendDeploymentId = "ACTION_MULTIPLE_EXTEND_DEPLOYMENT"
+	ExtendDeploymentID         = "ACTION_EXTEND_DEPLOYMENT"
+	RemoveDeploymentID         = "ACTION_REMOVE_DEPLOYMENT"
+	MultipleExtendDeploymentID = "ACTION_MULTIPLE_EXTEND_DEPLOYMENT"
 )
 
 type RemoveDeploymentAction struct {
 	*actionWithDeployment
 }
 
-func NewRemoveDeploymentAction(deploymentId string) *RemoveDeploymentAction {
+func NewRemoveDeploymentAction(deploymentID string) *RemoveDeploymentAction {
 	return &RemoveDeploymentAction{
-		actionWithDeployment: newActionWithDeployment(RemoveDeploymentId, deploymentId),
+		actionWithDeployment: newActionWithDeployment(RemoveDeploymentID, deploymentID),
 	}
 }
 
 func (m *RemoveDeploymentAction) Execute(client utils.GenericClient) {
 	deployerClient := client.(deployer.Client)
-	status := deployerClient.DeleteDeployment(m.getDeploymentId())
+
+	status := deployerClient.DeleteDeployment(m.getDeploymentID())
 	if status != http.StatusOK {
-		log.Errorf("got status %d while attempting to delete deployment %s", status, m.getDeploymentId())
+		log.Errorf("got status %d while attempting to delete deployment %s", status, m.getDeploymentID())
 	}
 }
 
@@ -41,11 +42,11 @@ type ExtendDeploymentAction struct {
 	deplFactory deployer.ClientFactory
 }
 
-func NewExtendDeploymentAction(deploymentId string, target *utils.Node, exploringTTL int,
+func NewExtendDeploymentAction(deploymentID string, target *utils.Node, exploringTTL int,
 	children []*utils.Node, location s2.CellID, toExclude map[string]interface{},
 	setNodeExploringCallback func(nodeId string), deplFactory deployer.ClientFactory) *ExtendDeploymentAction {
 	return &ExtendDeploymentAction{
-		actionWithDeploymentTarget: newActionWithDeploymentTarget(ExtendDeploymentId, deploymentId, target, exploringTTL,
+		actionWithDeploymentTarget: newActionWithDeploymentTarget(ExtendDeploymentID, deploymentID, target, exploringTTL,
 			children, location, toExclude, setNodeExploringCallback),
 		deplFactory: deplFactory,
 	}
@@ -72,13 +73,15 @@ func (m *ExtendDeploymentAction) getSetNodeAsExploringCallback() func(nodeId str
 }
 
 func (m *ExtendDeploymentAction) Execute(client utils.GenericClient) {
-	log.Debugf("executing %s to %s", m.ActionId, m.GetTarget())
-	deployerClient := client.(deployer.Client)
+	log.Debugf("executing %s to %s", m.ActionID, m.GetTarget())
 
+	deployerClient := client.(deployer.Client)
 	targetClient := m.deplFactory.New(m.GetTarget().Addr + ":" + strconv.Itoa(deployer.Port))
-	has, _ := targetClient.HasDeployment(m.getDeploymentId())
+
+	has, _ := targetClient.HasDeployment(m.getDeploymentID())
 	if has {
-		log.Debugf("%s already has deployment %s", m.GetTarget(), m.getDeploymentId())
+		log.Debugf("%s already has deployment %s", m.GetTarget(), m.getDeploymentID())
+
 		return
 	}
 
@@ -87,14 +90,16 @@ func (m *ExtendDeploymentAction) Execute(client utils.GenericClient) {
 		Locations: []s2.CellID{m.getLocation()},
 		ToExclude: m.getToExclude(),
 	}
-	status := deployerClient.ExtendDeploymentTo(m.getDeploymentId(), m.GetTarget(), m.exploringTTL(), config)
+
+	status := deployerClient.ExtendDeploymentTo(m.getDeploymentID(), m.GetTarget(), m.exploringTTL(), config)
 	if status != http.StatusOK {
 		log.Errorf("got status code %d while extending deployment", status)
+
 		return
 	}
 
 	if m.exploringTTL() != api.NotExploringTTL {
-		m.getSetNodeAsExploringCallback()(m.GetTarget().Id)
+		m.getSetNodeAsExploringCallback()(m.GetTarget().ID)
 	}
 }
 
@@ -103,12 +108,12 @@ type MultipleExtendDeploymentAction struct {
 	deplFactory deployer.ClientFactory
 }
 
-func NewMultipleExtendDeploymentAction(deploymentId string, targets []*utils.Node, locations map[string][]s2.CellID,
+func NewMultipleExtendDeploymentAction(deploymentID string, targets []*utils.Node, locations map[string][]s2.CellID,
 	targetsExploring map[string]int, centroidsExtendedCallback func(centroid s2.CellID),
 	toExclude map[string]interface{}, setNodeExploringCallback func(nodeId string),
 	deplFactory deployer.ClientFactory) *MultipleExtendDeploymentAction {
 	return &MultipleExtendDeploymentAction{
-		actionWithDeploymentTargets: newActionWithDeploymentTargets(MultipleExtendDeploymentId, deploymentId,
+		actionWithDeploymentTargets: newActionWithDeploymentTargets(MultipleExtendDeploymentID, deploymentID,
 			targets, locations, targetsExploring, centroidsExtendedCallback, toExclude, setNodeExploringCallback),
 		deplFactory: deplFactory,
 	}
@@ -135,7 +140,8 @@ func (m *MultipleExtendDeploymentAction) getSetNodeAsExploringCallback() func(no
 }
 
 func (m *MultipleExtendDeploymentAction) Execute(client utils.GenericClient) {
-	log.Debugf("executing %s to %+v", m.ActionId, m.getTargets())
+	log.Debugf("executing %s to %+v", m.ActionID, m.getTargets())
+
 	deployerClient := client.(deployer.Client)
 	locations := m.getLocations()
 	extendedCentroidCallback := m.getCentroidCallback()
@@ -144,31 +150,33 @@ func (m *MultipleExtendDeploymentAction) Execute(client utils.GenericClient) {
 
 	for _, target := range m.getTargets() {
 		targetClient := m.deplFactory.New(target.Addr + ":" + strconv.Itoa(deployer.Port))
-		has, _ := targetClient.HasDeployment(m.getDeploymentId())
+
+		has, _ := targetClient.HasDeployment(m.getDeploymentID())
 		if has {
-			log.Debugf("%s already has deployment %s", target, m.getDeploymentId())
+			log.Debugf("%s already has deployment %s", target, m.getDeploymentID())
+
 			continue
 		}
 
 		config := &api.ExtendDeploymentConfig{
 			Children:  nil,
-			Locations: locations[target.Id],
+			Locations: locations[target.ID],
 			ToExclude: toExclude,
 		}
 
-		status := deployerClient.ExtendDeploymentTo(m.getDeploymentId(), target, targetsExploring[target.Id], config)
+		status := deployerClient.ExtendDeploymentTo(m.getDeploymentID(), target, targetsExploring[target.ID], config)
 		if status != http.StatusOK {
 			log.Errorf("got status code %d while extending deployment", status)
+
 			return
 		}
 
-		if targetsExploring[target.Id] != api.NotExploringTTL {
-			m.getSetNodeAsExploringCallback()(target.Id)
+		if targetsExploring[target.ID] != api.NotExploringTTL {
+			m.getSetNodeAsExploringCallback()(target.ID)
 		}
 
-		for _, centroid := range locations[target.Id] {
+		for _, centroid := range locations[target.ID] {
 			extendedCentroidCallback(centroid)
 		}
 	}
-
 }

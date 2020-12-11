@@ -28,11 +28,12 @@ const (
 	maxChildren               = 4.
 	branchingCutoff           = 1
 
-	maxExploringTTL = 3
+	maxExploringTTL    = 3
+	nonMaxedPercentage = 1.
 
-	idealLatencyGoalId = "GOAL_IDEAL_LATENCY"
+	idealLatencyGoalID = "GOAL_IDEAL_LATENCY"
 
-	hiddenParentId = "_parent"
+	hiddenParentID = "_parent"
 )
 
 const (
@@ -49,7 +50,7 @@ type (
 	centroidToNodesType = map[s2.CellID][]*utils.Node
 
 	nodeWithDistance struct {
-		NodeId             string
+		NodeID             string
 		DistancePercentage float64
 	}
 
@@ -65,14 +66,13 @@ type idealLatency struct {
 }
 
 func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
-
 	dependencies := []string{
-		metrics.GetProcessingTimePerDeploymentMetricId(deployment.DeploymentId),
-		metrics.GetClientLatencyPerDeploymentMetricId(deployment.DeploymentId),
+		metrics.GetProcessingTimePerDeploymentMetricID(deployment.DeploymentID),
+		metrics.GetClientLatencyPerDeploymentMetricID(deployment.DeploymentID),
 		metrics.MetricLocation,
-		metrics.GetAverageClientLocationPerDeploymentMetricId(deployment.DeploymentId),
+		metrics.GetAverageClientLocationPerDeploymentMetricID(deployment.DeploymentID),
 		metrics.MetricLocationInVicinity,
-		metrics.GetNumInstancesMetricId(deployment.DeploymentId),
+		metrics.GetNumInstancesMetricID(deployment.DeploymentID),
 	}
 
 	value, ok := deployment.Environment.GetMetric(metrics.MetricLocation)
@@ -101,12 +101,14 @@ func (i *idealLatency) Optimize(optDomain domain) (isAlreadyMax bool, optRange r
 	}
 
 	archClient := i.deployment.archFactory.New(servers.ArchimedesLocalHostPort)
-	centroids, status := archClient.GetClientCentroids(i.deployment.DeploymentId)
+
+	centroids, status := archClient.GetClientCentroids(i.deployment.DeploymentID)
 	if status == http.StatusNotFound {
 		return
 	} else if status != http.StatusOK {
 		log.Errorf("got status code %d while attempting to get client centroids for deployment %s", status,
-			i.deployment.DeploymentId)
+			i.deployment.DeploymentID)
+
 		return
 	}
 
@@ -115,39 +117,34 @@ func (i *idealLatency) Optimize(optDomain domain) (isAlreadyMax bool, optRange r
 		return
 	}
 
-	log.Debugf("%s generated domain %+v", idealLatencyGoalId, candidateIds)
+	log.Debugf("%s generated domain %+v", idealLatencyGoalID, candidateIds)
 	filtered := i.Filter(candidateIds, optDomain)
 
 	nodeMinDistances := map[string]interface{}{}
+
 	for _, node := range filtered {
-		var (
-			minPercentage = -1.
-		)
-		for _, criteria := range sortingCriteria[node.Id].(sortingCriteriaType) {
+		minPercentage := -1.
+		for _, criteria := range sortingCriteria[node.ID].(sortingCriteriaType) {
 			if criteria.DistancePercentage < minPercentage || minPercentage == -1 {
 				minPercentage = criteria.DistancePercentage
 			}
 		}
 
-		nodeMinDistances[node.Id] = minPercentage
+		nodeMinDistances[node.ID] = minPercentage
 	}
 
-	log.Debugf("%s filtered result %+v", idealLatencyGoalId, filtered)
+	log.Debugf("%s filtered result %+v", idealLatencyGoalID, filtered)
 	ordered := i.Order(filtered, nodeMinDistances)
-	log.Debugf("%s ordered result %+v", idealLatencyGoalId, ordered)
+	log.Debugf("%s ordered result %+v", idealLatencyGoalID, ordered)
 
 	optRange, isAlreadyMax = i.Cutoff(ordered, nodeMinDistances)
-	log.Debugf("%s cutoff result (%t) %+v", idealLatencyGoalId, isAlreadyMax, optRange)
+	log.Debugf("%s cutoff result (%t) %+v", idealLatencyGoalID, isAlreadyMax, optRange)
 
 	if len(optRange) == 0 {
 		return
 	}
 
-	var (
-		shouldBranch bool
-	)
-
-	shouldBranch = i.checkShouldBranch(centroids)
+	shouldBranch := i.checkShouldBranch(centroids)
 	isAlreadyMax = !shouldBranch
 
 	if !isAlreadyMax {
@@ -156,41 +153,48 @@ func (i *idealLatency) Optimize(optDomain domain) (isAlreadyMax bool, optRange r
 			centroidsToNodes := centroidToNodesType{}
 
 			for _, node := range ordered {
-				for _, cellId := range centroids {
-					centroidsToNodes[cellId] = append(centroidsToNodes[cellId], node)
+				for _, cellID := range centroids {
+					centroidsToNodes[cellID] = append(centroidsToNodes[cellID], node)
 				}
 			}
 
 			exploredCentroids := map[s2.CellID]bool{}
 
-			for _, cellId := range centroids {
-				sort.Slice(centroidsToNodes[cellId], func(i, j int) bool {
-					nodeI := centroidsToNodes[cellId][i]
-					nodeJ := centroidsToNodes[cellId][j]
+			for _, cellID := range centroids {
+				cellAux := cellID
+				sort.Slice(centroidsToNodes[cellAux], func(i, j int) bool {
+					nodeI := centroidsToNodes[cellAux][i]
+					nodeJ := centroidsToNodes[cellAux][j]
 
-					distIToCell := sortingCriteria[nodeI.Id].(sortingCriteriaType)[cellId].DistancePercentage
-					distJToCell := sortingCriteria[nodeJ.Id].(sortingCriteriaType)[cellId].DistancePercentage
+					distIToCell := sortingCriteria[nodeI.ID].(sortingCriteriaType)[cellAux].DistancePercentage
+					distJToCell := sortingCriteria[nodeJ.ID].(sortingCriteriaType)[cellAux].DistancePercentage
 
 					return distIToCell < distJToCell
 				})
-				_, exploredCentroids[cellId] = i.centroidsExtended[cellId]
+
+				_, exploredCentroids[cellID] = i.centroidsExtended[cellID]
 			}
 
-			actionArgs = make([]interface{}, ilArgsNum, ilArgsNum)
-			actionArgs[ilActionTypeArgIndex] = actions.MultipleExtendDeploymentId
+			actionArgs = make([]interface{}, ilArgsNum)
+			actionArgs[ilActionTypeArgIndex] = actions.MultipleExtendDeploymentID
 			actionArgs[ilCentroidDistancesToNodesIndex] = centroidsToNodes
 			actionArgs[ilExploringCentroidsIndex] = exploredCentroids
 		}
 	}
 
-	return
+	return isAlreadyMax, optRange, actionArgs
 }
 
 func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[string]interface{}, success bool) {
-	value, ok := i.deployment.Exploring.Load(Myself.Id)
+	domain = nil
+	info = nil
+	success = false
+
+	value, ok := i.deployment.Exploring.Load(Myself.ID)
 	if ok {
 		exploringTTL := value.(exploringMapValue)
 		log.Debugf("my exploringTTL is %d(%d)", exploringTTL, maxExploringTTL)
+
 		if exploringTTL+1 == maxExploringTTL {
 			return nil, nil, true
 		}
@@ -199,10 +203,12 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 	value, ok = i.deployment.Environment.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		log.Debugf("no value for metric %s", metrics.MetricLocationInVicinity)
+
 		return nil, nil, false
 	}
 
 	var vicinity metrics.VicinityMetric
+
 	err := mapstructure.Decode(value, &vicinity)
 	if err != nil {
 		panic(err)
@@ -214,60 +220,68 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 		myDists       = map[s2.CellID]float64{}
 		centroidCells = map[s2.CellID]s2.Cell{}
 	)
+
 	for _, centroid := range centroids {
 		centroidCell := s2.CellFromCellID(centroid)
 		myDists[centroid] = servers.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(centroidCell))
 		log.Debugf("mydist from %s to %s, %f", i.myLocation.ToToken(), centroid.ToToken(), myDists[centroid])
+
 		centroidCells[centroid] = centroidCell
 	}
 
 	log.Debugf("nodes in vicinity: %+v", vicinity)
+
 	info = map[string]interface{}{}
-	for nodeId, cellValue := range vicinity.Locations {
-		_, okC := i.deployment.Children.Load(nodeId)
-		_, okS := i.deployment.Suspected.Load(nodeId)
-		if okC || okS || nodeId == Myself.Id {
-			log.Debugf("ignoring %s", nodeId)
+
+	for nodeID, cellValue := range vicinity.Locations {
+		_, okC := i.deployment.Children.Load(nodeID)
+		_, okS := i.deployment.Suspected.Load(nodeID)
+
+		if okC || okS || nodeID == Myself.ID {
+			log.Debugf("ignoring %s", nodeID)
+
 			continue
 		}
 
 		location := s2.CellIDFromToken(cellValue)
 
 		// create node map for centroids and respective distances
-		if i.deployment.Parent != nil && nodeId == i.deployment.Parent.Id {
-			info[hiddenParentId] = sortingCriteriaType{}
+		if i.deployment.Parent != nil && nodeID == i.deployment.Parent.ID {
+			info[hiddenParentID] = sortingCriteriaType{}
 		} else {
-			info[nodeId] = sortingCriteriaType{}
-			domain = append(domain, vicinity.Nodes[nodeId])
+			info[nodeID] = sortingCriteriaType{}
+			domain = append(domain, vicinity.Nodes[nodeID])
 		}
 
-		var (
-			nodeCentroidsMap sortingCriteriaType
-		)
-		for _, centroidId := range centroids {
-			delta := servers.ChordAngleToKM(s2.CellFromCellID(location).DistanceToCell(centroidCells[centroidId]))
+		var nodeCentroidsMap sortingCriteriaType
 
-			if i.deployment.Parent != nil && nodeId == i.deployment.Parent.Id {
-				nodeCentroidsMap = info[hiddenParentId].(sortingCriteriaType)
+		for _, centroidID := range centroids {
+			delta := servers.ChordAngleToKM(s2.CellFromCellID(location).DistanceToCell(centroidCells[centroidID]))
+
+			if i.deployment.Parent != nil && nodeID == i.deployment.Parent.ID {
+				nodeCentroidsMap = info[hiddenParentID].(sortingCriteriaType)
 			} else {
-				nodeCentroidsMap = info[nodeId].(sortingCriteriaType)
+				nodeCentroidsMap = info[nodeID].(sortingCriteriaType)
 			}
-			nodeCentroidsMap[centroidId] = &nodeWithDistance{
-				NodeId:             nodeId,
-				DistancePercentage: delta / myDists[centroidId],
+
+			nodeCentroidsMap[centroidID] = &nodeWithDistance{
+				NodeID:             nodeID,
+				DistancePercentage: delta / myDists[centroidID],
 			}
-			log.Debugf("distance from %s(%s) to %s, %f", nodeId, location.ToToken(), centroidId.ToToken(), delta)
+
+			log.Debugf("distance from %s(%s) to %s, %f", nodeID, location.ToToken(), centroidID.ToToken(), delta)
 		}
 	}
 
 	success = true
-	return
+
+	return domain, info, success
 }
 
 func (i *idealLatency) Order(candidates domain, sortingCriteria map[string]interface{}) (ordered result) {
 	ordered = candidates
 	sort.Slice(ordered, func(i, j int) bool {
-		return sortingCriteria[ordered[i].Id].(float64) < sortingCriteria[ordered[j].Id].(float64)
+		return sortingCriteria[ordered[i].ID].(float64) < sortingCriteria[ordered[j].ID].(float64)
 	})
 
 	return
@@ -282,19 +296,25 @@ func (i *idealLatency) Cutoff(candidates domain, candidatesCriteria map[string]i
 	maxed = true
 
 	candidateClient := i.deployment.deplFactory.New("")
+
 	for _, candidate := range candidates {
-		percentage := candidatesCriteria[candidate.Id].(float64)
+		percentage := candidatesCriteria[candidate.ID].(float64)
 		log.Debugf("candidate %s distance percentage (me) %f", candidate, percentage)
+
 		if percentage < maximumDistancePercentage {
 			candidateClient.SetHostPort(candidate.Addr + ":" + strconv.Itoa(deployer.Port))
-			has, _ := candidateClient.HasDeployment(i.deployment.DeploymentId)
+
+			has, _ := candidateClient.HasDeployment(i.deployment.DeploymentID)
 			if has {
-				log.Debugf("candidate %s already has deployment %s", candidate, i.deployment.DeploymentId)
+				log.Debugf("candidate %s already has deployment %s", candidate, i.deployment.DeploymentID)
+
 				continue
 			}
+
 			cutoff = append(cutoff, candidate)
 		}
-		if percentage < 1. {
+
+		if percentage < nonMaxedPercentage {
 			maxed = false
 		}
 	}
@@ -305,21 +325,23 @@ func (i *idealLatency) Cutoff(candidates domain, candidatesCriteria map[string]i
 func (i *idealLatency) GenerateAction(targets result, args ...interface{}) actions.Action {
 	log.Debugf("generating action %s", (args[ilActionTypeArgIndex]).(string))
 
-	switch args[ilActionTypeArgIndex].(string) {
-	case actions.MultipleExtendDeploymentId:
+	if args[ilActionTypeArgIndex].(string) == actions.MultipleExtendDeploymentID {
 		centroidsToNodes := args[ilCentroidDistancesToNodesIndex].(centroidToNodesType)
 		nodeCells := map[string][]s2.CellID{}
+
 		var (
 			nodesToExtendTo  []*utils.Node
 			targetsExploring = map[string]int{}
 		)
 
-		for cellId, nodesOrdered := range centroidsToNodes {
+		for cellID, nodesOrdered := range centroidsToNodes {
 			var selectedNode *utils.Node
+
 			for _, node := range nodesOrdered {
 				for _, target := range targets {
-					if target.Id == node.Id {
+					if target.ID == node.ID {
 						selectedNode = node
+
 						break
 					}
 				}
@@ -330,57 +352,68 @@ func (i *idealLatency) GenerateAction(targets result, args ...interface{}) actio
 			}
 
 			if selectedNode == nil {
-				panic(fmt.Sprintf("could not find a suitable node for cell %d, had %+v %+v", cellId,
+				panic(fmt.Sprintf("could not find a suitable node for cell %d, had %+v %+v", cellID,
 					nodesOrdered, targets))
 			}
 
-			cells, ok := nodeCells[selectedNode.Id]
+			_, ok := nodeCells[selectedNode.ID]
 			if !ok {
-				cells = []s2.CellID{cellId}
-				nodeCells[selectedNode.Id] = cells
+				cells := []s2.CellID{cellID}
+				nodeCells[selectedNode.ID] = cells
+
 				nodesToExtendTo = append(nodesToExtendTo, selectedNode)
 			} else {
-				nodeCells[selectedNode.Id] = append(nodeCells[selectedNode.Id], cellId)
+				nodeCells[selectedNode.ID] = append(nodeCells[selectedNode.ID], cellID)
 			}
 		}
 
 		exploredTTL := deployerAPI.NotExploringTTL
-		value, ok := i.deployment.Exploring.Load(Myself.Id)
+
+		value, ok := i.deployment.Exploring.Load(Myself.ID)
 		if ok {
 			exploredTTL = value.(exploringMapValue)
 		}
 
-		_, imExplored := i.deployment.Exploring.Load(Myself.Id)
+		_, imExplored := i.deployment.Exploring.Load(Myself.ID)
+
 		log.Debugf("im being explored %t", imExplored)
+
 		for node, cells := range nodeCells {
 			targetsExploring[node] = 0
 			if imExplored {
 				targetsExploring[node] = exploredTTL + 1
+
 				continue
 			}
-			for _, cellId := range cells {
-				_, centroidExtended := i.centroidsExtended[cellId]
+
+			for _, cellID := range cells {
+				_, centroidExtended := i.centroidsExtended[cellID]
 				_, iAmExploring := i.deployment.Exploring.Load(Myself)
+
 				if !centroidExtended && !iAmExploring {
 					targetsExploring[node] = deployerAPI.NotExploringTTL
+
 					break
 				}
 			}
 		}
 
 		toExclude := map[string]interface{}{}
+
 		i.deployment.Blacklist.Range(func(key, value interface{}) bool {
-			nodeId := key.(string)
-			toExclude[nodeId] = nil
+			nodeID := key.(string)
+			toExclude[nodeID] = nil
+
 			return true
 		})
 		i.deployment.Exploring.Range(func(key, value interface{}) bool {
-			nodeId := key.(string)
-			toExclude[nodeId] = nil
+			nodeID := key.(string)
+			toExclude[nodeID] = nil
+
 			return true
 		})
 
-		return actions.NewMultipleExtendDeploymentAction(i.deployment.DeploymentId, nodesToExtendTo, nodeCells,
+		return actions.NewMultipleExtendDeploymentAction(i.deployment.DeploymentID, nodesToExtendTo, nodeCells,
 			targetsExploring, i.extendedCentroidCallback, toExclude, i.deployment.setNodeAsExploring,
 			i.deployment.deplFactory)
 	}
@@ -401,23 +434,28 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthes
 	furthestChildDistance = -1.0
 
 	i.deployment.Children.Range(func(key, value interface{}) bool {
-		childId := key.(deploymentChildrenMapKey)
+		childID := key.(deploymentChildrenMapKey)
 		child := value.(deploymentChildrenMapValue)
 		delta := servers.ChordAngleToKM(s2.CellFromCellID(child.Location).DistanceToCell(s2.CellFromCellID(
 			avgLocation)))
 
 		if delta > furthestChildDistance {
 			furthestChildDistance = delta
-			furthestChild = childId
+			furthestChild = childID
 		}
 
-		log.Debugf("child %s", childId)
+		log.Debugf("child %s", childID)
 
 		return true
 	})
 
 	if furthestChildDistance == -1.0 {
-		value, ok := i.deployment.Environment.GetMetric(metrics.MetricNodeAddr)
+		var (
+			ok    bool
+			value interface{}
+		)
+
+		_, ok = i.deployment.Environment.GetMetric(metrics.MetricNodeAddr)
 		if !ok {
 			log.Panicf("no value for metric %s", metrics.MetricNodeAddr)
 		}
@@ -428,6 +466,7 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthes
 		}
 
 		var location s2.CellID
+
 		err := mapstructure.Decode(value, &location)
 		if err != nil {
 			panic(err)
@@ -437,36 +476,40 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthes
 			DistanceToCell(s2.CellFromCellID(avgLocation)))
 	}
 
-	return
+	return furthestChild, furthestChildDistance
 }
 
-func (i *idealLatency) GetId() string {
-	return idealLatencyGoalId
+func (i *idealLatency) GetID() string {
+	return idealLatencyGoalID
 }
 
 func (i *idealLatency) checkProcessingTime() bool {
-	processintTimeMetric := metrics.GetProcessingTimePerDeploymentMetricId(i.deployment.DeploymentId)
+	processintTimeMetric := metrics.GetProcessingTimePerDeploymentMetricID(i.deployment.DeploymentID)
+
 	value, ok := i.deployment.Environment.GetMetric(processintTimeMetric)
 	if !ok {
 		log.Debugf("no value for metric %s", processintTimeMetric)
+
 		return false
-	} else {
-		processingTime := value.(float64)
+	}
 
-		clientLatencyMetric := metrics.GetClientLatencyPerDeploymentMetricId(i.deployment.DeploymentId)
-		value, ok = i.deployment.Environment.GetMetric(clientLatencyMetric)
-		if !ok {
-			log.Debugf("no value for metric %s", clientLatencyMetric)
-			return false
-		}
+	processingTime := value.(float64)
+	clientLatencyMetric := metrics.GetClientLatencyPerDeploymentMetricID(i.deployment.DeploymentID)
 
-		latency := value.(float64)
+	value, ok = i.deployment.Environment.GetMetric(clientLatencyMetric)
+	if !ok {
+		log.Debugf("no value for metric %s", clientLatencyMetric)
 
-		processingTimePart := float32(processingTime) / float32(latency)
-		if processingTimePart > processingThreshold {
-			log.Debugf("most of the client latency is due to processing time (%f)", processingTimePart)
-			return true
-		}
+		return false
+	}
+
+	latency := value.(float64)
+
+	processingTimePart := float32(processingTime) / float32(latency)
+	if processingTimePart > processingThreshold {
+		log.Debugf("most of the client latency is due to processing time (%f)", processingTimePart)
+
+		return true
 	}
 
 	return false
@@ -474,8 +517,10 @@ func (i *idealLatency) checkProcessingTime() bool {
 
 func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
 	numChildren := 0
+
 	i.deployment.Children.Range(func(key, value interface{}) bool {
 		numChildren++
+
 		return true
 	})
 
@@ -484,12 +529,14 @@ func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
 		centroidDistSum += servers.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(s2.CellFromCellID(
 			centroid)))
 	}
+
 	avgDistanceToCentroids := centroidDistSum / float64(len(centroids))
 
 	distanceFactor := maxDistance / (maxDistance - (avgDistanceToCentroids - satisfiedDistance))
 	childrenFactor := (((maxChildren + 1.) / (float64(numChildren) + 1.)) - 1.) / maxChildren
 	cosDelta := 0.
 	sinDelta := 0.
+
 	for _, centroid := range centroids {
 		latDelta := centroid.LatLng().Lat.Degrees() - i.myLocation.LatLng().Lat.Degrees()
 		lngDelta := centroid.LatLng().Lng.Degrees() - i.myLocation.LatLng().Lng.Degrees()
@@ -497,10 +544,11 @@ func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
 		cosDelta += math.Cos(angle)
 		sinDelta += math.Sin(angle)
 	}
-	accumulatedDiff := cosDelta + sinDelta
-	heterogeneity := (2. / (accumulatedDiff + 1.)) - 1.
 
-	heterogeneityFactor := float64(numChildren) + 2. - (heterogeneity * float64(numChildren))
+	accumulatedDiff := cosDelta + sinDelta
+	heterogeneity := (2. / (accumulatedDiff + 1.)) - 1. //nolint:gomnd
+
+	heterogeneityFactor := float64(numChildren) + 2. - (heterogeneity * float64(numChildren)) //nolint:gomnd
 	branchingFactor := childrenFactor * distanceFactor * heterogeneityFactor * i.depthFactor
 	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
 
@@ -512,6 +560,7 @@ func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
 
 func (i *idealLatency) filterBlacklisted(original result) (result, bool) {
 	var newRange result
+
 	for _, node := range original {
 		if _, ok := i.deployment.Blacklist.Load(node); !ok {
 			newRange = append(newRange, node)

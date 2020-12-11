@@ -12,30 +12,31 @@ import (
 )
 
 func deadChildHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
-	deadChildId := internalUtils.ExtractPathVar(r, nodeIdPathVar)
+	deploymentID := internalUtils.ExtractPathVar(r, deploymentIDPathVar)
+	deadChildID := internalUtils.ExtractPathVar(r, nodeIDPathVar)
 
 	body := api.DeadChildRequestBody{}
+
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		panic(err)
 	}
 
-	log.Debugf("grandchild %s reported deployment %s from %s as dead", body.Grandchild.Id, deploymentId, deadChildId)
+	log.Debugf("grandchild %s reported deployment %s from %s as dead", body.Grandchild.ID, deploymentID, deadChildID)
 
-	_, okChild := suspectedChild.Load(deadChildId)
+	_, okChild := suspectedChild.Load(deadChildID)
 	if !okChild {
-		suspectedChild.Store(deadChildId, nil)
-		children.Delete(deadChildId)
+		suspectedChild.Store(deadChildID, nil)
+		children.Delete(deadChildID)
 	}
 
-	_, okDeployment := suspectedDeployments.Load(deploymentId)
+	_, okDeployment := suspectedDeployments.Load(deploymentID)
 	if !okDeployment {
-		suspectedDeployments.Store(deploymentId, nil)
+		suspectedDeployments.Store(deploymentID, nil)
 	}
 
 	if !okChild || !okDeployment {
-		hTable.removeChild(deploymentId, deadChildId)
+		hTable.removeChild(deploymentID, deadChildID)
 	}
 
 	config := &api.ExtendDeploymentConfig{
@@ -44,20 +45,21 @@ func deadChildHandler(_ http.ResponseWriter, r *http.Request) {
 		ToExclude: nil,
 	}
 
-	go attemptToExtend(deploymentId, nil, config, 0, body.Alternatives, api.NotExploringTTL)
+	go attemptToExtend(deploymentID, nil, config, 0, body.Alternatives, api.NotExploringTTL)
 }
 
 func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentID := internalUtils.ExtractPathVar(r, deploymentIDPathVar)
 
 	reqBody := api.FallbackRequestBody{}
+
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
 		panic(err)
 	}
 
-	log.Debugf("node %s is falling back from %f with deployment %s", reqBody.Orphan.Id, reqBody.OrphanLocation,
-		deploymentId)
+	log.Debugf("node %s is falling back from %s with deployment %s", reqBody.Orphan.ID,
+		reqBody.OrphanLocation.ToToken(), deploymentID)
 
 	config := &api.ExtendDeploymentConfig{
 		Children:  nil,
@@ -65,13 +67,14 @@ func fallbackHandler(_ http.ResponseWriter, r *http.Request) {
 		ToExclude: nil,
 	}
 
-	go attemptToExtend(deploymentId, reqBody.Orphan, config, maxHopsToLookFor, nil, api.NotExploringTTL)
+	go attemptToExtend(deploymentID, reqBody.Orphan, config, maxHopsToLookFor, nil, api.NotExploringTTL)
 }
 
 func setGrandparentHandler(_ http.ResponseWriter, r *http.Request) {
-	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentID := internalUtils.ExtractPathVar(r, deploymentIDPathVar)
 
 	reqBody := api.SetGrandparentRequestBody{}
+
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
 		panic(err)
@@ -79,48 +82,51 @@ func setGrandparentHandler(_ http.ResponseWriter, r *http.Request) {
 
 	grandparent := &reqBody
 
-	log.Debugf("setting %s as grandparent", grandparent.Id)
+	log.Debugf("setting %s as grandparent", grandparent.ID)
 
-	hTable.setDeploymentGrandparent(deploymentId, grandparent)
+	hTable.setDeploymentGrandparent(deploymentID, grandparent)
 }
 
 func iAmYourParentHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := internalUtils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentID := internalUtils.ExtractPathVar(r, deploymentIDPathVar)
 
 	reqBody := api.IAmYourParentRequestBody{}
+
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
 		panic(err)
 	}
 
-	parentId := "nil"
+	parentID := "nil"
 	if reqBody.Parent != nil {
-		parentId = reqBody.Parent.Id
+		parentID = reqBody.Parent.ID
 	}
 
-	grandparentId := "nil"
+	grandparentID := "nil"
 	if reqBody.Grandparent != nil {
-		grandparentId = reqBody.Grandparent.Id
+		grandparentID = reqBody.Grandparent.ID
 	}
 
-	log.Debugf("told to accept %s as parent and %s as grandparent for deployment %s", parentId, grandparentId,
-		deploymentId)
+	log.Debugf("told to accept %s as parent and %s as grandparent for deployment %s", parentID, grandparentID,
+		deploymentID)
 
-	parent := hTable.getParent(deploymentId)
+	parent := hTable.getParent(deploymentID)
 	hasParent := parent != nil
 	deadParent := false
+
 	if hasParent {
-		deadParent = !pTable.hasParent(parent.Id)
+		deadParent = !pTable.hasParent(parent.ID)
 	}
 
 	if hasParent && !deadParent {
-		log.Debugf("rejecting parent %s, since i have %s and he is not dead", parentId, parent.Id)
+		log.Debugf("rejecting parent %s, since i have %s and he is not dead", parentID, parent.ID)
 		w.WriteHeader(http.StatusConflict)
+
 		return
 	}
 
-	hTable.setDeploymentParent(deploymentId, parent)
-	hTable.setDeploymentGrandparent(deploymentId, reqBody.Grandparent)
+	hTable.setDeploymentParent(deploymentID, parent)
+	hTable.setDeploymentGrandparent(deploymentID, reqBody.Grandparent)
 }
 
 func getHierarchyTableHandler(w http.ResponseWriter, _ *http.Request) {
@@ -128,7 +134,7 @@ func getHierarchyTableHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 func parentAliveHandler(_ http.ResponseWriter, r *http.Request) {
-	parentId := internalUtils.ExtractPathVar(r, nodeIdPathVar)
-	log.Debugf("parent %s is alive", parentId)
-	pTable.setParentUp(parentId)
+	parentID := internalUtils.ExtractPathVar(r, nodeIDPathVar)
+	log.Debugf("parent %s is alive", parentID)
+	pTable.setParentUp(parentID)
 }

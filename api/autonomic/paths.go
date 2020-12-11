@@ -4,10 +4,8 @@ import (
 	"fmt"
 )
 
-// Paths
+// Paths.
 const (
-	// TODO make this unexported probably
-
 	PrefixPath = "/autonomic"
 
 	DeploymentsPath              = "/deployments"
@@ -28,24 +26,24 @@ func GetDeploymentsPath() string {
 	return PrefixPath + DeploymentsPath
 }
 
-func GetDeploymentPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentPath, deploymentId)
+func GetDeploymentPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentPath, deploymentID)
 }
 
-func GetDeploymentChildPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentChildPath, deploymentId)
+func GetDeploymentChildPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentChildPath, deploymentID)
 }
 
-func GetDeploymentChildWithChildPath(deploymentId, childId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentChildWithChildPath, deploymentId, childId)
+func GetDeploymentChildWithChildPath(deploymentID, childID string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentChildWithChildPath, deploymentID, childID)
 }
 
-func GetDeploymentParentPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentParentPath, deploymentId)
+func GetDeploymentParentPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentParentPath, deploymentID)
 }
 
-func GetIsNodeInVicinityPath(nodeId string) string {
-	return PrefixPath + fmt.Sprintf(IsNodeInVicinityPath, nodeId)
+func GetIsNodeInVicinityPath(nodeID string) string {
+	return PrefixPath + fmt.Sprintf(IsNodeInVicinityPath, nodeID)
 }
 
 func GetClosestNodePath() string {
@@ -60,10 +58,10 @@ func GetMyLocationPath() string {
 	return PrefixPath + MyLocationPath
 }
 
-func GetExploredPath(deploymentId, childId string) string {
-	return PrefixPath + fmt.Sprintf(ExplorePath, deploymentId, childId)
+func GetExploredPath(deploymentID, childID string) string {
+	return PrefixPath + fmt.Sprintf(ExplorePath, deploymentID, childID)
 }
 
-func GetBlacklistPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(BlacklistPath, deploymentId)
+func GetBlacklistPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(BlacklistPath, deploymentID)
 }

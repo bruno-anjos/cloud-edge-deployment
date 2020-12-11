@@ -17,7 +17,7 @@ type (
 		Children            []*utils.Node
 		Parent              *utils.Node
 		Grandparent         *utils.Node
-		DeploymentId        string
+		DeploymentID        string
 		Static              bool
 		DeploymentYAMLBytes []byte
 	}

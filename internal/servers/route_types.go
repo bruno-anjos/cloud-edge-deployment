@@ -8,12 +8,12 @@ import (
 )
 
 const (
-	// PathVarFormat format string to add vars to path
+	// PathVarFormat format string to add vars to path.
 	PathVarFormat = "{%s}"
 )
 
 // Route defines a Route type simpler than the one
-// defined in gorilla mux
+// defined in gorilla mux.
 type Route struct {
 	Name        string
 	Method      string
@@ -22,10 +22,11 @@ type Route struct {
 	HandlerFunc http.HandlerFunc
 }
 
-// newRouter Creates new router with prefix and handlers for routes specified
+// newRouter Creates new router with prefix and handlers for routes specified.
 func newRouter(prefix string, routes []Route) (r *mux.Router) {
 	r = mux.NewRouter().StrictSlash(true)
 	s := r.PathPrefix(prefix).Subrouter()
+
 	for _, route := range routes {
 		if len(route.QueryParams) > 0 {
 			log.Debugf("registering route for %s with query params", route.Pattern)

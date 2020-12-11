@@ -42,37 +42,38 @@ func (e *Environment) loadSimFile() {
 	}
 
 	var metrics map[string]interface{}
+
 	err = json.Unmarshal(data, &metrics)
 	if err != nil {
 		panic(err)
 	}
 
-	for metricId, metricValue := range metrics {
-		log.Debugf("loaded metric %s with value %v", metricId, metricValue)
-		e.TrackMetric(metricId)
-		e.setMetric(metricId, metricValue)
+	for metricID, metricValue := range metrics {
+		log.Debugf("loaded metric %s with value %v", metricID, metricValue)
+		e.TrackMetric(metricID)
+		e.setMetric(metricID, metricValue)
 	}
 }
 
-func (e *Environment) TrackMetric(metricId string) {
-	_, loaded := e.trackedMetrics.LoadOrStore(metricId, nil)
+func (e *Environment) TrackMetric(metricID string) {
+	_, loaded := e.trackedMetrics.LoadOrStore(metricID, nil)
 	if loaded {
 		return
 	}
 
-	registerMetricInLowerApi(metricId)
+	registerMetricInLowerAPI(metricID)
 }
 
-func (e *Environment) GetMetric(metricId string) (value interface{}, ok bool) {
-	return e.metrics.Load(metricId)
+func (e *Environment) GetMetric(metricID string) (value interface{}, ok bool) {
+	return e.metrics.Load(metricID)
 }
 
-func (e *Environment) setMetric(metricId string, value interface{}) {
-	e.metrics.Store(metricId, value)
+func (e *Environment) setMetric(metricID string, value interface{}) {
+	e.metrics.Store(metricID, value)
 }
 
-func (e *Environment) deleteMetric(metricId string) {
-	e.metrics.Delete(metricId)
+func (e *Environment) deleteMetric(metricID string) {
+	e.metrics.Delete(metricID)
 }
 
 func (e *Environment) copy() (copy *Environment) {
@@ -81,13 +82,13 @@ func (e *Environment) copy() (copy *Environment) {
 
 	e.metrics.Range(func(key, value interface{}) bool {
 		newMap.Store(key, value)
+
 		return true
 	})
 
 	return
 }
 
-// TODO change this for lower API call
-func registerMetricInLowerApi(_ string) {
-
+// Change this for lower API call.
+func registerMetricInLowerAPI(_ string) {
 }

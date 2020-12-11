@@ -69,46 +69,49 @@ func newSystem(autoFactory autonomic.ClientFactory, archFactory archimedes.Clien
 	}
 }
 
-func (a *system) addDeployment(deploymentId, strategyId string, depthFactor float64, exploringTTL int) {
-	if value, ok := a.deployments.Load(deploymentId); ok {
+func (a *system) addDeployment(deploymentID, strategyID string, depthFactor float64, exploringTTL int) {
+	if value, ok := a.deployments.Load(deploymentID); ok {
 		depl := value.(deploymentsMapValue)
+
 		if exploringTTL != deployerAPI.NotExploringTTL {
-			depl.Exploring.Store(deployment.Myself.Id, exploringTTL)
+			depl.Exploring.Store(deployment.Myself.ID, exploringTTL)
 		} else {
-			depl.Exploring.Delete(deployment.Myself.Id)
+			depl.Exploring.Delete(deployment.Myself.ID)
 		}
+
 		exitChan := make(chan interface{})
-		a.exitChans.Store(deploymentId, exitChan)
+		a.exitChans.Store(deploymentID, exitChan)
+
 		go a.handleDeployment(depl, exitChan)
 	}
 
-	log.Debugf("new deployment %s has exploringTTL %d", deploymentId, exploringTTL)
+	log.Debugf("new deployment %s has exploringTTL %d", deploymentID, exploringTTL)
 
-	s, err := deployment.New(deploymentId, strategyId, a.suspected, depthFactor, a.env, a.autoFactory, a.archFactory,
+	s, err := deployment.New(deploymentID, strategyID, a.suspected, depthFactor, a.env, a.autoFactory, a.archFactory,
 		a.deplFactory, a.schedFactory)
 	if err != nil {
 		panic(err)
 	}
 
 	if exploringTTL != deployerAPI.NotExploringTTL {
-		s.Exploring.Store(deployment.Myself.Id, exploringTTL)
+		s.Exploring.Store(deployment.Myself.ID, exploringTTL)
 	}
 
-	a.deployments.Store(deploymentId, s)
-	exitChan := make(chan interface{})
-	a.exitChans.Store(deploymentId, exitChan)
-	go a.handleDeployment(s, exitChan)
+	a.deployments.Store(deploymentID, s)
 
-	return
+	exitChan := make(chan interface{})
+	a.exitChans.Store(deploymentID, exitChan)
+
+	go a.handleDeployment(s, exitChan)
 }
 
-func (a *system) removeDeployment(deploymentId string) {
-	_, ok := a.deployments.Load(deploymentId)
+func (a *system) removeDeployment(deploymentID string) {
+	_, ok := a.deployments.Load(deploymentID)
 	if !ok {
 		return
 	}
 
-	value, ok := a.exitChans.Load(deploymentId)
+	value, ok := a.exitChans.Load(deploymentID)
 	if !ok {
 		return
 	}
@@ -116,46 +119,50 @@ func (a *system) removeDeployment(deploymentId string) {
 	exitChan := value.(chan interface{})
 	close(exitChan)
 
-	a.deployments.Delete(deploymentId)
+	a.deployments.Delete(deploymentID)
 }
 
-func (a *system) addDeploymentChild(deploymentId string, child *utils.Node) {
-	value, ok := a.deployments.Load(deploymentId)
+func (a *system) addDeploymentChild(deploymentID string, child *utils.Node) {
+	value, ok := a.deployments.Load(deploymentID)
 	if !ok {
 		return
 	}
 
 	s := value.(deploymentsMapValue)
+
 	value, ok = a.env.GetMetric(metrics.MetricLocationInVicinity)
 	if !ok {
 		log.Errorf("no metric %s", metrics.MetricLocationInVicinity)
+
 		return
 	}
 
 	var vicinityMetric metrics.VicinityMetric
+
 	err := mapstructure.Decode(value, &vicinityMetric)
 	if err != nil {
 		panic(err)
 	}
 
-	cellValue, ok := vicinityMetric.Locations[child.Id]
+	cellValue, ok := vicinityMetric.Locations[child.ID]
 	if !ok {
-		log.Errorf("no location for child %s", child.Id)
+		log.Errorf("no location for child %s", child.ID)
+
 		return
 	}
 
-	log.Debugf("adding child %s", child.Id)
+	log.Debugf("adding child %s", child.ID)
 
 	location := s2.CellIDFromToken(cellValue)
 
-	a.suspected.Delete(child.Id)
+	a.suspected.Delete(child.ID)
 	s.AddChild(child, location)
 }
 
-func (a *system) removeDeploymentChild(deploymentId, childId string) {
-	log.Debugf("removing child %s for deployment %s", childId, deploymentId)
+func (a *system) removeDeploymentChild(deploymentID, childID string) {
+	log.Debugf("removing child %s for deployment %s", childID, deploymentID)
 
-	value, ok := a.deployments.Load(deploymentId)
+	value, ok := a.deployments.Load(deploymentID)
 	if !ok {
 		return
 	}
@@ -163,12 +170,12 @@ func (a *system) removeDeploymentChild(deploymentId, childId string) {
 	log.Debug("removed")
 
 	s := value.(deploymentsMapValue)
-	s.AddSuspectedChild(childId)
-	s.RemoveChild(childId)
+	s.AddSuspectedChild(childID)
+	s.RemoveChild(childID)
 }
 
-func (a *system) setDeploymentParent(deploymentId string, parent *utils.Node) {
-	value, ok := a.deployments.Load(deploymentId)
+func (a *system) setDeploymentParent(deploymentID string, parent *utils.Node) {
+	value, ok := a.deployments.Load(deploymentID)
 	if !ok {
 		return
 	}
@@ -181,10 +188,10 @@ func (a *system) getDeployments() (deployments map[string]*deployment.Deployment
 	deployments = map[string]*deployment.Deployment{}
 
 	a.deployments.Range(func(key, value interface{}) bool {
-		deploymentId := key.(deploymentsMapKey)
+		deploymentID := key.(deploymentsMapKey)
 		s := value.(deploymentsMapValue)
 
-		deployments[deploymentId] = s
+		deployments[deploymentID] = s
 
 		return true
 	})
@@ -192,9 +199,9 @@ func (a *system) getDeployments() (deployments map[string]*deployment.Deployment
 	return
 }
 
-func (a *system) isNodeInVicinity(nodeId string) bool {
+func (a *system) isNodeInVicinity(nodeID string) bool {
 	vicinity := a.getVicinity()
-	_, ok := vicinity.Nodes[nodeId]
+	_, ok := vicinity.Nodes[nodeID]
 
 	return ok
 }
@@ -206,30 +213,34 @@ func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]inter
 	}
 
 	var vicinity metrics.VicinityMetric
+
 	err := mapstructure.Decode(value, &vicinity)
 	if err != nil {
 		panic(err)
 	}
-	var ordered []*utils.Node
 
-	for nodeId, node := range vicinity.Nodes {
-		if _, ok = toExclude[nodeId]; ok {
+	ordered := make([]*utils.Node, 0, len(vicinity.Nodes))
+
+	for nodeID, node := range vicinity.Nodes {
+		if _, ok = toExclude[nodeID]; ok {
 			continue
 		}
+
 		ordered = append(ordered, node)
 	}
 
-	var locationCells []s2.Cell
+	locationCells := make([]s2.Cell, len(locations))
+
 	for _, location := range locations {
 		locationCells = append(locationCells, s2.CellFromCellID(location))
 	}
 
 	sort.Slice(ordered, func(i, j int) bool {
-		iId := s2.CellIDFromToken(vicinity.Locations[ordered[i].Id])
-		jId := s2.CellIDFromToken(vicinity.Locations[ordered[j].Id])
+		iID := s2.CellIDFromToken(vicinity.Locations[ordered[i].ID])
+		jID := s2.CellIDFromToken(vicinity.Locations[ordered[j].ID])
 
-		iCell := s2.CellFromCellID(iId)
-		jCell := s2.CellFromCellID(jId)
+		iCell := s2.CellFromCellID(iID)
+		jCell := s2.CellFromCellID(jID)
 
 		iDistSum := 0.
 		jDistSum := 0.
@@ -255,6 +266,7 @@ func (a *system) getVicinity() *autonomicAPI.Vicinity {
 	}
 
 	var vicinityMetric metrics.VicinityMetric
+
 	err := mapstructure.Decode(value, &vicinityMetric)
 	if err != nil {
 		panic(err)
@@ -264,8 +276,8 @@ func (a *system) getVicinity() *autonomicAPI.Vicinity {
 		Nodes:     vicinityMetric.Nodes,
 		Locations: map[string]s2.CellID{},
 	}
-	for nodeId, cellToken := range vicinityMetric.Locations {
-		vicinity.Locations[nodeId] = s2.CellIDFromToken(cellToken)
+	for nodeID, cellToken := range vicinityMetric.Locations {
+		vicinity.Locations[nodeID] = s2.CellIDFromToken(cellToken)
 	}
 
 	return vicinity
@@ -292,11 +304,11 @@ func (a *system) handleDeployment(deployment *deployment.Deployment, exit <-chan
 		case <-timer.C:
 		}
 
-		log.Debugf("evaluating deployment %s", deployment.DeploymentId)
+		log.Debugf("evaluating deployment %s", deployment.DeploymentID)
 
 		action := deployment.GenerateAction()
 		if action != nil {
-			log.Debugf("generated action of type %s for deployment %s", action.GetActionId(), deployment.DeploymentId)
+			log.Debugf("generated action of type %s for deployment %s", action.GetActionID(), deployment.DeploymentID)
 			a.performAction(action)
 		}
 
@@ -315,12 +327,12 @@ func (a *system) performAction(action actions.Action) {
 	case *actions.RemoveDeploymentAction:
 		assertedAction.Execute(a.deployerClient)
 	default:
-		log.Errorf("could not execute action of type %s", action.GetActionId())
+		log.Errorf("could not execute action of type %s", action.GetActionID())
 	}
 }
 
-func (a *system) getLoad(deploymentId string) (float64, bool) {
-	value, ok := a.deployments.Load(deploymentId)
+func (a *system) getLoad(deploymentID string) (float64, bool) {
+	value, ok := a.deployments.Load(deploymentID)
 	if !ok {
 		return 0, false
 	}
@@ -328,11 +340,11 @@ func (a *system) getLoad(deploymentId string) (float64, bool) {
 	return value.(deploymentsMapValue).GetLoad(), true
 }
 
-func (a *system) setExploreSuccess(deploymentId, childId string) bool {
-	value, ok := a.deployments.Load(deploymentId)
+func (a *system) setExploreSuccess(deploymentID, childID string) bool {
+	value, ok := a.deployments.Load(deploymentID)
 	if !ok {
 		return false
 	}
 
-	return value.(deploymentsMapValue).SetExploreSuccess(childId)
+	return value.(deploymentsMapValue).SetExploreSuccess(childID)
 }

@@ -13,7 +13,7 @@ import (
 
 type (
 	typeHeartbeatsMapKey   = string
-	typeHeartbeatsMapValue = *pairDeploymentIdStatus
+	typeHeartbeatsMapValue = *pairDeploymentIDStatus
 
 	typeInitChansMapValue = chan struct{}
 )
@@ -23,34 +23,32 @@ const (
 )
 
 var (
-	heartbeatsMap sync.Map
-	initChansMap  sync.Map
+	heartbeatsMap = sync.Map{}
+	initChansMap  = sync.Map{}
 )
 
 func init() {
-	heartbeatsMap = sync.Map{}
-	initChansMap = sync.Map{}
-
 	go instanceHeartbeatChecker()
 }
 
-func cleanUnresponsiveInstance(deploymentId, instanceId string, instanceDTO *archimedes2.InstanceDTO,
+func cleanUnresponsiveInstance(deploymentID, instanceID string, instanceDTO *archimedes2.InstanceDTO,
 	alive <-chan struct{}) {
 	unresponsiveTimer := time.NewTimer(initInstanceTimeout)
 
 	select {
 	case <-alive:
-		log.Debugf("instance %s is up", instanceId)
-		status := archimedesClient.RegisterDeploymentInstance(deploymentId, instanceId, instanceDTO.Static,
+		log.Debugf("instance %s is up", instanceID)
+
+		status := archimedesClient.RegisterDeploymentInstance(deploymentID, instanceID, instanceDTO.Static,
 			instanceDTO.PortTranslation, instanceDTO.Local)
 		if status != http.StatusOK {
-			log.Errorf("got status %d while registering deployment %s instance %s", status, deploymentId, instanceId)
+			log.Errorf("got status %d while registering deployment %s instance %s", status, deploymentID, instanceID)
 		}
 
 		return
 	case <-unresponsiveTimer.C:
-		log.Debugf("%s for deployment %s never sent heartbeat", instanceId, deploymentId)
-		removeInstance(deploymentId, instanceId, false)
+		log.Debugf("%s for deployment %s never sent heartbeat", instanceID, deploymentID)
+		removeInstance(deploymentID, instanceID, false)
 	}
 }
 
@@ -58,22 +56,25 @@ func instanceHeartbeatChecker() {
 	heartbeatTimer := time.NewTimer(client.HeartbeatCheckerTimeout * time.Second)
 
 	var toDelete []string
+
 	for {
 		toDelete = []string{}
+
 		<-heartbeatTimer.C
+
 		log.Debug("checking heartbeats")
 		heartbeatsMap.Range(func(key, value interface{}) bool {
-			instanceId := key.(typeHeartbeatsMapKey)
+			instanceID := key.(typeHeartbeatsMapKey)
 			pairDeploymentStatus := value.(typeHeartbeatsMapValue)
 			pairDeploymentStatus.Mutex.Lock()
 
 			// case where instance didnt set online status since last status reset, so it has to be removed
 			if !pairDeploymentStatus.IsUp {
 				pairDeploymentStatus.Mutex.Unlock()
-				removeInstance(pairDeploymentStatus.DeploymentId, instanceId, true)
+				removeInstance(pairDeploymentStatus.DeploymentID, instanceID, true)
 
-				toDelete = append(toDelete, instanceId)
-				log.Debugf("removing instance %s", instanceId)
+				toDelete = append(toDelete, instanceID)
+				log.Debugf("removing instance %s", instanceID)
 			} else {
 				pairDeploymentStatus.IsUp = false
 				pairDeploymentStatus.Mutex.Unlock()
@@ -82,28 +83,29 @@ func instanceHeartbeatChecker() {
 			return true
 		})
 
-		for _, instanceId := range toDelete {
-			log.Debugf("removing %s instance from expected hearbeats map", instanceId)
-			heartbeatsMap.Delete(instanceId)
+		for _, instanceID := range toDelete {
+			log.Debugf("removing %s instance from expected hearbeats map", instanceID)
+			heartbeatsMap.Delete(instanceID)
 		}
+
 		heartbeatTimer.Reset(client.HeartbeatCheckerTimeout * time.Second)
 	}
 }
 
-func removeInstance(deploymentId, instanceId string, existed bool) {
-	status := schedulerClient.StopInstance(instanceId)
+func removeInstance(deploymentID, instanceID string, existed bool) {
+	status := schedulerClient.StopInstance(instanceID)
 	if status != http.StatusOK {
 		log.Errorf("while trying to remove instance %s after timeout, scheduler returned status %d",
-			instanceId, status)
+			instanceID, status)
 	}
 
-	status = archimedesClient.DeleteDeploymentInstance(deploymentId, instanceId)
+	status = archimedesClient.DeleteDeploymentInstance(deploymentID, instanceID)
 	if existed {
 		if status != http.StatusOK {
 			log.Errorf("while trying to remove instance %s after timeout, archimedes returned status %d",
-				instanceId, status)
+				instanceID, status)
 		}
 	}
 
-	log.Errorf("Removed unresponsive instance %s", instanceId)
+	log.Errorf("Removed unresponsive instance %s", instanceID)
 }

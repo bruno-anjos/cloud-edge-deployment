@@ -18,8 +18,13 @@ const (
 
 func NewGenericClient(addr string) *Client {
 	return &Client{
-		hostPort:     addr,
-		Client:       &http.Client{Timeout: defaultTimeout},
+		hostPort: addr,
+		Client: &http.Client{
+			Transport:     nil,
+			CheckRedirect: nil,
+			Jar:           nil,
+			Timeout:       defaultTimeout,
+		},
 		hostPortLock: sync.RWMutex{},
 	}
 }
@@ -33,6 +38,7 @@ func (c *Client) SetHostPort(addr string) {
 func (c *Client) GetHostPort() string {
 	c.hostPortLock.RLock()
 	defer c.hostPortLock.RUnlock()
+
 	return c.hostPort
 }
 

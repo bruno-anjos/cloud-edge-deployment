@@ -1,4 +1,4 @@
-package client_factory
+package clientfactory
 
 import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"

@@ -2,11 +2,11 @@
 import json
 import logging
 import os
-import sys
-import time
 from multiprocessing import Pool
 
 import requests
+import sys
+import time
 from igraph import Graph, plot
 from tabulate import tabulate
 
@@ -171,6 +171,7 @@ def graph_combined_deployments(graph, deployments, node_tables, deployment_color
         plot(graph, f"/home/b.anjos/deployer_pngs/combined_plot.png", **visual_style, autocurve=True)
     except Exception as e:
         logging.exception(e)
+
 
 def graph_deployment(deployment_id, graph, node_tables, deployment_color, loads):
     print(f"plotting {deployment_id}")

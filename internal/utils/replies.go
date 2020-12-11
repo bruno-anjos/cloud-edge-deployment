@@ -16,6 +16,7 @@ func SendJSONReplyStatus(w http.ResponseWriter, status int, replyContent interfa
 	}
 
 	w.WriteHeader(status)
+
 	_, err = w.Write(toSend)
 	if err != nil {
 		panic(err)

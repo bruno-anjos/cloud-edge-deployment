@@ -41,8 +41,8 @@ func (c *Client) StartInstance(deploymentName, imageName, instanceName string, p
 	return
 }
 
-func (c *Client) StopInstance(instanceId string) (status int) {
-	path := api.GetInstancePath(instanceId)
+func (c *Client) StopInstance(instanceID string) (status int) {
+	path := api.GetInstancePath(instanceID)
 	req := internalUtils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)

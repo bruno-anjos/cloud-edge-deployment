@@ -5,7 +5,7 @@ import (
 )
 
 type (
-	GetDeploymentsResponseBody            = []string
-	GetHierarchyTableResponseBody         = map[string]*HierarchyEntryDTO
-	GetFallbackResponseBody               = utils.Node
+	GetDeploymentsResponseBody    = []string
+	GetHierarchyTableResponseBody = map[string]*HierarchyEntryDTO
+	GetFallbackResponseBody       = utils.Node
 )

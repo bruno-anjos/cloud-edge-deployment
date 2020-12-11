@@ -16,6 +16,6 @@ func GetInstancesPath() string {
 	return PrefixPath + InstancesPath
 }
 
-func GetInstancePath(instanceId string) string {
-	return PrefixPath + fmt.Sprintf(InstancePath, instanceId)
+func GetInstancePath(instanceID string) string {
+	return PrefixPath + fmt.Sprintf(InstancePath, instanceID)
 }

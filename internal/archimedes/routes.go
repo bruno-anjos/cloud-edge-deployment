@@ -36,34 +36,34 @@ const (
 
 // Path variables
 const (
-	deploymentIdPathVar = "deploymentId"
-	nodeIdPathVar       = "nodeId"
-	instanceIdPathVar   = "instanceId"
+	deploymentIDPathVar = "deploymentId"
+	nodeIDPathVar       = "nodeId"
+	instanceIDPathVar   = "instanceId"
 )
 
 var (
-	_deploymentIdPathVarFormatted = fmt.Sprintf(servers.PathVarFormat, deploymentIdPathVar)
-	_instanceIdPathVarFormatted   = fmt.Sprintf(servers.PathVarFormat, instanceIdPathVar)
-	_nodeIdPathVarFormatted       = fmt.Sprintf(servers.PathVarFormat, nodeIdPathVar)
+	_deploymentIDPathVarFormatted = fmt.Sprintf(servers.PathVarFormat, deploymentIDPathVar)
+	_instanceIDPathVarFormatted   = fmt.Sprintf(servers.PathVarFormat, instanceIDPathVar)
+	_nodeIDPathVarFormatted       = fmt.Sprintf(servers.PathVarFormat, nodeIDPathVar)
 
 	deploymentsRoute        = archimedes.DeploymentsPath
-	deploymentRoute         = fmt.Sprintf(archimedes.DeploymentPath, _deploymentIdPathVarFormatted)
-	deploymentInstanceRoute = fmt.Sprintf(archimedes.DeploymentInstancePath, _deploymentIdPathVarFormatted,
-		_instanceIdPathVarFormatted)
-	instanceRoute                   = fmt.Sprintf(archimedes.InstancePath, _instanceIdPathVarFormatted)
+	deploymentRoute         = fmt.Sprintf(archimedes.DeploymentPath, _deploymentIDPathVarFormatted)
+	deploymentInstanceRoute = fmt.Sprintf(archimedes.DeploymentInstancePath, _deploymentIDPathVarFormatted,
+		_instanceIDPathVarFormatted)
+	instanceRoute                   = fmt.Sprintf(archimedes.InstancePath, _instanceIDPathVarFormatted)
 	whoAreYouRoute                  = archimedes.WhoAreYouPath
 	tableRoute                      = archimedes.TablePath
 	resolveRoute                    = archimedes.ResolvePath
-	redirectRoute                   = fmt.Sprintf(archimedes.RedirectPath, _deploymentIdPathVarFormatted)
-	redirectedRoute                 = fmt.Sprintf(archimedes.RedirectedPath, _deploymentIdPathVarFormatted)
-	getLoadRoute                    = fmt.Sprintf(archimedes.LoadPath, _deploymentIdPathVarFormatted)
-	getAvgClientLocationRoute       = fmt.Sprintf(archimedes.AvgClientLocationPath, _deploymentIdPathVarFormatted)
-	setExploringClientLocationRoute = fmt.Sprintf(archimedes.ExploringClientLocationPath, _deploymentIdPathVarFormatted)
-	addDeploymentNodeRoute          = fmt.Sprintf(archimedes.AddDeploymentNodePath, _deploymentIdPathVarFormatted)
-	removeDeploymentNodeRoute       = fmt.Sprintf(archimedes.RemoveDeploymentNodePath, _deploymentIdPathVarFormatted,
-		_nodeIdPathVarFormatted)
-	redirectingToYou = fmt.Sprintf(archimedes.RedirectingToYouPath, _deploymentIdPathVarFormatted,
-		_nodeIdPathVarFormatted)
+	redirectRoute                   = fmt.Sprintf(archimedes.RedirectPath, _deploymentIDPathVarFormatted)
+	redirectedRoute                 = fmt.Sprintf(archimedes.RedirectedPath, _deploymentIDPathVarFormatted)
+	getLoadRoute                    = fmt.Sprintf(archimedes.LoadPath, _deploymentIDPathVarFormatted)
+	getAvgClientLocationRoute       = fmt.Sprintf(archimedes.AvgClientLocationPath, _deploymentIDPathVarFormatted)
+	setExploringClientLocationRoute = fmt.Sprintf(archimedes.ExploringClientLocationPath, _deploymentIDPathVarFormatted)
+	addDeploymentNodeRoute          = fmt.Sprintf(archimedes.AddDeploymentNodePath, _deploymentIDPathVarFormatted)
+	removeDeploymentNodeRoute       = fmt.Sprintf(archimedes.RemoveDeploymentNodePath, _deploymentIDPathVarFormatted,
+		_nodeIDPathVarFormatted)
+	redirectingToYou = fmt.Sprintf(archimedes.RedirectingToYouPath, _deploymentIDPathVarFormatted,
+		_nodeIDPathVarFormatted)
 )
 
 var Routes = []servers.Route{

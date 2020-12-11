@@ -33,7 +33,7 @@ type (
 	exploringMapValue = int
 
 	Deployment struct {
-		DeploymentId string
+		DeploymentID string
 		Strategy     strategy
 		Children     *sync.Map
 		Parent       *utils.Node
@@ -49,23 +49,18 @@ type (
 	}
 )
 
-var (
-	Myself *utils.Node
-)
+var Myself = utils.NodeFromEnv()
 
-func init() {
-	Myself = utils.NodeFromEnv()
-}
-
-func New(deploymentId, strategyId string, suspected *sync.Map, depthFactor float64,
+func New(deploymentID, strategyID string, suspected *sync.Map, depthFactor float64,
 	env *environment.Environment, autoFactory autonomic.ClientFactory, archFactory archimedes.ClientFactory,
 	deplFactory deployer.ClientFactory, schedFactory scheduler.ClientFactory) (*Deployment, error) {
 	s := &Deployment{
+		DeploymentID: deploymentID,
+		Strategy:     nil,
 		Children:     &sync.Map{},
 		Parent:       nil,
 		Suspected:    suspected,
 		Environment:  env,
-		DeploymentId: deploymentId,
 		Blacklist:    &sync.Map{},
 		Exploring:    &sync.Map{},
 		DepthFactor:  depthFactor,
@@ -76,20 +71,20 @@ func New(deploymentId, strategyId string, suspected *sync.Map, depthFactor float
 	}
 
 	var strat strategy
-	switch strategyId {
-	case autonomic.StrategyLoadBalanceId:
+
+	switch strategyID {
+	case autonomic.StrategyLoadBalanceID:
 		strat = newDefaultLoadBalanceStrategy(s)
-	case autonomic.StrategyIdealLatencyId:
+	case autonomic.StrategyIdealLatencyID:
 		strat = newDefaultIdealLatencyStrategy(s)
 	default:
-		return nil, errors.Errorf("invalid strategy: %s", strategyId)
+		return nil, errors.Errorf("invalid strategy: %s", strategyID)
 	}
 
 	dependencies := strat.GetDependencies()
-	if dependencies != nil {
-		for _, deploymentMetric := range dependencies {
-			env.TrackMetric(deploymentMetric)
-		}
+
+	for _, deploymentMetric := range dependencies {
+		env.TrackMetric(deploymentMetric)
 	}
 
 	s.Strategy = strat
@@ -102,24 +97,20 @@ func (a *Deployment) AddChild(child *utils.Node, location s2.CellID) {
 		Node:     child,
 		Location: location,
 	}
-	a.Children.Store(child.Id, node)
+	a.Children.Store(child.ID, node)
 }
 
-func (a *Deployment) RemoveChild(childId string) {
-	a.Children.Delete(childId)
+func (a *Deployment) RemoveChild(childID string) {
+	a.Children.Delete(childID)
 
-	_, ok := a.Exploring.Load(childId)
+	_, ok := a.Exploring.Load(childID)
 	if ok {
-		a.BlacklistNodes(Myself.Id, childId)
+		a.BlacklistNodes(Myself.ID, childID)
 	}
 }
 
-func (a *Deployment) AddSuspectedChild(childId string) {
-	a.Suspected.Store(childId, nil)
-}
-
-func (a *Deployment) removeSuspectedChild(childId string) {
-	a.Suspected.Delete(childId)
+func (a *Deployment) AddSuspectedChild(childID string) {
+	a.Suspected.Store(childID, nil)
 }
 
 func (a *Deployment) SetParent(parent *utils.Node) {
@@ -132,25 +123,29 @@ func (a *Deployment) GenerateAction() actions.Action {
 
 func (a *Deployment) ToDTO() *autonomicAPI.DeploymentDTO {
 	var children []string
+
 	a.Children.Range(func(key, value interface{}) bool {
-		childId := key.(string)
-		children = append(children, childId)
+		childID := key.(string)
+		children = append(children, childID)
+
 		return true
 	})
 
 	return &autonomicAPI.DeploymentDTO{
-		DeploymentId: a.DeploymentId,
-		StrategyId:   a.Strategy.GetId(),
+		DeploymentID: a.DeploymentID,
+		StrategyID:   a.Strategy.GetID(),
 		Children:     children,
 		Parent:       a.Parent,
 	}
 }
 
 func (a *Deployment) GetLoad() float64 {
-	metric := metrics.GetLoadPerDeployment(a.DeploymentId)
+	metric := metrics.GetLoadPerDeployment(a.DeploymentID)
+
 	value, ok := a.Environment.GetMetric(metric)
 	if !ok {
 		log.Debugf("no value for metric %s", metric)
+
 		return 0
 	}
 
@@ -159,47 +154,50 @@ func (a *Deployment) GetLoad() float64 {
 
 func (a *Deployment) BlacklistNodes(origin string, nodes ...string) {
 	log.Debugf("blacklisting %+v", nodes)
+
 	for _, node := range nodes {
 		a.Blacklist.Store(node, nil)
 	}
 
 	autoClient := a.autoFactory.New(a.Parent.Addr + ":" + strconv.Itoa(autonomic.Port))
-	if a.Parent != nil && origin != a.Parent.Id {
-		autoClient.BlacklistNodes(a.DeploymentId, Myself.Id, nodes...)
+
+	if a.Parent != nil && origin != a.Parent.ID {
+		autoClient.BlacklistNodes(a.DeploymentID, Myself.ID, nodes...)
 	}
+
 	a.Children.Range(func(key, value interface{}) bool {
-		childId := key.(string)
-		if childId == origin {
+		childID := key.(string)
+		if childID == origin {
 			return true
 		}
-		log.Debugf("telling %s to blacklist %+v for %s", childId, nodes, a.DeploymentId)
+		log.Debugf("telling %s to blacklist %+v for %s", childID, nodes, a.DeploymentID)
 		nodeWithLoc := value.(nodeWithLocation)
 		autoClient.SetHostPort(nodeWithLoc.Node.Addr + ":" + strconv.Itoa(autonomic.Port))
-		autoClient.BlacklistNodes(a.DeploymentId, Myself.Id, nodes...)
+		autoClient.BlacklistNodes(a.DeploymentID, Myself.ID, nodes...)
+
 		return true
 	})
 
 	go func() {
 		blacklistTimer := time.NewTimer(blacklistDuration)
 		<-blacklistTimer.C
+
 		log.Debugf("removing %+v from blacklist", nodes)
+
 		for _, node := range nodes {
 			a.Blacklist.Delete(node)
 		}
 	}()
 }
 
-func (a *Deployment) removeFromBlacklist(nodeId string) {
-	a.Blacklist.Delete(nodeId)
-}
+func (a *Deployment) SetExploreSuccess(childID string) bool {
+	a.Exploring.Delete(childID)
+	log.Debugf("explored %s successfully", childID)
 
-func (a *Deployment) SetExploreSuccess(childId string) bool {
-	a.Exploring.Delete(childId)
-	log.Debugf("explored %s successfully", childId)
 	return true
 }
 
-func (a *Deployment) setNodeAsExploring(nodeId string) {
-	log.Debugf("exploring child %s", nodeId)
-	a.Exploring.Store(nodeId, nil)
+func (a *Deployment) setNodeAsExploring(nodeID string) {
+	log.Debugf("exploring child %s", nodeID)
+	a.Exploring.Store(nodeID, nil)
 }

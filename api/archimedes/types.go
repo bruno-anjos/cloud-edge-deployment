@@ -5,14 +5,14 @@ import (
 )
 
 type Deployment struct {
-	Id    string
+	ID    string
 	Ports nat.PortSet
 }
 
 type Instance struct {
-	Id              string
-	DeploymentId    string
-	Ip              string
+	ID              string
+	DeploymentID    string
+	IP              string
 	PortTranslation nat.PortMap
 	Initialized     bool
 	Static          bool

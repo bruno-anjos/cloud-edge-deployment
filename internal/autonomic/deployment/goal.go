@@ -18,22 +18,23 @@ type goal interface {
 	Filter(candidates, domain domain) (filtered result)
 	Cutoff(candidates domain, candidatesCriteria map[string]interface{}) (cutoff result, maxed bool)
 	GetDependencies() (metrics []string)
-	GetId() string
+	GetID() string
 }
 
 func defaultFilter(candidates, domain domain) (filtered result) {
 	if domain == nil {
 		filtered = candidates
+
 		return
 	}
 
 	mappedCandidates := map[string]struct{}{}
 	for _, d := range candidates {
-		mappedCandidates[d.Id] = struct{}{}
+		mappedCandidates[d.ID] = struct{}{}
 	}
 
 	for _, node := range domain {
-		if _, ok := mappedCandidates[node.Id]; ok {
+		if _, ok := mappedCandidates[node.ID]; ok {
 			filtered = append(filtered, node)
 		}
 	}

@@ -3,9 +3,9 @@
 import json
 import os
 import random
-import sys
 
 import s2sphere
+import sys
 
 """
 {
@@ -409,6 +409,6 @@ print(f"neighborhood size: {neighSize}")
 print("-------------------------------- TREE --------------------------------")
 
 trees, treeSizes, fallback, nodesLocations, nodesChildren, \
-    neighborhoods = gen_trees(neighSize, loadedConfig)
+neighborhoods = gen_trees(neighSize, loadedConfig)
 
 write_final_tree(trees, nodesLocations, outputDir)

@@ -32,7 +32,7 @@ func newDefaultIdealLatencyStrategy(deployment *Deployment) *idealLatencyStrateg
 	}
 
 	return &idealLatencyStrategy{
-		basicStrategy: newBasicStrategy(public.StrategyIdealLatencyId, defaultGoals),
+		basicStrategy: newBasicStrategy(public.StrategyIdealLatencyID, defaultGoals),
 		archClient:    deployment.archFactory.New(servers.ArchimedesLocalHostPort),
 		lbGoal:        lbGoal,
 		deployment:    deployment,
@@ -47,13 +47,15 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 	)
 
 	for _, strategyGoal := range i.goals {
-		log.Debugf("optimizing %s", strategyGoal.GetId())
+		log.Debugf("optimizing %s", strategyGoal.GetID())
+
 		isAlreadyMax, optRange, actionArgs := strategyGoal.Optimize(nextDomain)
-		log.Debugf("%s generated optRange %+v", strategyGoal.GetId(), optRange)
+		log.Debugf("%s generated optRange %+v", strategyGoal.GetID(), optRange)
+
 		if isAlreadyMax {
-			log.Debugf("%s is already maximized", strategyGoal.GetId())
+			log.Debugf("%s is already maximized", strategyGoal.GetID())
 		} else if goalToChooseActionFrom == nil {
-			log.Debugf("%s not maximized", strategyGoal.GetId())
+			log.Debugf("%s not maximized", strategyGoal.GetID())
 			goalToChooseActionFrom = strategyGoal
 			goalActionArgs = actionArgs
 		}
@@ -72,16 +74,17 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 		return action
 	}
 
-	log.Debugf("generated action of type %s", action.GetActionId())
-	if action.GetActionId() == actions.RedirectClientsId {
+	log.Debugf("generated action of type %s", action.GetActionID())
+
+	if action.GetActionID() == actions.RedirectClientsID {
 		assertedAction := action.(*actions.RedirectAction)
 		assertedAction.SetErrorRedirectingCallback(i.resetRedirecting)
 
 		log.Debugf("redirecting clients from %s to %s", assertedAction.GetOrigin(), assertedAction.GetTarget())
+
 		if i.redirecting {
 			// case where i WAS already redirecting
-
-			redirected, status := i.archClient.GetRedirected(i.deployment.DeploymentId)
+			redirected, status := i.archClient.GetRedirected(i.deployment.DeploymentID)
 			if status != http.StatusOK {
 				return nil
 			}
@@ -89,10 +92,11 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 			if int(redirected) >= i.redirectGoal {
 				targetArchClient := i.deployment.archFactory.New(i.redirectingTo.Addr + ":" + strconv.Itoa(
 					archimedes.Port))
-				status = targetArchClient.RemoveRedirect(i.deployment.DeploymentId)
+
+				status = targetArchClient.RemoveRedirect(i.deployment.DeploymentID)
 				if status != http.StatusOK {
 					log.Errorf("got status %d while removing redirections for deployment %s at %s", status,
-						i.deployment.DeploymentId, i.redirectingTo)
+						i.deployment.DeploymentID, i.redirectingTo)
 				}
 			}
 		} else {
@@ -103,7 +107,7 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 		}
 	} else if i.redirecting {
 		i.redirecting = false
-		i.archClient.RemoveRedirect(i.deployment.DeploymentId)
+		i.archClient.RemoveRedirect(i.deployment.DeploymentID)
 	}
 
 	return action

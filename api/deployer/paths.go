@@ -23,7 +23,7 @@ const (
 	ExtendDeploymentToPath     = "/deployments/%s/extend"
 	SetGrandparentPath         = "/deployments/%s/grandparent"
 	FallbackPath               = "/deployments/%s/fallback"
-	GetFallbackIdPath          = "/deployments/fallback"
+	GetFallbackIDPath          = "/deployments/fallback"
 	HasDeploymentPath          = "/deployments/%s/has"
 	PropagateLocationToHorizon = "/deployments/%s/propagate_location"
 
@@ -35,62 +35,62 @@ func GetDeploymentsPath() string {
 	return PrefixPath + DeploymentsPath
 }
 
-func GetDeploymentPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentPath, deploymentId)
+func GetDeploymentPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentPath, deploymentID)
 }
 
-func GetImYourParentPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(IAmYourParentPath, deploymentId)
+func GetImYourParentPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(IAmYourParentPath, deploymentID)
 }
 
-func GetParentAlivePath(parentId string) string {
-	return PrefixPath + fmt.Sprintf(ParentAlivePath, parentId)
+func GetParentAlivePath(parentID string) string {
+	return PrefixPath + fmt.Sprintf(ParentAlivePath, parentID)
 }
 
-func GetDeadChildPath(deploymentId, deadChildId string) string {
-	return PrefixPath + fmt.Sprintf(DeadChildPath, deploymentId, deadChildId)
+func GetDeadChildPath(deploymentID, deadChildID string) string {
+	return PrefixPath + fmt.Sprintf(DeadChildPath, deploymentID, deadChildID)
 }
 
-func GetDeploymentInstancePath(deploymentId, instanceId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentInstancePath, deploymentId, instanceId)
+func GetDeploymentInstancePath(deploymentID, instanceID string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentInstancePath, deploymentID, instanceID)
 }
 
 func GetHierarchyTablePath() string {
 	return PrefixPath + HierarchyTablePath
 }
 
-func GetSetAlternativesPath(nodeId string) string {
-	return PrefixPath + fmt.Sprintf(SetAlternativesPath, nodeId)
+func GetSetAlternativesPath(nodeID string) string {
+	return PrefixPath + fmt.Sprintf(SetAlternativesPath, nodeID)
 }
 
-func GetDeploymentInstanceAlivePath(deploymentId, instanceId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentInstanceAlivePath, deploymentId, instanceId)
+func GetDeploymentInstanceAlivePath(deploymentID, instanceID string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentInstanceAlivePath, deploymentID, instanceID)
 }
 
-func GetDeploymentChildPath(deploymentId, childId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentChildPath, deploymentId, childId)
+func GetDeploymentChildPath(deploymentID, childID string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentChildPath, deploymentID, childID)
 }
 
-func GetExtendDeploymentPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(ExtendDeploymentToPath, deploymentId)
+func GetExtendDeploymentPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(ExtendDeploymentToPath, deploymentID)
 }
 
-func GetSetGrandparentPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(SetGrandparentPath, deploymentId)
+func GetSetGrandparentPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(SetGrandparentPath, deploymentID)
 }
 
-func GetFallbackPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(FallbackPath, deploymentId)
+func GetFallbackPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(FallbackPath, deploymentID)
 }
 
-func GetGetFallbackIdPath() string {
-	return PrefixPath + GetFallbackIdPath
+func GetGetFallbackIDPath() string {
+	return PrefixPath + GetFallbackIDPath
 }
 
-func GetHasDeploymentPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(HasDeploymentPath, deploymentId)
+func GetHasDeploymentPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(HasDeploymentPath, deploymentID)
 }
 
-func GetPropagateLocationToHorizonPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(PropagateLocationToHorizon, deploymentId)
+func GetPropagateLocationToHorizonPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(PropagateLocationToHorizon, deploymentID)
 }

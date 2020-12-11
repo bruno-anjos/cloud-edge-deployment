@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"net"
@@ -15,14 +16,21 @@ import (
 )
 
 const (
-	ReqIdHeaderField = "REQ_ID"
+	ReqIDHeaderField = "REQ_ID"
 )
 
 func BuildRequest(method, host, path string, body interface{}) *http.Request {
-	hostUrl := url.URL{
-		Scheme: "http",
-		Host:   host,
-		Path:   path,
+	hostURL := url.URL{
+		Scheme:      "http",
+		Opaque:      "",
+		User:        nil,
+		Host:        host,
+		Path:        path,
+		RawPath:     "",
+		ForceQuery:  false,
+		RawQuery:    "",
+		Fragment:    "",
+		RawFragment: "",
 	}
 
 	var (
@@ -33,16 +41,18 @@ func BuildRequest(method, host, path string, body interface{}) *http.Request {
 
 	if body != nil {
 		var jsonStr []byte
+
 		jsonStr, err = json.Marshal(body)
 		if err != nil {
 			panic(err)
 		}
+
 		bodyBuffer = bytes.NewBuffer(jsonStr)
 	} else {
 		bodyBuffer = new(bytes.Buffer)
 	}
 
-	request, err = http.NewRequest(method, hostUrl.String(), bodyBuffer)
+	request, err = http.NewRequestWithContext(context.Background(), method, hostURL.String(), bodyBuffer)
 	if err != nil {
 		panic(err)
 	}
@@ -56,15 +66,15 @@ func DoRequest(httpClient *http.Client, request *http.Request, responseBody inte
 	log.Debugf("Doing request: %s %s", request.Method, request.URL.String())
 
 	if httpClient == nil {
-		panic(errorHttpClietNilFormat)
+		panic(errorHTTPClietNilFormat)
 	}
 
-	reqId, err := uuid.NewUUID()
+	reqID, err := uuid.NewUUID()
 	if err != nil {
 		panic(err)
 	}
 
-	request.Header.Add(ReqIdHeaderField, reqId.String())
+	request.Header.Add(ReqIDHeaderField, reqID.String())
 
 	resp, err := httpClient.Do(request)
 	if err != nil {
@@ -72,6 +82,7 @@ func DoRequest(httpClient *http.Client, request *http.Request, responseBody inte
 		timedOut = err.(net.Error).Timeout()
 
 		log.Warn(err)
+
 		return
 	}
 
@@ -101,7 +112,7 @@ func DoRequest(httpClient *http.Client, request *http.Request, responseBody inte
 
 	status = resp.StatusCode
 
-	return
+	return status, timedOut
 }
 
 func ExtractPathVar(r *http.Request, varName string) (varValue string) {

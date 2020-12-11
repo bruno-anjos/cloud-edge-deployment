@@ -5,12 +5,12 @@ import (
 )
 
 type Node struct {
-	Id   string
+	ID   string
 	Addr string
 }
 
 func NodeFromEnv() *Node {
-	nodeId, exists := os.LookupEnv(nodeIdEnvVarName)
+	nodeID, exists := os.LookupEnv(nodeIDEnvVarName)
 	if !exists {
 		panic("no NODE_ID set in environment")
 	}
@@ -20,12 +20,12 @@ func NodeFromEnv() *Node {
 		panic("no NODE_IP set in environment")
 	}
 
-	return NewNode(nodeId, nodeIP)
+	return NewNode(nodeID, nodeIP)
 }
 
 func NewNode(id, addr string) *Node {
 	return &Node{
-		Id:   id,
+		ID:   id,
 		Addr: addr,
 	}
 }

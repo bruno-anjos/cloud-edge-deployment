@@ -16,8 +16,8 @@ type DeploymentDTO struct {
 }
 
 type InstanceDTO struct {
-	Static          bool
 	PortTranslation nat.PortMap `json:"port_translation"`
+	Static          bool
 	Local           bool
 }
 
@@ -31,7 +31,7 @@ type DeploymentsTableEntryDTO struct {
 }
 
 type DiscoverMsg struct {
-	MessageId    uuid.UUID
+	MessageID    uuid.UUID
 	Origin       string
 	NeighborSent string
 	Entries      map[string]*DeploymentsTableEntryDTO

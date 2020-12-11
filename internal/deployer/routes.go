@@ -24,7 +24,7 @@ const (
 	extendDeploymentToName         = "EXTEND_DEPLOYMENT_TO"
 	setGrandparentName             = "SET_GRANDPARENT"
 	fallbackName                   = "FALLBACK"
-	getFallbackIdName              = "GET_FALLBACK"
+	getFallbackIDName              = "GET_FALLBACK"
 	hasDeploymentName              = "HAS_DEPLOYMENT"
 	propagateLocationToHorizonName = "PROPAGATE_LOCATION_TO_HORIZON"
 
@@ -35,37 +35,39 @@ const (
 
 // Path variables
 const (
-	deploymentIdPathVar = "deploymentId"
-	nodeIdPathVar       = "nodeId"
-	instanceIdPathVar   = "instanceId"
+	deploymentIDPathVar = "deploymentId"
+	nodeIDPathVar       = "nodeId"
+	instanceIDPathVar   = "instanceId"
 )
 
 var (
-	_deploymentIdPathVarFormatted = fmt.Sprintf(servers.PathVarFormat, deploymentIdPathVar)
-	_instanceIdPathVarFormatted   = fmt.Sprintf(servers.PathVarFormat, instanceIdPathVar)
-	_deployerIdPathVarFormatted   = fmt.Sprintf(servers.PathVarFormat, nodeIdPathVar)
+	_deploymentIDPathVarFormatted = fmt.Sprintf(servers.PathVarFormat, deploymentIDPathVar)
+	_instanceIDPathVarFormatted   = fmt.Sprintf(servers.PathVarFormat, instanceIDPathVar)
+	_deployerIDPathVarFormatted   = fmt.Sprintf(servers.PathVarFormat, nodeIDPathVar)
 
-	deploymentsRoute                = deployer.DeploymentsPath
-	deploymentRoute                 = fmt.Sprintf(deployer.DeploymentPath, _deploymentIdPathVarFormatted)
-	whoAreYouRoute                  = deployer.WhoAreYouPath
-	setAlternativesRoute            = fmt.Sprintf(deployer.SetAlternativesPath, _deployerIdPathVarFormatted)
-	deadChildRoute                  = fmt.Sprintf(deployer.DeadChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
-	deploymentChildRoute            = fmt.Sprintf(deployer.DeploymentChildPath, _deploymentIdPathVarFormatted, _deployerIdPathVarFormatted)
-	iAmYourParentRoute              = fmt.Sprintf(deployer.IAmYourParentPath, _deploymentIdPathVarFormatted)
+	deploymentsRoute     = deployer.DeploymentsPath
+	deploymentRoute      = fmt.Sprintf(deployer.DeploymentPath, _deploymentIDPathVarFormatted)
+	whoAreYouRoute       = deployer.WhoAreYouPath
+	setAlternativesRoute = fmt.Sprintf(deployer.SetAlternativesPath, _deployerIDPathVarFormatted)
+	deadChildRoute       = fmt.Sprintf(deployer.DeadChildPath, _deploymentIDPathVarFormatted,
+		_deployerIDPathVarFormatted)
+	deploymentChildRoute = fmt.Sprintf(deployer.DeploymentChildPath, _deploymentIDPathVarFormatted,
+		_deployerIDPathVarFormatted)
+	iAmYourParentRoute              = fmt.Sprintf(deployer.IAmYourParentPath, _deploymentIDPathVarFormatted)
 	hierarchyTableRoute             = deployer.HierarchyTablePath
-	extendDeploymentToRoute         = fmt.Sprintf(deployer.ExtendDeploymentToPath, _deploymentIdPathVarFormatted)
-	setGrandparentRoute             = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIdPathVarFormatted)
-	fallbackRoute                   = fmt.Sprintf(deployer.FallbackPath, _deploymentIdPathVarFormatted)
-	getFallbackRoute                = deployer.GetFallbackIdPath
-	hasDeploymentRoute              = fmt.Sprintf(deployer.HasDeploymentPath, _deploymentIdPathVarFormatted)
-	propagateLocationToHorzionRoute = fmt.Sprintf(deployer.PropagateLocationToHorizon, _deploymentIdPathVarFormatted)
+	extendDeploymentToRoute         = fmt.Sprintf(deployer.ExtendDeploymentToPath, _deploymentIDPathVarFormatted)
+	setGrandparentRoute             = fmt.Sprintf(deployer.SetGrandparentPath, _deploymentIDPathVarFormatted)
+	fallbackRoute                   = fmt.Sprintf(deployer.FallbackPath, _deploymentIDPathVarFormatted)
+	getFallbackRoute                = deployer.GetFallbackIDPath
+	hasDeploymentRoute              = fmt.Sprintf(deployer.HasDeploymentPath, _deploymentIDPathVarFormatted)
+	propagateLocationToHorzionRoute = fmt.Sprintf(deployer.PropagateLocationToHorizon, _deploymentIDPathVarFormatted)
 
 	// scheduler
-	deploymentInstanceAliveRoute = fmt.Sprintf(deployer.DeploymentInstanceAlivePath, _deploymentIdPathVarFormatted,
-		_instanceIdPathVarFormatted)
-	deploymentInstanceRoute = fmt.Sprintf(deployer.DeploymentInstancePath, _deploymentIdPathVarFormatted,
-		_instanceIdPathVarFormatted)
-	parentAliveRoute = fmt.Sprintf(deployer.ParentAlivePath, _deployerIdPathVarFormatted)
+	deploymentInstanceAliveRoute = fmt.Sprintf(deployer.DeploymentInstanceAlivePath, _deploymentIDPathVarFormatted,
+		_instanceIDPathVarFormatted)
+	deploymentInstanceRoute = fmt.Sprintf(deployer.DeploymentInstancePath, _deploymentIDPathVarFormatted,
+		_instanceIDPathVarFormatted)
+	parentAliveRoute = fmt.Sprintf(deployer.ParentAlivePath, _deployerIDPathVarFormatted)
 )
 
 var Routes = []servers.Route{
@@ -85,7 +87,7 @@ var Routes = []servers.Route{
 	},
 
 	{
-		Name:        getFallbackIdName,
+		Name:        getFallbackIDName,
 		Method:      http.MethodGet,
 		Pattern:     getFallbackRoute,
 		HandlerFunc: getFallbackHandler,

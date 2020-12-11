@@ -7,7 +7,7 @@ import (
 )
 
 type deployment struct {
-	DeploymentId      string
+	DeploymentID      string
 	NumberOfInstances int
 	Command           []string
 	Image             string
@@ -17,8 +17,8 @@ type deployment struct {
 	Lock              *sync.RWMutex
 }
 
-type pairDeploymentIdStatus struct {
-	DeploymentId string
+type pairDeploymentIDStatus struct {
+	DeploymentID string
 	IsUp         bool
 	Mutex        *sync.Mutex
 }

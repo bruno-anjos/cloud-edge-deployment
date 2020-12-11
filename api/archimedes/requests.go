@@ -13,15 +13,15 @@ type (
 	RegisterDeploymentInstanceRequestBody = InstanceDTO
 	ResolveRequestBody                    struct {
 		ToResolve    *ToResolveDTO
-		DeploymentId string
+		DeploymentID string
 		Location     s2.CellID
-		Id           string
+		ID           string
 		Redirects    []string
 	}
 	RedirectRequestBody            = redirectDTO
 	SetResolutionAnswerRequestBody struct {
 		Resolved *ResolvedDTO
-		Id       string
+		ID       string
 	}
 	SetExploringClientLocationRequestBody = []s2.CellID
 	AddDeploymentNodeRequestBody          struct {

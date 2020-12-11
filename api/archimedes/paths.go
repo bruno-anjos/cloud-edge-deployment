@@ -4,10 +4,8 @@ import (
 	"fmt"
 )
 
-// Paths
+// Paths.
 const (
-	// TODO make this unexported probably
-
 	PrefixPath = "/archimedes"
 
 	DeploymentsPath             = "/deployments"
@@ -32,50 +30,50 @@ func GetDeploymentsPath() string {
 	return PrefixPath + DeploymentsPath
 }
 
-func GetDeploymentPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentPath, deploymentId)
+func GetDeploymentPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentPath, deploymentID)
 }
 
-func GetInstancePath(instanceId string) string {
-	return PrefixPath + fmt.Sprintf(InstancePath, instanceId)
+func GetInstancePath(instanceID string) string {
+	return PrefixPath + fmt.Sprintf(InstancePath, instanceID)
 }
 
-func GetDeploymentInstancePath(deploymentId, instanceId string) string {
-	return PrefixPath + fmt.Sprintf(DeploymentInstancePath, deploymentId, instanceId)
+func GetDeploymentInstancePath(deploymentID, instanceID string) string {
+	return PrefixPath + fmt.Sprintf(DeploymentInstancePath, deploymentID, instanceID)
 }
 
 func GetResolvePath() string {
 	return PrefixPath + ResolvePath
 }
 
-func GetRedirectPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(RedirectPath, deploymentId)
+func GetRedirectPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(RedirectPath, deploymentID)
 }
 
-func GetRedirectedPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(RedirectedPath, deploymentId)
+func GetRedirectedPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(RedirectedPath, deploymentID)
 }
 
-func GetLoadPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(LoadPath, deploymentId)
+func GetLoadPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(LoadPath, deploymentID)
 }
 
-func GetAvgClientLocationPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(AvgClientLocationPath, deploymentId)
+func GetAvgClientLocationPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(AvgClientLocationPath, deploymentID)
 }
 
-func GetSetExploringClientLocationPath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(ExploringClientLocationPath, deploymentId)
+func GetSetExploringClientLocationPath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(ExploringClientLocationPath, deploymentID)
 }
 
-func GetAddDeploymentNodePath(deploymentId string) string {
-	return PrefixPath + fmt.Sprintf(AddDeploymentNodePath, deploymentId)
+func GetAddDeploymentNodePath(deploymentID string) string {
+	return PrefixPath + fmt.Sprintf(AddDeploymentNodePath, deploymentID)
 }
 
-func GetRemoveDeploymentNodePath(deploymentId, nodeId string) string {
-	return PrefixPath + fmt.Sprintf(RemoveDeploymentNodePath, deploymentId, nodeId)
+func GetRemoveDeploymentNodePath(deploymentID, nodeID string) string {
+	return PrefixPath + fmt.Sprintf(RemoveDeploymentNodePath, deploymentID, nodeID)
 }
 
-func GetRedirectingToYouPath(deploymentId, nodeId string) string {
-	return PrefixPath + fmt.Sprintf(RedirectingToYouPath, deploymentId, nodeId)
+func GetRedirectingToYouPath(deploymentID, nodeID string) string {
+	return PrefixPath + fmt.Sprintf(RedirectingToYouPath, deploymentID, nodeID)
 }

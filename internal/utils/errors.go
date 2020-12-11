@@ -1,5 +1,5 @@
 package utils
 
 const (
-	errorHttpClietNilFormat = "httpclient is nil"
+	errorHTTPClietNilFormat = "httpclient is nil"
 )

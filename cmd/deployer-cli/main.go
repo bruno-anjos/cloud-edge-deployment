@@ -15,9 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var (
-	deployerClient = client.NewDeployerClient(servers.DeployerLocalHostPort)
-)
+var deployerClient = client.NewDeployerClient(servers.DeployerLocalHostPort)
 
 func main() {
 	debug := flag.Bool("d", false, "add debug logs")
@@ -27,6 +25,7 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 	}
 
+	//nolint:exhaustivestruct
 	app := &cli.App{
 		Commands: []*cli.Command{
 			{
@@ -34,7 +33,7 @@ func main() {
 				Aliases: []string{"a"},
 				Usage:   "add a new deployment",
 				Action: func(c *cli.Context) error {
-					if c.Args().Len() != 2 {
+					if c.Args().Len() != 2 { //nolint:gomnd
 						log.Panic("add: deployment_name yaml_file")
 					}
 
@@ -66,27 +65,28 @@ func main() {
 	}
 }
 
-func addDeployment(deploymentId, filename string) {
+func addDeployment(deploymentID, filename string) {
 	fileBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		log.Panic("error reading file: ", err)
 	}
 
 	var deploymentYAML deployer2.DeploymentYAML
+
 	err = yaml.Unmarshal(fileBytes, &deploymentYAML)
 	if err != nil {
 		panic(err)
 	}
 
-	status := deployerClient.RegisterDeployment(deploymentId, deploymentYAML.Static, fileBytes, nil, nil, nil,
+	status := deployerClient.RegisterDeployment(deploymentID, deploymentYAML.Static, fileBytes, nil, nil, nil,
 		deployer2.NotExploringTTL)
 	if status != http.StatusOK {
 		log.Panicf("got status %d from deployer", status)
 	}
 }
 
-func deleteDeployment(deploymentId string) {
-	status := deployerClient.DeleteDeployment(deploymentId)
+func deleteDeployment(deploymentID string) {
+	status := deployerClient.DeleteDeployment(deploymentID)
 	if status != http.StatusOK {
 		log.Panicf("got status %d from deployer", status)
 	}

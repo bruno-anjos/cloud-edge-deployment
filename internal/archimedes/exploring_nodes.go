@@ -16,21 +16,22 @@ type (
 	}
 )
 
-func (ed *explorersPerDeployment) add(deploymentId, explorerId string) {
+func (ed *explorersPerDeployment) add(deploymentID, explorerID string) {
 	explorers := &deploymentExplorers{}
 
-	value, _ := ed.explorers.LoadOrStore(deploymentId, explorers)
+	value, _ := ed.explorers.LoadOrStore(deploymentID, explorers)
 	explorers = value.(explorersPerDeploymentMapValue)
-	explorers.Store(explorerId, nil)
+	explorers.Store(explorerID, nil)
 }
 
-func (ed *explorersPerDeployment) checkAndDelete(deploymentId, explorerId string) (has bool) {
-	value, ok := ed.explorers.Load(deploymentId)
+func (ed *explorersPerDeployment) checkAndDelete(deploymentID, explorerID string) (has bool) {
+	value, ok := ed.explorers.Load(deploymentID)
 	if !ok {
 		return
 	}
 
 	explorers := value.(explorersPerDeploymentMapValue)
-	_, has = explorers.LoadAndDelete(explorerId)
+	_, has = explorers.LoadAndDelete(explorerID)
+
 	return
 }

@@ -13,80 +13,88 @@ import (
 func registerDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in registerDeploymentInstance handler")
 
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentID := utils.ExtractPathVar(r, deploymentIDPathVar)
 
-	ok := hTable.hasDeployment(deploymentId)
+	ok := hTable.hasDeployment(deploymentID)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
+
 		return
 	}
 
-	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
+	instanceID := utils.ExtractPathVar(r, instanceIDPathVar)
 
 	instanceDTO := archimedes2.InstanceDTO{}
+
 	err := json.NewDecoder(r.Body).Decode(&instanceDTO)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+
 		return
 	}
 
 	if !instanceDTO.Static {
 		initChan := make(chan struct{})
-		initChansMap.Store(instanceId, initChan)
-		go cleanUnresponsiveInstance(deploymentId, instanceId, &instanceDTO, initChan)
+		initChansMap.Store(instanceID, initChan)
+
+		go cleanUnresponsiveInstance(deploymentID, instanceID, &instanceDTO, initChan)
 	} else {
-		status := archimedesClient.RegisterDeploymentInstance(deploymentId, instanceId, instanceDTO.Static,
+		status := archimedesClient.RegisterDeploymentInstance(deploymentID, instanceID, instanceDTO.Static,
 			instanceDTO.PortTranslation, instanceDTO.Local)
 		if status != http.StatusOK {
-			log.Debugf("got status %d while adding instance %s to archimedes", status, instanceId)
+			log.Debugf("got status %d while adding instance %s to archimedes", status, instanceID)
 			w.WriteHeader(status)
+
 			return
 		}
-		log.Debugf("warned archimedes that instance %s from deployment %s exists", instanceId, deploymentId)
+		log.Debugf("warned archimedes that instance %s from deployment %s exists", instanceID, deploymentID)
 	}
 }
 
 func registerHeartbeatDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
-	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
+	deploymentID := utils.ExtractPathVar(r, deploymentIDPathVar)
+	instanceID := utils.ExtractPathVar(r, instanceIDPathVar)
 
-	pairDeploymentStatus := &pairDeploymentIdStatus{
-		DeploymentId: deploymentId,
+	pairDeploymentStatus := &pairDeploymentIDStatus{
+		DeploymentID: deploymentID,
 		IsUp:         true,
 		Mutex:        &sync.Mutex{},
 	}
 
-	_, loaded := heartbeatsMap.LoadOrStore(instanceId, pairDeploymentStatus)
+	_, loaded := heartbeatsMap.LoadOrStore(instanceID, pairDeploymentStatus)
 	if loaded {
 		w.WriteHeader(http.StatusConflict)
+
 		return
 	}
 
-	value, initChanOk := initChansMap.Load(instanceId)
+	value, initChanOk := initChansMap.Load(instanceID)
 	if !initChanOk {
-		log.Warnf("ignoring heartbeat from instance %s since it didnt have an init channel", instanceId)
+		log.Warnf("ignoring heartbeat from instance %s since it didnt have an init channel", instanceID)
 		w.WriteHeader(http.StatusNotFound)
+
 		return
 	}
 
 	initChan := value.(typeInitChansMapValue)
 	close(initChan)
 
-	log.Debugf("registered deployment %s instance %s first heartbeat", deploymentId, instanceId)
+	log.Debugf("registered deployment %s instance %s first heartbeat", deploymentID, instanceID)
 }
 
 func heartbeatDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling request in heartbeatDeployment handler")
 
-	deploymentId := utils.ExtractPathVar(r, deploymentIdPathVar)
+	deploymentID := utils.ExtractPathVar(r, deploymentIDPathVar)
 
-	hTable.hasDeployment(deploymentId)
+	hTable.hasDeployment(deploymentID)
 
-	instanceId := utils.ExtractPathVar(r, instanceIdPathVar)
+	instanceID := utils.ExtractPathVar(r, instanceIDPathVar)
 
-	value, ok := heartbeatsMap.Load(instanceId)
+	value, ok := heartbeatsMap.Load(instanceID)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
+
 		return
 	}
 
@@ -95,5 +103,5 @@ func heartbeatDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) 
 	pairDeploymentStatus.IsUp = true
 	pairDeploymentStatus.Mutex.Unlock()
 
-	log.Debugf("got heartbeat from instance %s", instanceId)
+	log.Debugf("got heartbeat from instance %s", instanceID)
 }

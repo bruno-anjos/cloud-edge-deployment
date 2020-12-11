@@ -16,14 +16,14 @@ const (
 )
 
 const (
-	instanceIdPathVar = "instanceId"
+	instanceIDPathVar = "instanceId"
 )
 
 var (
-	_instanceIdPathVarFormatted = fmt.Sprintf(servers.PathVarFormat, instanceIdPathVar)
+	_instanceIDPathVarFormatted = fmt.Sprintf(servers.PathVarFormat, instanceIDPathVar)
 
 	instancesRoute = scheduler.InstancesPath
-	instanceRoute  = fmt.Sprintf(scheduler.InstancePath, _instanceIdPathVarFormatted)
+	instanceRoute  = fmt.Sprintf(scheduler.InstancePath, _instanceIDPathVarFormatted)
 )
 
 var Routes = []servers.Route{

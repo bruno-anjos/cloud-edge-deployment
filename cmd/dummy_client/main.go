@@ -1,22 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"io/ioutil"
-	"math/rand"
 	defaultHttp "net/http"
 	"net/url"
 	"strconv"
 	"sync"
 	"time"
 
+	http "github.com/bruno-anjos/archimedesHTTPClient"
+
+	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/bruno-anjos/archimedesHTTPClient"
 )
 
 const (
@@ -56,6 +57,7 @@ func main() {
 	}
 
 	var conf config
+
 	err = json.Unmarshal(configBytes, &conf)
 	if err != nil {
 		panic(err)
@@ -67,38 +69,49 @@ func main() {
 
 	location := s2.LatLngFromDegrees(conf.Location.Lat, conf.Location.Lng)
 
-	deploymentUrl := url.URL{
-		Scheme: "http",
-		Host:   conf.Deployment + ":" + strconv.Itoa(conf.Port),
+	deploymentURL := url.URL{
+		Scheme:      "http",
+		Opaque:      "",
+		User:        nil,
+		Host:        conf.Deployment + ":" + strconv.Itoa(conf.Port),
+		Path:        "",
+		RawPath:     "",
+		ForceQuery:  false,
+		RawQuery:    "",
+		Fragment:    "",
+		RawFragment: "",
 	}
-
 	wg := &sync.WaitGroup{}
+
 	log.Debugf("Launching %d clients with config %+v", conf.NumberOfClients, conf)
+
 	for i := 1; i <= conf.NumberOfClients; i++ {
 		wg.Add(1)
-		go runClient(wg, i, deploymentUrl, &conf, location)
+
+		go runClient(wg, i, deploymentURL, &conf, location)
 	}
 
 	wg.Wait()
 }
 
-func runClient(wg *sync.WaitGroup, clientNum int, deploymentUrl url.URL, config *config, location s2.LatLng) {
+func runClient(wg *sync.WaitGroup, clientNum int, deploymentURL url.URL, config *config, location s2.LatLng) {
 	defer wg.Done()
 
-	waitTime := time.Duration(rand.Intn(maxTimeBetweenClients)) * time.
-		Second
+	waitTime := time.Duration(internalUtils.GetRandInt(maxTimeBetweenClients)) * time.Second
 	time.Sleep(waitTime)
 
 	log.Debugf("[%d] Starting client", clientNum)
 
 	client := &http.Client{}
 	client.InitArchimedesClient(config.Fallback.Addr, archimedes.Port, location)
-	r, err := http.NewRequest(defaultHttp.MethodGet, deploymentUrl.String(), nil)
+
+	r, err := http.NewRequestWithContext(context.Background(), defaultHttp.MethodGet, deploymentURL.String(), nil)
 	if err != nil {
 		panic(err)
 	}
 
 	ticker := time.NewTicker(time.Duration(config.RequestTimeout) * time.Second)
+
 	for i := 0; i < config.MaxRequests; i++ {
 		doRequest(client, r, clientNum)
 		<-ticker.C
@@ -108,10 +121,15 @@ func runClient(wg *sync.WaitGroup, clientNum int, deploymentUrl url.URL, config 
 func doRequest(client *http.Client, r *http.Request, clientNum int) {
 	resp, err := client.Do(r)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		log.Errorf("[%d] got status %d", clientNum, resp.StatusCode)
+	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		log.Panic(err)
 	}
 }

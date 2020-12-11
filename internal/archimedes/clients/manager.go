@@ -49,33 +49,33 @@ func NewManager() *Manager {
 	return r
 }
 
-func (r *Manager) AddDeployment(deploymentId string) {
+func (r *Manager) AddDeployment(deploymentID string) {
 	reqsLastMinute := &batchValue{
 		Locations: &sync.Map{},
 		NumReqs:   0,
 	}
-	r.numReqsLastMinute.LoadOrStore(deploymentId, reqsLastMinute)
+	r.numReqsLastMinute.LoadOrStore(deploymentID, reqsLastMinute)
 
 	newBatch := &batchValue{
 		Locations: &sync.Map{},
 		NumReqs:   0,
 	}
-	r.currBatch.LoadOrStore(deploymentId, newBatch)
+	r.currBatch.LoadOrStore(deploymentID, newBatch)
 }
 
-func (r *Manager) UpdateNumRequests(deploymentId string, location s2.CellID) {
-	r.updateEntry(deploymentId, location)
-	r.updateBatch(deploymentId, location)
+func (r *Manager) UpdateNumRequests(deploymentID string, location s2.CellID) {
+	r.updateEntry(deploymentID, location)
+	r.updateBatch(deploymentID, location)
 
-	r.cellManager.AddClientToDownmostCell(deploymentId, location)
+	r.cellManager.AddClientToDownmostCell(deploymentID, location)
 }
 
 // Even though this is thread safe, this does not guarantee a perfectly accurate count
 // of requests received since one can load the entry, meanwhile the entry is swapped, and
 // increment the entry that is stale, thus never reflecting the count on the updated entry.
-func (r *Manager) updateEntry(deploymentId string, location s2.CellID) {
+func (r *Manager) updateEntry(deploymentID string, location s2.CellID) {
 	// load the entry
-	value, ok := r.numReqsLastMinute.Load(deploymentId)
+	value, ok := r.numReqsLastMinute.Load(deploymentID)
 	if !ok {
 		return
 	}
@@ -83,7 +83,7 @@ func (r *Manager) updateEntry(deploymentId string, location s2.CellID) {
 	// possibly increment an entry that is already stale
 	entry := value.(numReqsLastMinuteMapValue)
 
-	var intValue = new(int64)
+	intValue := new(int64)
 	value, _ = entry.Locations.LoadOrStore(location, intValue)
 	intValue = value.(cell.LocationsMapValue)
 
@@ -94,15 +94,15 @@ func (r *Manager) updateEntry(deploymentId string, location s2.CellID) {
 }
 
 // Same as updateEntry
-func (r *Manager) updateBatch(deploymentId string, location s2.CellID) {
-	value, ok := r.currBatch.Load(deploymentId)
+func (r *Manager) updateBatch(deploymentID string, location s2.CellID) {
+	value, ok := r.currBatch.Load(deploymentID)
 	if !ok {
 		return
 	}
 
 	entry := value.(currBatchMapValue)
 
-	var intValue = new(int64)
+	intValue := new(int64)
 	value, _ = entry.Locations.LoadOrStore(location, intValue)
 	intValue = value.(cell.LocationsMapValue)
 
@@ -112,13 +112,14 @@ func (r *Manager) updateBatch(deploymentId string, location s2.CellID) {
 	log.Debugf("adding to batch %d (%d)", location, atomic.LoadInt64(&entry.NumReqs))
 }
 
-func (r *Manager) GetLoad(deploymentId string) (load int) {
-	value, ok := r.numReqsLastMinute.Load(deploymentId)
+func (r *Manager) GetLoad(deploymentID string) (load int) {
+	value, ok := r.numReqsLastMinute.Load(deploymentID)
 	if !ok {
 		return 0
 	}
 
 	entry := value.(numReqsLastMinuteMapValue)
+
 	if ok {
 		load = int(entry.NumReqs)
 	}
@@ -126,21 +127,22 @@ func (r *Manager) GetLoad(deploymentId string) (load int) {
 	return
 }
 
-func (r *Manager) SetToExploring(deploymentId string, cells []s2.CellID) {
-	r.exploringCells.Store(deploymentId, cells)
+func (r *Manager) SetToExploring(deploymentID string, cells []s2.CellID) {
+	r.exploringCells.Store(deploymentID, cells)
 }
 
-func (r *Manager) RemoveFromExploring(deploymentId string) {
-	r.exploringCells.Delete(deploymentId)
+func (r *Manager) RemoveFromExploring(deploymentID string) {
+	r.exploringCells.Delete(deploymentID)
 }
 
-func (r *Manager) GetDeploymentClientsCentroids(deploymentId string) (cells []s2.CellID, ok bool) {
-	cells, ok = r.cellManager.GetDeploymentCentroids(deploymentId)
+func (r *Manager) GetDeploymentClientsCentroids(deploymentID string) (cells []s2.CellID, ok bool) {
+	cells, ok = r.cellManager.GetDeploymentCentroids(deploymentID)
 	if len(cells) == 0 || !ok {
-		value, eOk := r.exploringCells.Load(deploymentId)
+		value, eOk := r.exploringCells.Load(deploymentID)
 		if eOk {
 			cells = value.(exploringCellsValueType)
 		}
+
 		ok = eOk
 	}
 
@@ -154,29 +156,30 @@ func (r *Manager) manageLoadBatch() {
 		<-ticker.C
 
 		r.currBatch.Range(func(key, value interface{}) bool {
-			deploymentId := key.(currBatchMapKey)
+			deploymentID := key.(currBatchMapKey)
 			depBatch := value.(currBatchMapValue)
 
 			newBatch := &batchValue{
 				Locations: &sync.Map{},
 				NumReqs:   0,
 			}
-			r.currBatch.Store(deploymentId, newBatch)
-			go r.waitToRemove(deploymentId, depBatch)
+			r.currBatch.Store(deploymentID, newBatch)
+			go r.waitToRemove(deploymentID, depBatch)
 
 			return true
 		})
 	}
 }
 
-func (r *Manager) waitToRemove(deploymentId string, batch *batchValue) {
+func (r *Manager) waitToRemove(deploymentID string, batch *batchValue) {
 	time.Sleep(archimedesHTTPClient.CacheExpiringTime)
 
 	// load numRequests and decrement the amount of requests by the amount of requests in this batch
-	value, ok := r.numReqsLastMinute.Load(deploymentId)
+	value, ok := r.numReqsLastMinute.Load(deploymentID)
 	if !ok {
 		return
 	}
+
 	entry := value.(numReqsLastMinuteMapValue)
 
 	atomic.AddInt64(&entry.NumReqs, -atomic.LoadInt64(&batch.NumReqs))
@@ -184,15 +187,15 @@ func (r *Manager) waitToRemove(deploymentId string, batch *batchValue) {
 	// iterate this batch locations and decrement the count of each location in numRequests by the amount
 	// of each location on this batch
 	entry.Locations.Range(func(key, value interface{}) bool {
-		locId := key.(cell.LocationsMapKey)
+		locID := key.(cell.LocationsMapKey)
 		amount := value.(cell.LocationsMapValue)
-		value, ok = r.numReqsLastMinute.Load(deploymentId)
+		value, ok = r.numReqsLastMinute.Load(deploymentID)
 		if !ok {
 			return false
 		}
 
 		entry = value.(numReqsLastMinuteMapValue)
-		value, ok = entry.Locations.Load(locId)
+		value, ok = entry.Locations.Load(locID)
 		if !ok {
 			return false
 		}
@@ -200,8 +203,9 @@ func (r *Manager) waitToRemove(deploymentId string, batch *batchValue) {
 		intValue := value.(cell.LocationsMapValue)
 
 		atomic.AddInt64(intValue, -atomic.LoadInt64(amount))
+
 		return true
 	})
 
-	r.cellManager.RemoveClientsFromCells(deploymentId, entry.Locations)
+	r.cellManager.RemoveClientsFromCells(deploymentID, entry.Locations)
 }

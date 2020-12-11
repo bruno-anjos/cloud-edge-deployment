@@ -38,7 +38,6 @@ type (
 		static              int32
 		orphan              int32
 		deploymentYAMLBytes []byte
-		depthFactor         float64
 		newParentChan       chan<- string
 		*sync.RWMutex
 	}
@@ -51,7 +50,8 @@ func (e *hierarchyEntry) getDeploymentYAMLBytes() []byte {
 
 func (e *hierarchyEntry) hasParent() bool {
 	e.RLock()
-	e.RUnlock()
+	defer e.RUnlock()
+
 	return e.parent != nil
 }
 
@@ -69,7 +69,7 @@ func (e *hierarchyEntry) setParent(node utils.Node) {
 	e.parent = &node
 
 	if e.newParentChan != nil {
-		e.newParentChan <- e.parent.Id
+		e.newParentChan <- e.parent.ID
 		close(e.newParentChan)
 		e.newParentChan = nil
 	}
@@ -84,7 +84,8 @@ func (e *hierarchyEntry) removeParent() {
 
 func (e *hierarchyEntry) hasGrandparent() bool {
 	e.RLock()
-	e.RUnlock()
+	defer e.RUnlock()
+
 	return e.grandparent != nil
 }
 
@@ -109,15 +110,16 @@ func (e *hierarchyEntry) removeGrandparent() {
 }
 
 func (e *hierarchyEntry) addChild(child utils.Node) {
-	if _, ok := e.children.Load(child.Id); ok {
+	if _, ok := e.children.Load(child.ID); ok {
 		return
 	}
-	e.children.Store(child.Id, &child)
+
+	e.children.Store(child.ID, &child)
 	atomic.AddInt32(&e.numChildren, 1)
 }
 
-func (e *hierarchyEntry) removeChild(childId string) {
-	e.children.Delete(childId)
+func (e *hierarchyEntry) removeChild(childID string) {
+	e.children.Delete(childID)
 	atomic.AddInt32(&e.numChildren, -1)
 }
 
@@ -140,15 +142,19 @@ func (e *hierarchyEntry) isOrphan() bool {
 func (e *hierarchyEntry) setOrphan(isOrphan bool) chan string {
 	if isOrphan {
 		newParentChan := make(chan string)
+
 		e.Lock()
 		e.newParentChan = newParentChan
 		e.Unlock()
+
 		atomic.StoreInt32(&e.orphan, orphanValue)
+
 		return newParentChan
-	} else {
-		atomic.StoreInt32(&e.orphan, notOrphanValue)
-		return nil
 	}
+
+	atomic.StoreInt32(&e.orphan, notOrphanValue)
+
+	return nil
 }
 
 func (e *hierarchyEntry) getNumChildren() int {
@@ -159,9 +165,10 @@ func (e *hierarchyEntry) getChildren() map[string]utils.Node {
 	entryChildren := map[string]utils.Node{}
 
 	e.children.Range(func(key, value interface{}) bool {
-		childId := key.(typeChildMapKey)
+		childID := key.(typeChildMapKey)
 		child := value.(typeChildMapValue)
-		entryChildren[childId] = *child
+		entryChildren[childID] = *child
+
 		return true
 	})
 
@@ -197,42 +204,44 @@ type (
 func newHierarchyTable() *hierarchyTable {
 	return &hierarchyTable{
 		hierarchyEntries: sync.Map{},
+		Mutex:            sync.Mutex{},
 	}
 }
 
-func (t *hierarchyTable) updateDeployment(deploymentId string, parent *utils.Node, grandparent *utils.Node) bool {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) updateDeployment(deploymentID string, parent *utils.Node, grandparent *utils.Node) bool {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return false
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
 
-	parentId := "nil"
+	parentID := nilString
 	if parent != nil {
-		parentId = parent.Id
+		parentID = parent.ID
 		entry.setParent(*parent)
 	} else {
 		entry.removeParent()
 	}
 
-	grandparentId := "nil"
+	grandparentID := nilString
 	if grandparent != nil {
-		grandparentId = grandparent.Id
+		grandparentID = grandparent.ID
 		entry.setGrandparent(*grandparent)
 	} else {
 		entry.removeGrandparent()
 	}
 
-	log.Debugf("deployment %s updated with parent %s and grandparent %s", deploymentId, parentId, grandparentId)
+	log.Debugf("deployment %s updated with parent %s and grandparent %s", deploymentID, parentID, grandparentID)
 
 	if parent != nil {
-		autonomicClient.SetDeploymentParent(deploymentId, parent)
+		autonomicClient.SetDeploymentParent(deploymentID, parent)
 		deplClient := deplFactory.New(parent.Addr + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.PropagateLocationToHorizon(deploymentId, myself, location.ID(), 0, api.Add)
+
+		status := deplClient.PropagateLocationToHorizon(deploymentID, myself, location.ID(), 0, api.Add)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while trying to propagate location to %s for deployment %s", status,
-				parent.Id, deploymentId)
+				parent.ID, deploymentID)
 		}
 	}
 
@@ -240,9 +249,7 @@ func (t *hierarchyTable) updateDeployment(deploymentId string, parent *utils.Nod
 }
 
 func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, depthFactor float64, exploringTTL int) bool {
-	var (
-		static int32
-	)
+	var static int32
 	if dto.Static {
 		static = staticValue
 	} else {
@@ -260,39 +267,41 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, depthFactor float
 		RWMutex:             &sync.RWMutex{},
 	}
 
-	parentId := "nil"
+	parentID := nilString
 	if dto.Parent != nil {
-		parentId = dto.Parent.Id
+		parentID = dto.Parent.ID
 	}
 
-	grandparentId := "nil"
+	grandparentID := nilString
 	if dto.Grandparent != nil {
-		grandparentId = dto.Grandparent.Id
+		grandparentID = dto.Grandparent.ID
 	}
 
-	log.Debugf("deployment %s has parent %s and grandparent %s", dto.DeploymentId, parentId, grandparentId)
+	log.Debugf("deployment %s has parent %s and grandparent %s", dto.DeploymentID, parentID, grandparentID)
 
-	_, loaded := t.hierarchyEntries.LoadOrStore(dto.DeploymentId, entry)
+	_, loaded := t.hierarchyEntries.LoadOrStore(dto.DeploymentID, entry)
 	if loaded {
 		return false
 	}
 
-	autonomicClient.RegisterDeployment(dto.DeploymentId, autonomic.StrategyIdealLatencyId, depthFactor, exploringTTL)
+	autonomicClient.RegisterDeployment(dto.DeploymentID, autonomic.StrategyIdealLatencyID, depthFactor, exploringTTL)
+
 	if dto.Parent != nil {
-		autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent)
+		autonomicClient.SetDeploymentParent(dto.DeploymentID, dto.Parent)
 		deplClient := deplFactory.New(dto.Parent.Addr + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself, location.ID(), 0, api.Add)
+
+		status := deplClient.PropagateLocationToHorizon(dto.DeploymentID, myself, location.ID(), 0, api.Add)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while trying to propagate location to %s for deployment %s", status,
-				dto.Parent.Id, dto.DeploymentId)
+				dto.Parent.ID, dto.DeploymentID)
 		}
 	}
 
 	return true
 }
 
-func (t *hierarchyTable) removeDeployment(deploymentId string) {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) removeDeployment(deploymentID string) {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return
 	}
@@ -301,54 +310,59 @@ func (t *hierarchyTable) removeDeployment(deploymentId string) {
 	if entry.getNumChildren() != 0 {
 		log.Errorf("removing deployment that is still someones father")
 	} else {
-		status := autonomicClient.DeleteDeployment(deploymentId)
+		status := autonomicClient.DeleteDeployment(deploymentID)
 		if status != http.StatusOK {
-			log.Errorf("got status code %d from autonomic while deleting %s", status, deploymentId)
+			log.Errorf("got status code %d from autonomic while deleting %s", status, deploymentID)
+
 			return
 		}
 
 		var instances map[string]*archimedes2.Instance
-		instances, status = archimedesClient.GetDeployment(deploymentId)
+		instances, status = archimedesClient.GetDeployment(deploymentID)
 		if status != http.StatusOK {
-			log.Errorf("got status %d while requesting deployment %s instances", status, deploymentId)
+			log.Errorf("got status %d while requesting deployment %s instances", status, deploymentID)
+
 			return
 		}
 
-		status = archimedesClient.DeleteDeployment(deploymentId)
+		status = archimedesClient.DeleteDeployment(deploymentID)
 		if status != http.StatusOK {
 			log.Errorf("got status code %d from archimedes", status)
+
 			return
 		}
 
-		for instanceId := range instances {
-			status = schedulerClient.StopInstance(instanceId)
+		for instanceID := range instances {
+			status = schedulerClient.StopInstance(instanceID)
 			if status != http.StatusOK {
 				log.Errorf("got status code %d from scheduler", status)
+
 				return
 			}
 		}
 
-		parent := t.getParent(deploymentId)
+		parent := t.getParent(deploymentID)
 		if parent != nil {
 			deplClient := deplFactory.New(parent.Addr + ":" + strconv.Itoa(deployer.Port))
-			status = deplClient.PropagateLocationToHorizon(deploymentId, myself, location.ID(), 0, api.Remove)
+			status = deplClient.PropagateLocationToHorizon(deploymentID, myself, location.ID(), 0, api.Remove)
 			if status != http.StatusOK {
-				log.Errorf("got status %d while propagating location to %s for deployment %s", status, parent.Id,
-					deploymentId)
+				log.Errorf("got status %d while propagating location to %s for deployment %s", status, parent.ID,
+					deploymentID)
 			}
 		}
 
-		t.hierarchyEntries.Delete(deploymentId)
+		t.hierarchyEntries.Delete(deploymentID)
 	}
 }
 
-func (t *hierarchyTable) hasDeployment(deploymentId string) bool {
-	_, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) hasDeployment(deploymentID string) bool {
+	_, ok := t.hierarchyEntries.Load(deploymentID)
+
 	return ok
 }
 
-func (t *hierarchyTable) setDeploymentParent(deploymentId string, parent *utils.Node) {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) setDeploymentParent(deploymentID string, parent *utils.Node) {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return
 	}
@@ -361,20 +375,21 @@ func (t *hierarchyTable) setDeploymentParent(deploymentId string, parent *utils.
 		entry.setParent(*parent)
 	}
 
-	auxChildren := t.getChildren(deploymentId)
+	auxChildren := t.getChildren(deploymentID)
 	if len(auxChildren) > 0 {
 		deplClient := deplFactory.New("")
+
 		for _, child := range auxChildren {
 			deplClient.SetHostPort(child.Addr + ":" + strconv.Itoa(deployer.Port))
-			deplClient.SetGrandparent(deploymentId, parent)
+			deplClient.SetGrandparent(deploymentID, parent)
 		}
 	}
 
 	entry.setOrphan(false)
 }
 
-func (t *hierarchyTable) setDeploymentGrandparent(deploymentId string, grandparent *utils.Node) {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) setDeploymentGrandparent(deploymentID string, grandparent *utils.Node) {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return
 	}
@@ -388,56 +403,55 @@ func (t *hierarchyTable) setDeploymentGrandparent(deploymentId string, grandpare
 	}
 }
 
-func (t *hierarchyTable) setDeploymentAsOrphan(deploymentId string) <-chan string {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) setDeploymentAsOrphan(deploymentID string) <-chan string {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return nil
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
+
 	return entry.setOrphan(true)
 }
 
-func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node, exploring bool) {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) addChild(deploymentID string, child *utils.Node, exploring bool) {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
 	entry.addChild(*child)
-	children.LoadOrStore(child.Id, child)
-	autonomicClient.AddDeploymentChild(deploymentId, child)
-	archimedesClient.AddDeploymentNode(deploymentId, child, nodeLocCache.get(child), exploring)
-	return
+	children.LoadOrStore(child.ID, child)
+	autonomicClient.AddDeploymentChild(deploymentID, child)
+	archimedesClient.AddDeploymentNode(deploymentID, child, nodeLocCache.get(child), exploring)
 }
 
-func (t *hierarchyTable) removeChild(deploymentId, childId string) {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) removeChild(deploymentID, childID string) {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
-	entry.removeChild(childId)
-	autonomicClient.RemoveDeploymentChild(deploymentId, childId)
-	archimedesClient.DeleteDeploymentNode(deploymentId, childId)
-
-	return
+	entry.removeChild(childID)
+	autonomicClient.RemoveDeploymentChild(deploymentID, childID)
+	archimedesClient.DeleteDeploymentNode(deploymentID, childID)
 }
 
-func (t *hierarchyTable) getChildren(deploymentId string) (children map[string]utils.Node) {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) getChildren(deploymentID string) (children map[string]utils.Node) {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return nil
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
+
 	return entry.getChildren()
 }
 
-func (t *hierarchyTable) getParent(deploymentId string) *utils.Node {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) getParent(deploymentID string) *utils.Node {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return nil
 	}
@@ -445,14 +459,15 @@ func (t *hierarchyTable) getParent(deploymentId string) *utils.Node {
 	entry := value.(typeHierarchyEntriesMapValue)
 	if entry.hasParent() {
 		parent := entry.getParent()
+
 		return &parent
-	} else {
-		return nil
 	}
+
+	return nil
 }
 
-func (t *hierarchyTable) deploymentToDTO(deploymentId string) (*api.DeploymentDTO, bool) {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) deploymentToDTO(deploymentID string) (*api.DeploymentDTO, bool) {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return nil, false
 	}
@@ -460,14 +475,17 @@ func (t *hierarchyTable) deploymentToDTO(deploymentId string) (*api.DeploymentDT
 	entry := value.(typeHierarchyEntriesMapValue)
 
 	return &api.DeploymentDTO{
-		DeploymentId:        deploymentId,
+		Children:            nil,
+		Parent:              nil,
+		Grandparent:         nil,
+		DeploymentID:        deploymentID,
 		Static:              entry.isStatic(),
 		DeploymentYAMLBytes: entry.getDeploymentYAMLBytes(),
 	}, true
 }
 
-func (t *hierarchyTable) isStatic(deploymentId string) bool {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) isStatic(deploymentID string) bool {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return false
 	}
@@ -477,8 +495,8 @@ func (t *hierarchyTable) isStatic(deploymentId string) bool {
 	return entry.isStatic()
 }
 
-func (t *hierarchyTable) removeParent(deploymentId string) bool {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) removeParent(deploymentID string) bool {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return false
 	}
@@ -489,8 +507,8 @@ func (t *hierarchyTable) removeParent(deploymentId string) bool {
 	return true
 }
 
-func (t *hierarchyTable) getGrandparent(deploymentId string) *utils.Node {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) getGrandparent(deploymentID string) *utils.Node {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return nil
 	}
@@ -498,13 +516,15 @@ func (t *hierarchyTable) getGrandparent(deploymentId string) *utils.Node {
 	entry := value.(typeHierarchyEntriesMapValue)
 	if entry.hasGrandparent() {
 		grandparent := entry.getGrandparent()
+
 		return &grandparent
 	}
+
 	return nil
 }
 
-func (t *hierarchyTable) removeGrandparent(deploymentId string) {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) removeGrandparent(deploymentID string) {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return
 	}
@@ -517,31 +537,33 @@ func (t *hierarchyTable) getDeployments() []string {
 	var deploymentIds []string
 
 	t.hierarchyEntries.Range(func(key, value interface{}) bool {
-		deploymentId := key.(typeHierarchyEntriesMapKey)
-		deploymentIds = append(deploymentIds, deploymentId)
+		deploymentID := key.(typeHierarchyEntriesMapKey)
+		deploymentIds = append(deploymentIds, deploymentID)
+
 		return true
 	})
 
 	return deploymentIds
 }
 
-func (t *hierarchyTable) getDeploymentConfig(deploymentId string) []byte {
-	value, ok := t.hierarchyEntries.Load(deploymentId)
+func (t *hierarchyTable) getDeploymentConfig(deploymentID string) []byte {
+	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return nil
 	}
 
 	entry := value.(typeHierarchyEntriesMapValue)
+
 	return entry.getDeploymentYAMLBytes()
 }
 
-func (t *hierarchyTable) getDeploymentsWithParent(parentId string) (deploymentIds []string) {
+func (t *hierarchyTable) getDeploymentsWithParent(parentID string) (deploymentIds []string) {
 	t.hierarchyEntries.Range(func(key, value interface{}) bool {
-		deploymentId := key.(typeHierarchyEntriesMapKey)
+		deploymentID := key.(typeHierarchyEntriesMapKey)
 		d := value.(typeHierarchyEntriesMapValue)
 
-		if d.hasParent() && d.getParent().Id == parentId {
-			deploymentIds = append(deploymentIds, deploymentId)
+		if d.hasParent() && d.getParent().ID == parentID {
+			deploymentIds = append(deploymentIds, deploymentID)
 		}
 
 		return true
@@ -554,9 +576,10 @@ func (t *hierarchyTable) toDTO() map[string]*api.HierarchyEntryDTO {
 	entries := map[string]*api.HierarchyEntryDTO{}
 
 	t.hierarchyEntries.Range(func(key, value interface{}) bool {
-		deploymentId := key.(typeHierarchyEntriesMapKey)
+		deploymentID := key.(typeHierarchyEntriesMapKey)
 		entry := value.(typeHierarchyEntriesMapValue)
-		entries[deploymentId] = entry.toDTO()
+		entries[deploymentID] = entry.toDTO()
+
 		return true
 	})
 
@@ -566,6 +589,10 @@ func (t *hierarchyTable) toDTO() map[string]*api.HierarchyEntryDTO {
 const (
 	alive     = 1
 	suspected = 0
+)
+
+const (
+	maxTries = 5
 )
 
 type (
@@ -595,40 +622,40 @@ func (t *parentsTable) addParent(parent *utils.Node) {
 		IsUp:             alive,
 	}
 
-	log.Debugf("adding parent %s", parent.Id)
+	log.Debugf("adding parent %s", parent.ID)
 
-	t.parentEntries.Store(parent.Id, parentEntry)
+	t.parentEntries.Store(parent.ID, parentEntry)
 }
 
-func (t *parentsTable) hasParent(parentId string) bool {
-	_, ok := t.parentEntries.Load(parentId)
+func (t *parentsTable) hasParent(parentID string) bool {
+	_, ok := t.parentEntries.Load(parentID)
+
 	return ok
 }
 
-func (t *parentsTable) decreaseParentCount(parentId string) {
-	value, ok := t.parentEntries.Load(parentId)
+func (t *parentsTable) decreaseParentCount(parentID string) {
+	value, ok := t.parentEntries.Load(parentID)
 	if !ok {
 		return
 	}
 
 	parentEntry := value.(typeParentEntriesMapValue)
+
 	isZero := atomic.CompareAndSwapInt32(&parentEntry.NumOfDeployments, 1, 0)
 	if isZero {
-		t.removeParent(parentId)
+		t.removeParent(parentID)
 	} else {
 		atomic.AddInt32(&parentEntry.NumOfDeployments, -1)
 	}
-
-	return
 }
 
-func (t *parentsTable) removeParent(parentId string) {
-	log.Debugf("removing parent %s", parentId)
-	t.parentEntries.Delete(parentId)
+func (t *parentsTable) removeParent(parentID string) {
+	log.Debugf("removing parent %s", parentID)
+	t.parentEntries.Delete(parentID)
 }
 
-func (t *parentsTable) setParentUp(parentId string) {
-	value, ok := t.parentEntries.Load(parentId)
+func (t *parentsTable) setParentUp(parentID string) {
+	value, ok := t.parentEntries.Load(parentID)
 	if !ok {
 		return
 	}
@@ -641,7 +668,7 @@ func (t *parentsTable) checkDeadParents() (deadParents []*utils.Node) {
 		parentEntry := value.(typeParentEntriesMapValue)
 
 		isAlive := atomic.CompareAndSwapInt32(&parentEntry.IsUp, alive, suspected)
-		log.Debugf("setting parent %s as suspected", parentEntry.Parent.Id)
+		log.Debugf("setting parent %s as suspected", parentEntry.Parent.ID)
 		if !isAlive {
 			deadParents = append(deadParents, parentEntry.Parent)
 		}
@@ -657,108 +684,125 @@ func (t *parentsTable) checkDeadParents() (deadParents []*utils.Node) {
 */
 
 func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.Node) {
-	deploymentIds := hTable.getDeploymentsWithParent(deadParent.Id)
+	deploymentIds := hTable.getDeploymentsWithParent(deadParent.ID)
 
-	log.Debugf("renegotiating deployments %+v with parent %s", deploymentIds, deadParent.Id)
+	log.Debugf("renegotiating deployments %+v with parent %s", deploymentIds, deadParent.ID)
 
-	for _, deploymentId := range deploymentIds {
-		grandparent := hTable.getGrandparent(deploymentId)
-		grandparentId := "nil"
+	for _, deploymentID := range deploymentIds {
+		grandparent := hTable.getGrandparent(deploymentID)
+		grandparentID := nilString
+
 		if grandparent != nil {
-			grandparentId = grandparent.Id
+			grandparentID = grandparent.ID
 		}
-		log.Debugf("my grandparent for %s is %s", deploymentId, grandparentId)
+
+		log.Debugf("my grandparent for %s is %s", deploymentID, grandparentID)
+
 		if grandparent == nil {
 			deplClient := deplFactory.New(fallback.Addr + ":" + strconv.Itoa(deployer.Port))
-			status := deplClient.Fallback(deploymentId, myself, location.ID())
+
+			status := deplClient.Fallback(deploymentID, myself, location.ID())
 			if status != http.StatusOK {
-				log.Debugf("tried to fallback to %s, got %d", fallback.Id, status)
-				hTable.removeDeployment(deploymentId)
+				log.Debugf("tried to fallback to %s, got %d", fallback.ID, status)
+				hTable.removeDeployment(deploymentID)
 			}
+
 			continue
 		}
 
-		newParentChan := hTable.setDeploymentAsOrphan(deploymentId)
+		newParentChan := hTable.setDeploymentAsOrphan(deploymentID)
 
 		var (
 			locations []s2.CellID
 			status    int
 		)
-		locations, status = archimedesClient.GetClientCentroids(deploymentId)
+
+		locations, status = archimedesClient.GetClientCentroids(deploymentID)
 		if status == http.StatusNotFound {
 			autoClient := autoFactory.New(servers.AutonomicLocalHostPort)
+
 			var myLoc s2.CellID
+
 			myLoc, status = autoClient.GetLocation()
 			if status != http.StatusOK {
 				log.Warnf("could not get centroids location, nor my location (%d)", status)
 			}
+
 			locations = append(locations, myLoc)
 		} else if status != http.StatusOK {
-			log.Errorf("got status %d while trying to get centroids for deployment %s", status, deploymentId)
+			log.Errorf("got status %d while trying to get centroids for deployment %s", status, deploymentID)
 		}
 
 		deplClient := deplFactory.New(grandparent.Addr + ":" + strconv.Itoa(deployer.Port))
-		status = deplClient.WarnOfDeadChild(deploymentId, deadParent.Id, myself, alternatives, locations)
+
+		status = deplClient.WarnOfDeadChild(deploymentID, deadParent.ID, myself, alternatives, locations)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while renegotiating parent %s with %s for deployment %s", status,
-				deadParent, grandparent.Id, deploymentId)
+				deadParent, grandparent.ID, deploymentID)
+
 			continue
 		}
 
-		go waitForNewDeploymentParent(deploymentId, newParentChan)
+		go waitForNewDeploymentParent(deploymentID, newParentChan)
 	}
 }
 
-func waitForNewDeploymentParent(deploymentId string, newParentChan <-chan string) {
+func waitForNewDeploymentParent(deploymentID string, newParentChan <-chan string) {
 	waitingTimer := time.NewTimer(waitForNewParentTimeout * time.Second)
 
-	log.Debugf("waiting new parent for %s", deploymentId)
+	log.Debugf("waiting new parent for %s", deploymentID)
 
 	select {
 	case <-waitingTimer.C:
 		log.Debugf("falling back to %s", fallback)
 		deplClient := deplFactory.New(fallback.Addr + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.Fallback(deploymentId, myself, location.ID())
+
+		status := deplClient.Fallback(deploymentID, myself, location.ID())
 		if status != http.StatusOK {
 			log.Debugf("tried to fallback to %s, got %d", fallback, status)
+
 			return
 		}
+
 		return
-	case newParentId := <-newParentChan:
-		log.Debugf("got new parent %s for deployment %s", newParentId, deploymentId)
+	case newParentID := <-newParentChan:
+		log.Debugf("got new parent %s for deployment %s", newParentID, deploymentID)
+
 		return
 	}
 }
 
-func attemptToExtend(deploymentId string, targetNode *utils.Node, config *api.ExtendDeploymentConfig, maxHops int,
+func attemptToExtend(deploymentID string, targetNode *utils.Node, config *api.ExtendDeploymentConfig, maxHops int,
 	alternatives map[string]*utils.Node, exploringTTL int) {
 	var extendTimer *time.Timer
 
 	toExclude := map[string]interface{}{}
-	toExclude[myself.Id] = nil
+	toExclude[myself.ID] = nil
 
 	for _, child := range config.Children {
-		toExclude[child.Id] = nil
+		toExclude[child.ID] = nil
 	}
 
 	suspectedChild.Range(func(key, value interface{}) bool {
-		suspectedId := key.(typeSuspectedChildMapKey)
-		toExclude[suspectedId] = nil
+		suspectedID := key.(typeSuspectedChildMapKey)
+		toExclude[suspectedID] = nil
+
 		return true
 	})
 
-	targetId := ""
+	targetID := ""
 	if targetNode != nil {
-		targetId = targetNode.Id
+		targetID = targetNode.ID
 	}
 
-	log.Debugf("attempting to extend %s to %s excluding %+v", deploymentId, targetId, toExclude)
+	log.Debugf("attempting to extend %s to %s excluding %+v", deploymentID, targetID, toExclude)
 
 	var (
 		success        bool
 		tries          = 0
 		nodeToExtendTo = targetNode
 	)
+
 	for {
 		if targetNode == nil {
 			targetNode = getAlternative(alternatives, config.Locations, maxHops, toExclude)
@@ -766,74 +810,85 @@ func attemptToExtend(deploymentId string, targetNode *utils.Node, config *api.Ex
 
 		if targetNode != nil {
 			nodeToExtendTo = targetNode
-			success = extendDeployment(deploymentId, nodeToExtendTo, config.Children, exploringTTL)
+
+			success = extendDeployment(deploymentID, nodeToExtendTo, config.Children, exploringTTL)
 			if success {
 				break
 			}
 
-			toExclude[nodeToExtendTo.Id] = nil
+			toExclude[nodeToExtendTo.ID] = nil
 		}
 
-		if tries == 5 {
-			log.Debugf("failed to extend deployment %s", deploymentId)
-			targetNode = myself
+		if tries == maxTries {
+			log.Debugf("failed to extend deployment %s", deploymentID)
+
 			for _, child := range config.Children {
-				extendDeployment(deploymentId, child, nil, exploringTTL)
+				extendDeployment(deploymentID, child, nil, exploringTTL)
 			}
+
 			return
 		}
 
 		tries++
+
 		extendTimer = time.NewTimer(extendAttemptTimeout * time.Second)
 		<-extendTimer.C
 	}
 
 	if len(config.Locations) > 0 {
 		archClient := archFactory.New(nodeToExtendTo.Addr + ":" + strconv.Itoa(archimedes.Port))
-		archClient.SetExploringCells(deploymentId, config.Locations)
+		archClient.SetExploringCells(deploymentID, config.Locations)
 	}
 
 	if len(toExclude) > 0 {
 		autoClient := autoFactory.New(nodeToExtendTo.Addr + ":" + strconv.Itoa(autonomic.Port))
 		toExcludeArr := make([]string, len(toExclude))
 		i := 0
+
 		for node := range toExclude {
 			toExcludeArr[i] = node
 			i++
 		}
-		autoClient.BlacklistNodes(deploymentId, myself.Id, toExcludeArr...)
+
+		autoClient.BlacklistNodes(deploymentID, myself.ID, toExcludeArr...)
 	}
 }
 
-func extendDeployment(deploymentId string, nodeToExtendTo *utils.Node, children []*utils.Node, exploringTTL int) bool {
-	dto, ok := hTable.deploymentToDTO(deploymentId)
+func extendDeployment(deploymentID string, nodeToExtendTo *utils.Node, children []*utils.Node, exploringTTL int) bool {
+	dto, ok := hTable.deploymentToDTO(deploymentID)
 	if !ok {
-		log.Errorf("hierarchy table does not contain deployment %s", deploymentId)
+		log.Errorf("hierarchy table does not contain deployment %s", deploymentID)
+
 		return false
 	}
 
-	dto.Grandparent = hTable.getParent(deploymentId)
+	dto.Grandparent = hTable.getParent(deploymentID)
 	dto.Parent = myself
 	dto.Children = children
 	depClient := deplFactory.New(nodeToExtendTo.Addr + ":" + strconv.Itoa(deployer.Port))
 
-	log.Debugf("extending deployment %s to %s", deploymentId, nodeToExtendTo.Id)
-	status := depClient.RegisterDeployment(deploymentId, dto.Static, dto.DeploymentYAMLBytes, dto.Grandparent,
+	log.Debugf("extending deployment %s to %s", deploymentID, nodeToExtendTo.ID)
+
+	status := depClient.RegisterDeployment(deploymentID, dto.Static, dto.DeploymentYAMLBytes, dto.Grandparent,
 		dto.Parent, dto.Children, exploringTTL)
 	switch status {
 	case http.StatusConflict:
-		log.Debugf("deployment %s already exists at %s", deploymentId, nodeToExtendTo.Id)
+		log.Debugf("deployment %s already exists at %s", deploymentID, nodeToExtendTo.ID)
+
 		return false
 	case http.StatusOK:
-		log.Debugf("extended %s to %s sucessfully", deploymentId, nodeToExtendTo.Id)
-		hTable.addChild(deploymentId, nodeToExtendTo, exploringTTL != api.NotExploringTTL)
+		log.Debugf("extended %s to %s sucessfully", deploymentID, nodeToExtendTo.ID)
+		hTable.addChild(deploymentID, nodeToExtendTo, exploringTTL != api.NotExploringTTL)
+
 		fallthrough
 	case http.StatusNoContent:
-		log.Debugf("%s took deployment %s children %+v", nodeToExtendTo.Id, deploymentId, children)
-		suspectedDeployments.Delete(deploymentId)
+		log.Debugf("%s took deployment %s children %+v", nodeToExtendTo.ID, deploymentID, children)
+		suspectedDeployments.Delete(deploymentID)
+
 		return true
 	default:
-		log.Errorf("got %d while extending deployment %s to %s", status, deploymentId, nodeToExtendTo.Id)
+		log.Errorf("got %d while extending deployment %s to %s", status, deploymentID, nodeToExtendTo.ID)
+
 		return false
 	}
 }
@@ -845,6 +900,7 @@ func loadFallbackHostname(filename string) *utils.Node {
 	}
 
 	var node utils.Node
+
 	err = json.NewDecoder(filePtr).Decode(&node)
 	if err != nil {
 		panic(err)
@@ -855,13 +911,16 @@ func loadFallbackHostname(filename string) *utils.Node {
 
 func getAlternative(alternatives map[string]*utils.Node, targetLocations []s2.CellID, maxHops int,
 	toExclude map[string]interface{}) (alternative *utils.Node) {
-	for nodeId, node := range alternatives {
-		delete(alternatives, nodeId)
+	for nodeID, node := range alternatives {
+		delete(alternatives, nodeID)
+
 		alternative = node
+
 		return
 	}
 
 	var found bool
+
 	alternative, found = getNodeCloserTo(targetLocations, maxHops, toExclude)
 	if found {
 		log.Debugf("trying %s", alternative)

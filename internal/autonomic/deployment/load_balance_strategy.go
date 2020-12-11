@@ -13,7 +13,8 @@ func newDefaultLoadBalanceStrategy(deployment *Deployment) *loadBalanceStrategy 
 		newLoadBalanceGoal(deployment),
 		newIdealLatencyGoal(deployment),
 	}
+
 	return &loadBalanceStrategy{
-		basicStrategy: newBasicStrategy(public.StrategyLoadBalanceId, defaultGoals),
+		basicStrategy: newBasicStrategy(public.StrategyLoadBalanceID, defaultGoals),
 	}
 }
