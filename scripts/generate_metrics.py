@@ -256,8 +256,6 @@ def gen_trees(neigh_size, config):
         new_fallback = ids_to_nodes[mid_node]
     print(f"fallback is {new_fallback}")
 
-    last_nodes = {}
-
     for node in nodes:
         metrics = generate_node_metrics(node, nodes_locations[node], new_neighborhoods[node], nodes_locations)
         with open(f"{outputDir}{node}.met", 'w') as node_fp:
@@ -288,8 +286,8 @@ def load_config(nodes_config, services_config):
     return from_original_to_dummy, from_dummy_to_original, loaded_config
 
 
-def write_final_tree(nodes_locations, output_dir):
-    trees_string = "\n".join(trees)
+def write_final_tree(trees_to_write, nodes_locations, output_dir):
+    trees_string = "\n".join(trees_to_write)
 
     print("------------------------------------------ FINAL TREES ------------------------------------------")
 
@@ -298,7 +296,7 @@ def write_final_tree(nodes_locations, output_dir):
     with open(f"{output_dir}services.tree", 'w') as treeFp:
         treeFp.write(trees_string)
 
-    locations = {"nodes": nodes_locations}
+    locations = {"services": {}, "nodes": nodes_locations}
     with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/locations.json", 'w') as locFp:
         locs = json.dumps(locations, indent=4, sort_keys=False)
         locFp.write(locs)
@@ -326,6 +324,7 @@ idxsToIgnore = {}
 nodesConfig = ""
 servicesConfig = ""
 fallbackConfig = ""
+neighSize = 1
 for arg in args:
     if arg == "--min":
         minTreeSize = int(args[idx + 1])
@@ -349,6 +348,11 @@ for arg in args:
         idxsToIgnore[idx + 1] = True
     elif arg == "--fallback":
         fallbackConfig = args[idx + 1]
+        hasOptions = True
+        idxsToIgnore[idx] = True
+        idxsToIgnore[idx + 1] = True
+    elif arg == "--neigh":
+        neighSize = int(args[idx + 1])
         hasOptions = True
         idxsToIgnore[idx] = True
         idxsToIgnore[idx + 1] = True
@@ -399,14 +403,12 @@ for f in filelist:
     os.remove(os.path.join(outputDir, f))
 
 done = False
-trees = []
 
-neighSize = int(len(nodes) / 20)
 print(f"neighborhood size: {neighSize}")
 
 print("-------------------------------- TREE --------------------------------")
 
 trees, treeSizes, fallback, nodesLocations, nodesChildren, \
-neighborhoods = gen_trees(neighSize, loadedConfig)
+    neighborhoods = gen_trees(neighSize, loadedConfig)
 
-write_final_tree(nodesLocations, outputDir)
+write_final_tree(trees, nodesLocations, outputDir)

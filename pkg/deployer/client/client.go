@@ -270,12 +270,12 @@ func (c *Client) HasDeployment(deploymentId string) (has bool, status int) {
 	return
 }
 
-func (c *Client) PropagateLocationToHorizon(deploymentId, origin string, location s2.CellID, TTL int8,
+func (c *Client) PropagateLocationToHorizon(deploymentId string, origin *utils.Node, location s2.CellID, TTL int8,
 	op api.PropagateOpType) (status int) {
 	reqBody := api.PropagateLocationToHorizonRequestBody{
 		Operation: op,
 		TTL:       TTL,
-		ChildId:   origin,
+		Child:   origin,
 		Location:  location,
 	}
 

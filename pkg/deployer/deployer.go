@@ -35,7 +35,7 @@ type Client interface {
 	Fallback(deploymentId string, orphan *utils.Node, orphanLocation s2.CellID) (status int)
 	GetFallback() (fallback *utils.Node, status int)
 	HasDeployment(deploymentId string) (has bool, status int)
-	PropagateLocationToHorizon(deploymentId, origin string, location s2.CellID, TTL int8,
+	PropagateLocationToHorizon(deploymentId string, origin *utils.Node, location s2.CellID, TTL int8,
 		op deployer.PropagateOpType) (status int)
 }
 

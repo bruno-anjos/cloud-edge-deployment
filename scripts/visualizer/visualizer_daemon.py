@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import json
+import logging
 import os
 import sys
 import time
@@ -121,53 +122,55 @@ def add_if_missing(graph, table, node):
 
 
 def graph_combined_deployments(graph, deployments, node_tables, deployment_colors, loads):
-    for node, table in node_tables.items():
-        if "dead" in table:
-            graph.add_vertex(node, color="black", service=False)
-        else:
-            graph.add_vertex(node, color="red", service=False)
+    try:
+        for node, table in node_tables.items():
+            if "dead" in table:
+                graph.add_vertex(node, color="black", service=False)
+            else:
+                graph.add_vertex(node, color="red", service=False)
 
-    services = [file_name for file_name in os.listdir(services_path)]
-    for service in services:
-        with open(f"{services_path}/{service}") as service_fp:
-            service_loc = json.load(service_fp)
-            graph.add_vertex(service, color="yellow", service=True)
-            if service not in locations["services"]:
-                locations["services"][service] = service_loc
+        services = [file_name for file_name in os.listdir(services_path)]
+        for service in services:
+            with open(f"{services_path}/{service}") as service_fp:
+                service_loc = json.load(service_fp)
+                graph.add_vertex(service, color="yellow", service=True)
+                if service not in locations["services"]:
+                    locations["services"][service] = service_loc
 
-    for node, auxTable in node_tables.items():
-        if not auxTable or "dead" in auxTable:
-            continue
-        for deployment_id, entry in auxTable.items():
-            for child_id in entry[children_field_id].keys():
-                add_if_missing(graph, node_tables[child_id], child_id)
-                graph.add_edge(node, child_id, deployment_id=deployment_id, relation=attr_child)
+        for node, auxTable in node_tables.items():
+            if not auxTable or "dead" in auxTable:
+                continue
+            for deployment_id, entry in auxTable.items():
+                for child_id in entry[children_field_id].keys():
+                    print(f"edge from {node} to {child_id} for {deployment_id}")
+                    add_if_missing(graph, node_tables[child_id], child_id)
+                    graph.add_edge(node, child_id, deployment_id=deployment_id, relation=attr_child)
 
-    visual_style = {}
-    graph.vs["label"] = [name + f"\n{', '.join(loads[name])}" if name in loads else name for name in
-                         graph.vs["name"]]
-    visual_style["vertex_size"] = 10
-    visual_style["vertex_color"] = [color for color in graph.vs["color"]]
-    visual_style["vertex_label"] = graph.vs["label"]
-    visual_style["vertex_label_dist"] = 2
-    visual_style["vertex_label_size"] = 10
-    visual_style["vertex_shape"] = ["triangle-up" if service else "circle" for service in
-                                    graph.vs["service"]]
-    if len(graph.es) > 0:
-        visual_style["edge_color"] = [deployment_colors[deployment_id]
-                                      for deployment_id in graph.es['deployment_id']]
-        visual_style["edge_width"] = 3
+        visual_style = {}
+        graph.vs["label"] = [name if name not in locations["services"] else "" for name in graph.vs["name"]]
+        visual_style["vertex_size"] = 10
+        visual_style["vertex_color"] = [color for color in graph.vs["color"]]
+        visual_style["vertex_label"] = graph.vs["label"]
+        visual_style["vertex_label_dist"] = 2
+        visual_style["vertex_label_size"] = 10
+        visual_style["vertex_shape"] = ["triangle-up" if service else "circle" for service in
+                                        graph.vs["service"]]
+        if len(graph.es) > 0:
+            visual_style["edge_color"] = [deployment_colors[deployment_id]
+                                          for deployment_id in graph.es['deployment_id']]
+            visual_style["edge_width"] = 3
 
-    layout = []
-    for node in graph.vs["name"]:
-        loc = get_location(node)
-        layout.append((loc["lng"], loc["lat"]))
-    visual_style["layout"] = layout
-    visual_style["bbox"] = (4000, 4000)
-    visual_style["margin"] = 200
-    print("plotting combined")
-    plot(graph, f"/home/b.anjos/deployer_pngs/combined_plot.png", **visual_style, autocurve=True)
-
+        layout = []
+        for node in graph.vs["name"]:
+            loc = get_location(node)
+            layout.append((loc["lng"], loc["lat"]))
+        visual_style["layout"] = layout
+        visual_style["bbox"] = (4000, 4000)
+        visual_style["margin"] = 200
+        print("plotting combined")
+        plot(graph, f"/home/b.anjos/deployer_pngs/combined_plot.png", **visual_style, autocurve=True)
+    except Exception as e:
+        logging.exception(e)
 
 def graph_deployment(deployment_id, graph, node_tables, deployment_color, loads):
     print(f"plotting {deployment_id}")
@@ -277,7 +280,7 @@ def graph_deployer():
                 deployment_colors[deployment_id] = color
                 i += 1
 
-    deployer_processes = {}
+    # deployer_processes = {}
     # for deployment_id in deployments:
     #     deployer_processes[deployment_id] = pool.apply_async(graph_deployment, (
     #         deployment_id, graphs[deployment_id], node_tables, deployment_colors[deployment_id], loads))
@@ -285,20 +288,20 @@ def graph_deployer():
     combined = pool.apply_async(graph_combined_deployments,
                                 (combined_graph, deployments, node_tables, deployment_colors, loads))
 
-    resulting_trees = {}
-    for deployment_id, dp in deployer_processes.items():
-        res = dp.get()
-        if not dp.successful():
-            print(f"error with {deployment_id}: {res}")
-            return
-        resulting_trees[deployment_id] = res
+    # resulting_trees = {}
+    # for deployment_id, dp in deployer_processes.items():
+    #     res = dp.get()
+    #     if not dp.successful():
+    #         print(f"error with {deployment_id}: {res}")
+    #         return
+    #     resulting_trees[deployment_id] = res
 
-    combined.get()
+    combined.wait()
 
-    with open(f"/home/b.anjos/results/results.json", "w") as results_fp:
-        print("writing results.json")
-        results = json.dumps(resulting_trees, indent=4, sort_keys=False)
-        results_fp.write(results)
+    # with open(f"/home/b.anjos/results/results.json", "w") as results_fp:
+    #     print("writing results.json")
+    #     results = json.dumps(resulting_trees, indent=4, sort_keys=False)
+    #     results_fp.write(results)
 
     # if not has_tables:
     #     mypath = "/home/b.anjos/deployer_pngs/"
@@ -309,6 +312,7 @@ def graph_deployer():
 
     print("finished creating graphs")
     sys.stdout.flush()
+    sys.stderr.flush()
 
 
 def get_location(name):

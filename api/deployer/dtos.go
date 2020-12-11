@@ -36,8 +36,8 @@ type (
 				Value string
 			}
 		}
-		DepthFactor     float64 `yaml:"depthFactor"`
 		Static          bool
+		DepthFactor     float64  `yaml:"depthFactor"`
 		InstanceNameFmt []string `yaml:"instanceNameFmt"`
 	}
 )

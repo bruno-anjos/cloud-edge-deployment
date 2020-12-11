@@ -229,7 +229,7 @@ func (t *hierarchyTable) updateDeployment(deploymentId string, parent *utils.Nod
 	if parent != nil {
 		autonomicClient.SetDeploymentParent(deploymentId, parent)
 		deplClient := deplFactory.New(parent.Addr + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.PropagateLocationToHorizon(deploymentId, myself.Id, location.ID(), 0, api.Add)
+		status := deplClient.PropagateLocationToHorizon(deploymentId, myself, location.ID(), 0, api.Add)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while trying to propagate location to %s for deployment %s", status,
 				parent.Id, deploymentId)
@@ -281,7 +281,7 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, depthFactor float
 	if dto.Parent != nil {
 		autonomicClient.SetDeploymentParent(dto.DeploymentId, dto.Parent)
 		deplClient := deplFactory.New(dto.Parent.Addr + ":" + strconv.Itoa(deployer.Port))
-		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself.Id, location.ID(), 0, api.Add)
+		status := deplClient.PropagateLocationToHorizon(dto.DeploymentId, myself, location.ID(), 0, api.Add)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while trying to propagate location to %s for deployment %s", status,
 				dto.Parent.Id, dto.DeploymentId)
@@ -331,7 +331,7 @@ func (t *hierarchyTable) removeDeployment(deploymentId string) {
 		parent := t.getParent(deploymentId)
 		if parent != nil {
 			deplClient := deplFactory.New(parent.Addr + ":" + strconv.Itoa(deployer.Port))
-			status = deplClient.PropagateLocationToHorizon(deploymentId, myself.Id, location.ID(), 0, api.Remove)
+			status = deplClient.PropagateLocationToHorizon(deploymentId, myself, location.ID(), 0, api.Remove)
 			if status != http.StatusOK {
 				log.Errorf("got status %d while propagating location to %s for deployment %s", status, parent.Id,
 					deploymentId)
@@ -408,7 +408,7 @@ func (t *hierarchyTable) addChild(deploymentId string, child *utils.Node, explor
 	entry.addChild(*child)
 	children.LoadOrStore(child.Id, child)
 	autonomicClient.AddDeploymentChild(deploymentId, child)
-	archimedesClient.AddDeploymentNode(deploymentId, child.Id, nodeLocCache.get(child), exploring)
+	archimedesClient.AddDeploymentNode(deploymentId, child, nodeLocCache.get(child), exploring)
 	return
 }
 

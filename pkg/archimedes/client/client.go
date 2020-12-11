@@ -210,10 +210,10 @@ func (c *Client) SetExploringCells(deploymentId string, cells []s2.CellID) (stat
 	return
 }
 
-func (c *Client) AddDeploymentNode(deploymentId string, nodeId string, location s2.CellID,
+func (c *Client) AddDeploymentNode(deploymentId string, node *utils.Node, location s2.CellID,
 	exploring bool) (status int) {
 	reqBody := api.AddDeploymentNodeRequestBody{
-		NodeId:    nodeId,
+		Node:      node,
 		Location:  location,
 		Exploring: exploring,
 	}

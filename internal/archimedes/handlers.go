@@ -364,7 +364,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 	if !found {
 		fallback, status := deplClient.GetFallback()
 		if status != http.StatusOK {
-			reqLogger.Errorf("got status %d while asking for fallback from deployer", fallback)
+			reqLogger.Errorf("got status %+v while asking for fallback from deployer", fallback)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -416,8 +416,9 @@ func checkForLoadBalanceRedirections(hostToResolve string) (redirect bool, targe
 			}
 
 			if current == redirectConfig.Goal {
-				log.Debugf("completed goal of redirecting %d clients to %s for deployment %s", redirectConfig.Target,
+				log.Debugf("completed goal of redirecting %+v clients to %d for deployment %s", redirectConfig.Target,
 					redirectConfig.Goal, hostToResolve)
+				log.Debugf("", "ola")
 				redirectConfig.Done = true
 			}
 			return
@@ -594,14 +595,14 @@ func addDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	log.Debugf("will add node %s for deployment %s", reqBody.NodeId, deploymentId)
+	log.Debugf("will add node %s for deployment %s", reqBody.Node.Id, deploymentId)
 
-	redirectTargets.add(deploymentId, reqBody.NodeId, reqBody.Location)
+	redirectTargets.add(deploymentId, reqBody.Node, reqBody.Location)
 	if reqBody.Exploring {
-		exploringNodes.add(deploymentId, reqBody.NodeId)
+		exploringNodes.add(deploymentId, reqBody.Node.Id)
 	}
 
-	log.Debugf("added node %s for deployment %s (exploring: %t)", reqBody.NodeId, deploymentId, reqBody.Exploring)
+	log.Debugf("added node %s for deployment %s (exploring: %t)", reqBody.Node, deploymentId, reqBody.Exploring)
 }
 
 func removeDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {

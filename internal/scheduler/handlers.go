@@ -108,7 +108,7 @@ func stopInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	instanceId := internalUtils.ExtractPathVar(r, instanceIdPathVar)
 
 	if instanceId == "" {
-		log.Errorf("no instance provided", instanceId)
+		log.Errorf("no instance provided %s", instanceId)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -261,7 +261,14 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 func stopContainerAsync(instanceId, contId string) {
 	err := dockerClient.ContainerStop(context.Background(), contId, &stopContainerTimeoutVar)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
+	}
+
+	err = dockerClient.ContainerRemove(context.Background(), contId, types.ContainerRemoveOptions{
+		Force: true,
+	})
+	if err != nil {
+		log.Panic(err)
 	}
 
 	log.Debugf("deleted instance %s corresponding to container %s", instanceId, contId)

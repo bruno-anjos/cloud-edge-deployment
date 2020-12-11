@@ -25,7 +25,7 @@ type (
 	}
 	SetExploringClientLocationRequestBody = []s2.CellID
 	AddDeploymentNodeRequestBody          struct {
-		NodeId    string
+		Node      *utils.Node
 		Location  s2.CellID
 		Exploring bool
 	}

@@ -24,12 +24,12 @@ type (
 	}
 )
 
-func (nd *nodesPerDeployment) add(deploymentId, nodeId string, location s2.CellID) {
+func (nd *nodesPerDeployment) add(deploymentId string, node *utils.Node, location s2.CellID) {
 	nodes := &deploymentNodes{}
 
 	value, _ := nd.nodes.LoadOrStore(deploymentId, nodes)
 	nodes = value.(nodesPerDeploymentMapValue)
-	nodes.Store(nodeId, location)
+	nodes.Store(node.Id, &deploymentNodesMapValue{Node: node, Location: location})
 }
 
 func (nd *nodesPerDeployment) delete(deploymentId, nodeId string) {
@@ -50,7 +50,7 @@ func (nd *nodesPerDeployment) rangeOver(deploymentId string, f func(node *utils.
 
 	nodes := value.(nodesPerDeploymentMapValue)
 	nodes.Range(func(key, value interface{}) bool {
-		depValue := value.(deploymentNodesMapValue)
+		depValue := value.(*deploymentNodesMapValue)
 		return f(depValue.Node, depValue.Location)
 	})
 }

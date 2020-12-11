@@ -46,7 +46,7 @@ type (
 	PropagateLocationToHorizonRequestBody struct {
 		Operation PropagateOpType
 		TTL       int8
-		ChildId   string
+		Child     *utils.Node
 		Location  s2.CellID
 	}
 )

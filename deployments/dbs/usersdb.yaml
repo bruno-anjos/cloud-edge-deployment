@@ -5,3 +5,4 @@ containers:
     ports:
       - containerPort: 27017
 static: True
+depthFactor: 1

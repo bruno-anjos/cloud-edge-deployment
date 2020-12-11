@@ -31,7 +31,7 @@ type Client interface {
 	GetLoad(deploymentId string) (load int, status int)
 	GetClientCentroids(deploymentId string) (centroids []s2.CellID, status int)
 	SetExploringCells(deploymentId string, cells []s2.CellID) (status int)
-	AddDeploymentNode(deploymentId string, nodeId string, location s2.CellID,
+	AddDeploymentNode(deploymentId string, node *utils.Node, location s2.CellID,
 		exploring bool) (status int)
 	DeleteDeploymentNode(deploymentId string, nodeId string) (status int)
 	CanRedirectToYou(deploymentId, nodeId string) (can bool, status int)
