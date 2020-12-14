@@ -31,8 +31,13 @@ def deploy_dummy(s_name, yaml, node):
         print(f"docker exec returned {e}")
 
 
-yaml_config_property = "deployment_yaml"
+def remove_services():
+    cmd = ["docker", "run", "-v", "/tmp/services:/services", "debian:latest", "sh", "-c", "rm -rf /services/*"]
+    subprocess.run(cmd, check=True)
 
+
+remove_services()
+yaml_config_property = "deployment_yaml"
 project_path = os.environ["CLOUD_EDGE_DEPLOYMENT"]
 fallback_path = os.path.expanduser(f"{project_path}/build/deployer/fallback.json")
 client_config_path = os.path.expanduser(f"{project_path}/deployments/clients_config.json")

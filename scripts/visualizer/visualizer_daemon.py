@@ -147,9 +147,23 @@ def graph_combined_deployments(graph, deployments, node_tables, deployment_color
                     graph.add_edge(node, child_id, deployment_id=deployment_id, relation=attr_child)
 
         visual_style = {}
-        graph.vs["label"] = [name if name not in locations["services"] else "" for name in graph.vs["name"]]
+        labels = []
+        colors = []
+
+        for vertex in graph.vs:
+            if not vertex["service"]:
+                label = vertex["name"]
+                if vertex["name"] in loads:
+                    label = label + f"\n{', '.join(loads[label])}"
+            else:
+                label = ""
+
+            labels.append(label)
+            colors.append(vertex["color"])
+
+        graph.vs["label"] = labels
         visual_style["vertex_size"] = 10
-        visual_style["vertex_color"] = [color for color in graph.vs["color"]]
+        visual_style["vertex_color"] = colors
         visual_style["vertex_label"] = graph.vs["label"]
         visual_style["vertex_label_dist"] = 2
         visual_style["vertex_label_size"] = 10

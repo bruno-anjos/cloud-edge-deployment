@@ -93,6 +93,11 @@ func DoRequest(httpClient *http.Client, request *http.Request, responseBody inte
 		ignoreResponse(resp)
 	}
 
+	err = resp.Body.Close()
+	if err != nil {
+		panic(err)
+	}
+
 	log.Debugf("Done: %s %s", request.Method, request.URL.String())
 
 	status = resp.StatusCode
@@ -105,20 +110,10 @@ func wantsResponseBody(resp *http.Response, responseBody interface{}) {
 	if err != nil {
 		panic(err)
 	}
-
-	err = resp.Body.Close()
-	if err != nil {
-		panic(err)
-	}
 }
 
 func ignoreResponse(resp *http.Response) {
 	_, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		panic(err)
-	}
-
-	err = resp.Body.Close()
 	if err != nil {
 		panic(err)
 	}

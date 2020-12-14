@@ -13,7 +13,7 @@ fallback=$3
 logs_dir=$4
 
 if [ -n "$(ls -A "$logs_dir")" ]; then
-	read -p "There are logs in /tmp/client_logs. Continue(y\\N)?" -n 1 -r
+	read -p "There are logs in $logs_dir. Continue(y\\N)?" -n 1 -r
 	echo
 	if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 		exit 1

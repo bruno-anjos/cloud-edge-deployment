@@ -283,14 +283,14 @@ func stopContainerAsync(instanceID, contID string) {
 		log.Panic(err)
 	}
 
-	//nolint:exhaustivestruct
-	// err = dockerClient.ContainerRemove(context.Background(), contID, types.ContainerRemoveOptions{
-	// 	Force: true,
-	// })
+	// nolint:exhaustivestruct
+	err = dockerClient.ContainerRemove(context.Background(), contID, types.ContainerRemoveOptions{
+		Force: true,
+	})
 
-	// if err != nil {
-	// 	log.Panic(err)
-	// }
+	if err != nil {
+		log.Panic(err)
+	}
 
 	log.Debugf("deleted instance %s corresponding to container %s", instanceID, contID)
 }

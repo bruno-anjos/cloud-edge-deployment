@@ -6,6 +6,6 @@ const (
 	LocationEnvVarName   = "LOCATION"
 	ReplicaNumEnvVarName = "REPLICA_NUM"
 
-	nodeIDEnvVarName = "NODE_ID"
+	NodeIDEnvVarName = "NODE_ID"
 	NodeIPEnvVarName = "NODE_IP"
 )
