@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -36,7 +35,8 @@ const (
 	retryTimeout         = 2 * time.Second
 	stopContainerTimeout = 10 * time.Second
 
-	envVarFormatString = "%s=%s"
+	envVarFormatString   = "%s=%s"
+	portBindingFmtString = "%s->%s"
 
 	instanceIDEnvVarReplace = "$instance"
 )
@@ -135,6 +135,63 @@ func stopAllInstancesHandler(_ http.ResponseWriter, _ *http.Request) {
 	deleteAllInstances()
 }
 
+func getEnvVars(containerInstance *api.ContainerInstanceDTO, instanceID string,
+	portBindings nat.PortMap) (envVars []string) {
+	portBindingsEnvVar := make([]string, len(portBindings))
+
+	for containerPort, hostPorts := range portBindings {
+		if len(hostPorts) != 1 {
+			log.Panicf("host ports (%+v) for container port %s", hostPorts, containerPort)
+		}
+
+		portBindingsEnvVar = append(portBindingsEnvVar, fmt.Sprintf(portBindingFmtString, containerPort.Port(),
+			hostPorts[0].HostPort))
+	}
+
+	deploymentIDEnvVar := fmt.Sprintf(envVarFormatString, utils.DeploymentEnvVarName, containerInstance.DeploymentName)
+	instanceIDEnvVar := fmt.Sprintf(envVarFormatString, utils.InstanceEnvVarName, instanceID)
+	fallbackEnvVar := fmt.Sprintf(envVarFormatString, archimedesHTTPClient.FallbackEnvVar, fallback.Addr)
+	nodeIPEnvVar := fmt.Sprintf(envVarFormatString, utils.NodeIPEnvVarName, myself.Addr)
+	portsEnvVar := fmt.Sprintf(envVarFormatString, utils.PortsEnvVarName, strings.Join(portBindingsEnvVar, ";"))
+	replicaNumEnvVar := fmt.Sprintf(envVarFormatString, utils.ReplicaNumEnvVarName,
+		strconv.Itoa(containerInstance.ReplicaNumber))
+
+	// TODO CHANGE THIS TO USE THE ACTUAL LOCATION TOKEN
+	locationEnvVar := fmt.Sprintf(envVarFormatString, utils.LocationEnvVarName, "0c")
+
+	for idx, envVar := range containerInstance.EnvVars {
+		if envVar == instanceIDEnvVarReplace {
+			containerInstance.EnvVars[idx] = instanceID
+		}
+	}
+
+	envVars = append(envVars, deploymentIDEnvVar, instanceIDEnvVar, locationEnvVar, fallbackEnvVar, nodeIPEnvVar,
+		replicaNumEnvVar, portsEnvVar)
+	envVars = append(envVars, containerInstance.EnvVars...)
+
+	return envVars
+}
+
+func pullImage(containerInstance *api.ContainerInstanceDTO, imageName string) {
+	log.Debugf("pulling image %s", imageName)
+
+	reader, err := dockerClient.ImagePull(context.Background(), containerInstance.ImageName,
+		types.ImagePullOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = ioutil.ReadAll(reader)
+	if err != nil {
+		panic(err)
+	}
+
+	err = reader.Close()
+	if err != nil {
+		panic(err)
+	}
+}
+
 func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	portBindings := generatePortBindings(containerInstance.Ports)
 
@@ -148,27 +205,7 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 
 	log.Debugf("instance %s has following portBindings: %+v", instanceID, portBindings)
 
-	deploymentIDEnvVar := fmt.Sprintf(envVarFormatString, utils.DeploymentEnvVarName, containerInstance.DeploymentName)
-	instanceIDEnvVar := fmt.Sprintf(envVarFormatString, utils.InstanceEnvVarName, instanceID)
-	fallbackEnvVar := fmt.Sprintf(envVarFormatString, archimedesHTTPClient.FallbackEnvVar, fallback.Addr)
-	nodeIPEnvVar := fmt.Sprintf(envVarFormatString, utils.NodeIPEnvVarName, myself.Addr)
-	replicaNumEnvVar := fmt.Sprintf(envVarFormatString, utils.ReplicaNumEnvVarName,
-		strconv.Itoa(containerInstance.ReplicaNumber))
-
-	// TODO CHANGE THIS TO USE THE ACTUAL LOCATION TOKEN
-	locationEnvVar := fmt.Sprintf(envVarFormatString, utils.LocationEnvVarName, "0c")
-
-	for idx, envVar := range containerInstance.EnvVars {
-		if envVar == instanceIDEnvVarReplace {
-			containerInstance.EnvVars[idx] = instanceID
-		}
-	}
-
-	envVars := []string{
-		deploymentIDEnvVar, instanceIDEnvVar, locationEnvVar, fallbackEnvVar, nodeIPEnvVar,
-		replicaNumEnvVar,
-	}
-	envVars = append(envVars, containerInstance.EnvVars...)
+	envVars := getEnvVars(containerInstance, instanceID, portBindings)
 
 	images, err := dockerClient.ImageList(context.Background(), types.ImageListOptions{})
 	if err != nil {
@@ -197,36 +234,15 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 		}
 	}
 
-	var containerConfig container.Config
-
 	if !hasImage {
-		log.Debugf("pulling image %s", imageName)
-
-		var reader io.ReadCloser
-
-		reader, err = dockerClient.ImagePull(context.Background(), containerInstance.ImageName,
-			types.ImagePullOptions{})
-		if err != nil {
-			panic(err)
-		}
-
-		_, err = ioutil.ReadAll(reader)
-		if err != nil {
-			panic(err)
-		}
-
-		err = reader.Close()
-		if err != nil {
-			panic(err)
-		}
-
+		pullImage(containerInstance, imageName)
 		imageName = containerInstance.ImageName
 	} else {
 		log.Debugf("image %s already exists locally", imageName)
 	}
 
 	//nolint:exhaustivestruct
-	containerConfig = container.Config{
+	containerConfig := container.Config{
 		Cmd:          containerInstance.Command,
 		Env:          envVars,
 		Image:        imageName,
@@ -238,6 +254,15 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	hostConfig := container.HostConfig{
 		NetworkMode:  "bridge",
 		PortBindings: portBindings,
+	}
+
+	// nolint:exhaustivestruct
+	err = dockerClient.ContainerRemove(context.Background(), instanceID, types.ContainerRemoveOptions{
+		Force: true,
+	})
+
+	if err != nil {
+		log.Panic(err)
 	}
 
 	cont, err := dockerClient.ContainerCreate(context.Background(), &containerConfig, &hostConfig, nil,
@@ -279,15 +304,6 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 
 func stopContainerAsync(instanceID, contID string) {
 	err := dockerClient.ContainerStop(context.Background(), contID, &stopContainerTimeoutVar)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	// nolint:exhaustivestruct
-	err = dockerClient.ContainerRemove(context.Background(), contID, types.ContainerRemoveOptions{
-		Force: true,
-	})
-
 	if err != nil {
 		log.Panic(err)
 	}
