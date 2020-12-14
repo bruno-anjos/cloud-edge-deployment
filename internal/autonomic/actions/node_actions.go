@@ -46,8 +46,8 @@ func NewExtendDeploymentAction(deploymentID string, target *utils.Node, explorin
 	children []*utils.Node, location s2.CellID, toExclude map[string]interface{},
 	setNodeExploringCallback func(nodeId string), deplFactory deployer.ClientFactory) *ExtendDeploymentAction {
 	return &ExtendDeploymentAction{
-		actionWithDeploymentTarget: newActionWithDeploymentTarget(ExtendDeploymentID, deploymentID, target, exploringTTL,
-			children, location, toExclude, setNodeExploringCallback),
+		actionWithDeploymentTarget: newActionWithDeploymentTarget(ExtendDeploymentID, deploymentID, target,
+			exploringTTL, children, location, toExclude, setNodeExploringCallback),
 		deplFactory: deplFactory,
 	}
 }
