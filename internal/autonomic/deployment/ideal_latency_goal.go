@@ -326,99 +326,103 @@ func (i *idealLatency) GenerateAction(targets result, args ...interface{}) actio
 	log.Debugf("generating action %s", (args[ilActionTypeArgIndex]).(string))
 
 	if args[ilActionTypeArgIndex].(string) == actions.MultipleExtendDeploymentID {
-		centroidsToNodes := args[ilCentroidDistancesToNodesIndex].(centroidToNodesType)
-		nodeCells := map[string][]s2.CellID{}
-
-		var (
-			nodesToExtendTo  []*utils.Node
-			targetsExploring = map[string]int{}
-		)
-
-		for cellID, nodesOrdered := range centroidsToNodes {
-			var selectedNode *utils.Node
-
-			for _, node := range nodesOrdered {
-				for _, target := range targets {
-					if target.ID == node.ID {
-						selectedNode = node
-
-						break
-					}
-				}
-
-				if selectedNode != nil {
-					break
-				}
-			}
-
-			if selectedNode == nil {
-				panic(fmt.Sprintf("could not find a suitable node for cell %d, had %+v %+v", cellID,
-					nodesOrdered, targets))
-			}
-
-			_, ok := nodeCells[selectedNode.ID]
-			if !ok {
-				cells := []s2.CellID{cellID}
-				nodeCells[selectedNode.ID] = cells
-
-				nodesToExtendTo = append(nodesToExtendTo, selectedNode)
-			} else {
-				nodeCells[selectedNode.ID] = append(nodeCells[selectedNode.ID], cellID)
-			}
-		}
-
-		exploredTTL := deployerAPI.NotExploringTTL
-
-		value, ok := i.deployment.Exploring.Load(Myself.ID)
-		if ok {
-			exploredTTL = value.(exploringMapValue)
-		}
-
-		_, imExplored := i.deployment.Exploring.Load(Myself.ID)
-
-		log.Debugf("im being explored %t", imExplored)
-
-		for node, cells := range nodeCells {
-			targetsExploring[node] = 0
-			if imExplored {
-				targetsExploring[node] = exploredTTL + 1
-
-				continue
-			}
-
-			for _, cellID := range cells {
-				_, centroidExtended := i.centroidsExtended[cellID]
-				_, iAmExploring := i.deployment.Exploring.Load(Myself)
-
-				if !centroidExtended && !iAmExploring {
-					targetsExploring[node] = deployerAPI.NotExploringTTL
-
-					break
-				}
-			}
-		}
-
-		toExclude := map[string]interface{}{}
-
-		i.deployment.Blacklist.Range(func(key, value interface{}) bool {
-			nodeID := key.(string)
-			toExclude[nodeID] = nil
-
-			return true
-		})
-		i.deployment.Exploring.Range(func(key, value interface{}) bool {
-			nodeID := key.(string)
-			toExclude[nodeID] = nil
-
-			return true
-		})
-
-		return actions.NewMultipleExtendDeploymentAction(i.deployment.DeploymentID, nodesToExtendTo, nodeCells,
-			targetsExploring, i.extendedCentroidCallback, toExclude, i.deployment.setNodeAsExploring,
-			i.deployment.deplFactory)
+		return i.generateMultipleExtendAction(targets, args...)
 	}
 
 	return nil
+}
+
+func (i *idealLatency) generateMultipleExtendAction(targets result, args ...interface{}) actions.Action {
+	centroidsToNodes := args[ilCentroidDistancesToNodesIndex].(centroidToNodesType)
+	nodeCells := map[string][]s2.CellID{}
+
+	var (
+		nodesToExtendTo  []*utils.Node
+		targetsExploring = map[string]int{}
+	)
+
+	for cellID, nodesOrdered := range centroidsToNodes {
+		var selectedNode *utils.Node
+
+		for _, node := range nodesOrdered {
+			for _, target := range targets {
+				if target.ID == node.ID {
+					selectedNode = node
+
+					break
+				}
+			}
+
+			if selectedNode != nil {
+				break
+			}
+		}
+
+		if selectedNode == nil {
+			panic(fmt.Sprintf("could not find a suitable node for cell %d, had %+v %+v", cellID,
+				nodesOrdered, targets))
+		}
+
+		_, ok := nodeCells[selectedNode.ID]
+		if !ok {
+			cells := []s2.CellID{cellID}
+			nodeCells[selectedNode.ID] = cells
+
+			nodesToExtendTo = append(nodesToExtendTo, selectedNode)
+		} else {
+			nodeCells[selectedNode.ID] = append(nodeCells[selectedNode.ID], cellID)
+		}
+	}
+
+	exploredTTL := deployerAPI.NotExploringTTL
+
+	value, ok := i.deployment.Exploring.Load(Myself.ID)
+	if ok {
+		exploredTTL = value.(exploringMapValue)
+	}
+
+	_, imExplored := i.deployment.Exploring.Load(Myself.ID)
+
+	log.Debugf("im being explored %t", imExplored)
+
+	for node, cells := range nodeCells {
+		targetsExploring[node] = 0
+		if imExplored {
+			targetsExploring[node] = exploredTTL + 1
+
+			continue
+		}
+
+		for _, cellID := range cells {
+			_, centroidExtended := i.centroidsExtended[cellID]
+			_, iAmExploring := i.deployment.Exploring.Load(Myself)
+
+			if !centroidExtended && !iAmExploring {
+				targetsExploring[node] = deployerAPI.NotExploringTTL
+
+				break
+			}
+		}
+	}
+
+	toExclude := map[string]interface{}{}
+
+	i.deployment.Blacklist.Range(func(key, value interface{}) bool {
+		nodeID := key.(string)
+		toExclude[nodeID] = nil
+
+		return true
+	})
+	i.deployment.Exploring.Range(func(key, value interface{}) bool {
+		nodeID := key.(string)
+		toExclude[nodeID] = nil
+
+		return true
+	})
+
+	return actions.NewMultipleExtendDeploymentAction(i.deployment.DeploymentID, nodesToExtendTo, nodeCells,
+		targetsExploring, i.extendedCentroidCallback, toExclude, i.deployment.setNodeAsExploring,
+		i.deployment.deplFactory)
 }
 
 func (i *idealLatency) extendedCentroidCallback(centroid s2.CellID) {

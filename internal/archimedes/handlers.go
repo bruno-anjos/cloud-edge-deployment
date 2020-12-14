@@ -460,36 +460,38 @@ func checkForLoadBalanceRedirections(hostToResolve string) (redirect bool, targe
 	if ok {
 		redirectConfig := value.(redirectionsMapValue)
 		if !redirectConfig.Done {
-			current := atomic.AddInt32(&redirectConfig.Current, 1)
-			if current <= redirectConfig.Goal {
-				redirect, targetURL = true, url.URL{
-					Scheme:      "http",
-					Opaque:      "",
-					User:        nil,
-					Host:        redirectConfig.Target + ":" + strconv.Itoa(archimedes.Port),
-					Path:        api.GetResolvePath(),
-					RawPath:     "",
-					ForceQuery:  false,
-					RawQuery:    "",
-					Fragment:    "",
-					RawFragment: "",
-				}
-			}
-
-			if current == redirectConfig.Goal {
-				log.Debugf(
-					"completed goal of redirecting %+v clients to %d for deployment %s", redirectConfig.Target,
-					redirectConfig.Goal, hostToResolve,
-				)
-
-				redirectConfig.Done = true
-			}
-
-			return
+			handleRedirection(hostToResolve, redirectConfig)
 		}
 	}
 
 	return redirect, targetURL
+}
+
+func handleRedirection(hostToResolve string, redirectConfig redirectionsMapValue) (redirect bool, targetURL url.URL) {
+	current := atomic.AddInt32(&redirectConfig.Current, 1)
+	if current <= redirectConfig.Goal {
+		redirect, targetURL = true, url.URL{
+			Scheme:      "http",
+			Opaque:      "",
+			User:        nil,
+			Host:        redirectConfig.Target + ":" + strconv.Itoa(archimedes.Port),
+			Path:        api.GetResolvePath(),
+			RawPath:     "",
+			ForceQuery:  false,
+			RawQuery:    "",
+			Fragment:    "",
+			RawFragment: "",
+		}
+	}
+
+	if current == redirectConfig.Goal {
+		log.Debugf("completed goal of redirecting %+v clients to %d for deployment %s", redirectConfig.Target,
+			redirectConfig.Goal, hostToResolve)
+
+		redirectConfig.Done = true
+	}
+
+	return
 }
 
 func resolveLocally(toResolve *api.ToResolveDTO, reqLogger *log.Entry) (resolved *api.ResolvedDTO, found bool) {

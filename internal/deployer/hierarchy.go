@@ -309,50 +309,54 @@ func (t *hierarchyTable) removeDeployment(deploymentID string) {
 	entry := value.(typeHierarchyEntriesMapValue)
 	if entry.getNumChildren() != 0 {
 		log.Errorf("removing deployment that is still someones father")
-	} else {
-		status := autonomicClient.DeleteDeployment(deploymentID)
-		if status != http.StatusOK {
-			log.Errorf("got status code %d from autonomic while deleting %s", status, deploymentID)
 
-			return
-		}
-
-		var instances map[string]*archimedes2.Instance
-		instances, status = archimedesClient.GetDeployment(deploymentID)
-		if status != http.StatusOK {
-			log.Errorf("got status %d while requesting deployment %s instances", status, deploymentID)
-
-			return
-		}
-
-		status = archimedesClient.DeleteDeployment(deploymentID)
-		if status != http.StatusOK {
-			log.Errorf("got status code %d from archimedes", status)
-
-			return
-		}
-
-		for instanceID := range instances {
-			status = schedulerClient.StopInstance(instanceID)
-			if status != http.StatusOK {
-				log.Errorf("got status code %d from scheduler", status)
-
-				return
-			}
-		}
-
-		parent := t.getParent(deploymentID)
-		if parent != nil {
-			deplClient := deplFactory.New(parent.Addr + ":" + strconv.Itoa(deployer.Port))
-			status = deplClient.PropagateLocationToHorizon(deploymentID, myself, location.ID(), 0, api.Remove)
-			if status != http.StatusOK {
-				log.Errorf("got status %d while propagating location to %s for deployment %s", status, parent.ID,
-					deploymentID)
-			}
-		}
-
-		t.hierarchyEntries.Delete(deploymentID)
+		return
 	}
+
+	status := autonomicClient.DeleteDeployment(deploymentID)
+	if status != http.StatusOK {
+		log.Errorf("got status code %d from autonomic while deleting %s", status, deploymentID)
+
+		return
+	}
+
+	var instances map[string]*archimedes2.Instance
+
+	instances, status = archimedesClient.GetDeployment(deploymentID)
+	if status != http.StatusOK {
+		log.Errorf("got status %d while requesting deployment %s instances", status, deploymentID)
+
+		return
+	}
+
+	status = archimedesClient.DeleteDeployment(deploymentID)
+	if status != http.StatusOK {
+		log.Errorf("got status code %d from archimedes", status)
+
+		return
+	}
+
+	for instanceID := range instances {
+		status = schedulerClient.StopInstance(instanceID)
+		if status != http.StatusOK {
+			log.Errorf("got status code %d from scheduler", status)
+
+			return
+		}
+	}
+
+	parent := t.getParent(deploymentID)
+	if parent != nil {
+		deplClient := deplFactory.New(parent.Addr + ":" + strconv.Itoa(deployer.Port))
+
+		status = deplClient.PropagateLocationToHorizon(deploymentID, myself, location.ID(), 0, api.Remove)
+		if status != http.StatusOK {
+			log.Errorf("got status %d while propagating location to %s for deployment %s", status, parent.ID,
+				deploymentID)
+		}
+	}
+
+	t.hierarchyEntries.Delete(deploymentID)
 }
 
 func (t *hierarchyTable) hasDeployment(deploymentID string) bool {

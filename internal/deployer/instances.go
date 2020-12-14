@@ -27,10 +27,6 @@ var (
 	initChansMap  = sync.Map{}
 )
 
-func init() {
-	go instanceHeartbeatChecker()
-}
-
 func cleanUnresponsiveInstance(deploymentID, instanceID string, instanceDTO *archimedes2.InstanceDTO,
 	alive <-chan struct{}) {
 	unresponsiveTimer := time.NewTimer(initInstanceTimeout)
@@ -107,5 +103,5 @@ func removeInstance(deploymentID, instanceID string, existed bool) {
 		}
 	}
 
-	log.Errorf("Removed unresponsive instance %s", instanceID)
+	log.Warnf("Removed unresponsive instance %s", instanceID)
 }

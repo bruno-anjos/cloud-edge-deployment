@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -79,7 +79,8 @@ func DoRequest(httpClient *http.Client, request *http.Request, responseBody inte
 	resp, err := httpClient.Do(request)
 	if err != nil {
 		status = -1
-		timedOut = err.(net.Error).Timeout()
+
+		timedOut = os.IsTimeout(err)
 
 		log.Warn(err)
 
@@ -87,25 +88,9 @@ func DoRequest(httpClient *http.Client, request *http.Request, responseBody inte
 	}
 
 	if responseBody != nil {
-		err = json.NewDecoder(resp.Body).Decode(responseBody)
-		if err != nil {
-			panic(err)
-		}
-
-		err = resp.Body.Close()
-		if err != nil {
-			panic(err)
-		}
+		wantsResponseBody(resp, responseBody)
 	} else {
-		_, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			panic(err)
-		}
-
-		err = resp.Body.Close()
-		if err != nil {
-			panic(err)
-		}
+		ignoreResponse(resp)
 	}
 
 	log.Debugf("Done: %s %s", request.Method, request.URL.String())
@@ -113,6 +98,30 @@ func DoRequest(httpClient *http.Client, request *http.Request, responseBody inte
 	status = resp.StatusCode
 
 	return status, timedOut
+}
+
+func wantsResponseBody(resp *http.Response, responseBody interface{}) {
+	err := json.NewDecoder(resp.Body).Decode(responseBody)
+	if err != nil {
+		panic(err)
+	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		panic(err)
+	}
+}
+
+func ignoreResponse(resp *http.Response) {
+	_, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		panic(err)
+	}
 }
 
 func ExtractPathVar(r *http.Request, varName string) (varValue string) {

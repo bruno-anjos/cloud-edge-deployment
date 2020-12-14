@@ -88,6 +88,8 @@ var (
 
 func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimedes.ClientFactory,
 	deplFactoryAux deployer.ClientFactory, schedFactoryAux scheduler.ClientFactory) {
+	go instanceHeartbeatChecker()
+
 	log.SetLevel(log.DebugLevel)
 
 	myself = utils.NodeFromEnv()

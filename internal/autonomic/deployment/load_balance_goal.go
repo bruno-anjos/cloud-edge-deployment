@@ -86,35 +86,7 @@ func (l *deploymentLoadBalanceGoal) Optimize(optDomain domain) (isAlreadyMax boo
 	log.Debugf("%s cutoff result (%t)%+v", loadBalanceGoalID, isAlreadyMax, optRange)
 
 	if !isAlreadyMax {
-		l.staleCycles = 0
-		hasAlternatives := l.checkIfHasAlternatives(sortingCriteria)
-
-		if !hasAlternatives {
-			// if it doesn't have alternatives try to get a new node
-			actionArgs, optRange = l.handleOverload(optRange)
-			isAlreadyMax = !(len(optRange) > 0)
-		} else {
-			// if it has alternatives redirect clients there
-			actionArgs = make([]interface{}, lbNumArgs)
-			actionArgs[lbActionTypeArgIndex] = actions.RedirectClientsID
-			origin := ordered[len(ordered)-1]
-			actionArgs[lbFromIndex] = origin
-			actionArgs[lbAmountIndex] = sortingCriteria[origin.ID].(infoValueType).Load / 4 //nolint:gomnd
-
-			var filteredRedirectedTargets result
-			archClient := l.deployment.archFactory.New("")
-			for _, node := range optRange {
-				archClient.SetHostPort(node.Addr + ":" + strconv.Itoa(archimedes.Port))
-				can, _ := archClient.CanRedirectToYou(l.deployment.DeploymentID, Myself.ID)
-				log.Debugf("%s deployment %s to redirect: %t", node, l.deployment.DeploymentID, can)
-				if can {
-					filteredRedirectedTargets = append(filteredRedirectedTargets, node)
-				}
-			}
-			optRange = filteredRedirectedTargets
-			l.overloadedCycles = 0
-			log.Debugf("resetting overloaded cycles")
-		}
+		isAlreadyMax, optRange, actionArgs = l.handleNotMaximized(optRange, ordered, sortingCriteria)
 	} else if l.deployment.Parent != nil {
 		remove := l.checkIfShouldBeRemoved()
 		if remove {
@@ -125,6 +97,50 @@ func (l *deploymentLoadBalanceGoal) Optimize(optDomain domain) (isAlreadyMax boo
 	}
 
 	return isAlreadyMax, optRange, actionArgs
+}
+
+func (l *deploymentLoadBalanceGoal) handleNotMaximized(optRange result, ordered result,
+	sortingCriteria map[string]interface{}) (isAlreadyMax bool, newOptRange result, actionArgs []interface{}) {
+	l.staleCycles = 0
+	hasAlternatives := l.checkIfHasAlternatives(sortingCriteria)
+
+	if !hasAlternatives {
+		// if it doesn't have alternatives try to get a new node
+		actionArgs, newOptRange = l.handleOverload(optRange)
+		isAlreadyMax = !(len(optRange) > 0)
+
+		return
+	}
+
+	// if it has alternatives redirect clients there
+	actionArgs = make([]interface{}, lbNumArgs)
+	actionArgs[lbActionTypeArgIndex] = actions.RedirectClientsID
+	origin := ordered[len(ordered)-1]
+	actionArgs[lbFromIndex] = origin
+	actionArgs[lbAmountIndex] = sortingCriteria[origin.ID].(infoValueType).Load / 4 //nolint:gomnd
+
+	var (
+		filteredRedirectedTargets result
+		archClient                = l.deployment.archFactory.New("")
+	)
+
+	for _, node := range optRange {
+		archClient.SetHostPort(node.Addr + ":" + strconv.Itoa(archimedes.Port))
+		can, _ := archClient.CanRedirectToYou(l.deployment.DeploymentID, Myself.ID)
+
+		log.Debugf("%s deployment %s to redirect: %t", node, l.deployment.DeploymentID, can)
+
+		if can {
+			filteredRedirectedTargets = append(filteredRedirectedTargets, node)
+		}
+	}
+
+	newOptRange = filteredRedirectedTargets
+	l.overloadedCycles = 0
+
+	log.Debugf("resetting overloaded cycles")
+
+	return isAlreadyMax, newOptRange, actionArgs
 }
 
 func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain domain, info map[string]interface{},
