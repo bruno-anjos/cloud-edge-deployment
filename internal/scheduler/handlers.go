@@ -137,14 +137,14 @@ func stopAllInstancesHandler(_ http.ResponseWriter, _ *http.Request) {
 
 func getEnvVars(containerInstance *api.ContainerInstanceDTO, instanceID string,
 	portBindings nat.PortMap) (envVars []string) {
-	portBindingsEnvVar := make([]string, len(portBindings))
+	portBindingsEnvVar := make([]string, 0, len(portBindings))
 
 	for containerPort, hostPorts := range portBindings {
 		if len(hostPorts) != 1 {
 			log.Panicf("host ports (%+v) for container port %s", hostPorts, containerPort)
 		}
 
-		portBindingsEnvVar = append(portBindingsEnvVar, fmt.Sprintf(portBindingFmtString, containerPort.Port(),
+		portBindingsEnvVar = append(portBindingsEnvVar, fmt.Sprintf(portBindingFmtString, containerPort,
 			hostPorts[0].HostPort))
 	}
 
@@ -262,7 +262,7 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	})
 
 	if err != nil {
-		log.Panic(err)
+		log.Infof(err.Error())
 	}
 
 	cont, err := dockerClient.ContainerCreate(context.Background(), &containerConfig, &hostConfig, nil,
