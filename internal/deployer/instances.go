@@ -103,5 +103,5 @@ func removeInstance(deploymentID, instanceID string, existed bool) {
 		}
 	}
 
-	log.Warnf("Removed unresponsive instance %s", instanceID)
+	log.Errorf("Removed unresponsive instance %s", instanceID)
 }
