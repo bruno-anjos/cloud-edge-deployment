@@ -159,10 +159,14 @@ func (a *Deployment) BlacklistNodes(origin string, nodes ...string) {
 		a.Blacklist.Store(node, nil)
 	}
 
-	autoClient := a.autoFactory.New(a.Parent.Addr + ":" + strconv.Itoa(autonomic.Port))
+	autoClient := a.autoFactory.New("")
 
-	if a.Parent != nil && origin != a.Parent.ID {
-		autoClient.BlacklistNodes(a.DeploymentID, Myself.ID, nodes...)
+	if a.Parent != nil {
+		autoClient.SetHostPort(a.Parent.Addr + ":" + strconv.Itoa(autonomic.Port))
+
+		if a.Parent != nil && origin != a.Parent.ID {
+			autoClient.BlacklistNodes(a.DeploymentID, Myself.ID, nodes...)
+		}
 	}
 
 	a.Children.Range(func(key, value interface{}) bool {
