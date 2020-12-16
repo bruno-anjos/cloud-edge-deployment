@@ -175,7 +175,7 @@ func (a *Deployment) BlacklistNodes(origin string, nodes ...string) {
 			return true
 		}
 		log.Debugf("telling %s to blacklist %+v for %s", childID, nodes, a.DeploymentID)
-		nodeWithLoc := value.(nodeWithLocation)
+		nodeWithLoc := value.(*nodeWithLocation)
 		autoClient.SetHostPort(nodeWithLoc.Node.Addr + ":" + strconv.Itoa(autonomic.Port))
 		autoClient.BlacklistNodes(a.DeploymentID, Myself.ID, nodes...)
 

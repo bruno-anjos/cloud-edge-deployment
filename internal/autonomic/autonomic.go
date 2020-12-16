@@ -105,7 +105,11 @@ func (a *system) addDeployment(deploymentID, strategyID string, depthFactor floa
 	go a.handleDeployment(s, exitChan)
 }
 
-func (a *system) removeDeployment(deploymentID string) {
+func (a *system) removeDeployment(deploymentID, deploy string) {
+	log.Info(deploy)
+
+	log.Debugf("removing deployment %s", deploymentID)
+
 	_, ok := a.deployments.Load(deploymentID)
 	if !ok {
 		return

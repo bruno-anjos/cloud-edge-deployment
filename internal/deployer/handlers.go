@@ -216,28 +216,41 @@ func getDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
 	internalUtils.SendJSONReplyOK(w, deployments)
 }
 
-func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("handling register deployment request")
+func checkIfShouldTakeChildren(parent *utils.Node,
+	deploymentDTO *api.DeploymentDTO) (shouldTakeChildren, conflict bool) {
+	parentsMatch := parent != nil && deploymentDTO.Parent != nil && parent.ID == deploymentDTO.Parent.ID
+	parentDead := parent != nil && !pTable.hasParent(parent.ID)
 
-	var registerBody api.RegisterDeploymentRequestBody
+	log.Debugf("conditions: %t, %t", parentsMatch, parentDead)
 
-	err := json.NewDecoder(r.Body).Decode(&registerBody)
-	if err != nil {
-		panic(err)
+	if !parentsMatch && !parentDead {
+		shouldTakeChildren = len(deploymentDTO.Children) > 0 && checkChildren(parent, deploymentDTO.Children...)
+		if !shouldTakeChildren {
+			// case where i have the deployment, its not my parent speaking to me, my parent is not dead
+			// and i should not take the children
+			conflict = true
+
+			return shouldTakeChildren, conflict
+		}
+
+		log.Debug("won't take deployment but should take children")
 	}
 
-	deploymentDTO := registerBody.DeploymentConfig
-	deploymentID := deploymentDTO.DeploymentID
+	return shouldTakeChildren, conflict
+}
 
+func getDeploymentYAML(deploymentDTO *api.DeploymentDTO) *api.DeploymentYAML {
 	var deploymentYAML api.DeploymentYAML
 
-	err = yaml.Unmarshal(deploymentDTO.DeploymentYAMLBytes, &deploymentYAML)
+	err := yaml.Unmarshal(deploymentDTO.DeploymentYAMLBytes, &deploymentYAML)
 	if err != nil {
 		panic(err)
 	}
 
-	parent := hTable.getParent(deploymentID)
+	return &deploymentYAML
+}
 
+func logParentReceivedAndDeploymentParent(parent *utils.Node, deploymentDTO *api.DeploymentDTO) {
 	parentID := nilString
 	if parent != nil {
 		parentID = parent.ID
@@ -250,56 +263,52 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("my parent is %s and the presented parent is %s", parentID,
 		deploymentParentID)
+}
+
+func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("handling register deployment request")
+
+	var registerBody api.RegisterDeploymentRequestBody
+
+	err := json.NewDecoder(r.Body).Decode(&registerBody)
+	if err != nil {
+		panic(err)
+	}
+
+	deploymentDTO := registerBody.DeploymentConfig
+	deploymentID := deploymentDTO.DeploymentID
+	deploymentYAML := getDeploymentYAML(deploymentDTO)
+
+	parent := hTable.getParent(deploymentID)
+	logParentReceivedAndDeploymentParent(parent, deploymentDTO)
 
 	if hTable.hasDeployment(deploymentID) {
-		parentsMatch := parent != nil && deploymentDTO.Parent != nil && parentID == deploymentParentID
-		parentDead := parent != nil && !pTable.hasParent(parentID)
+		_, conflict := checkIfShouldTakeChildren(parent, deploymentDTO)
+		if conflict {
+			w.WriteHeader(http.StatusConflict)
 
-		log.Debugf("conditions: %t, %t", parentsMatch, parentDead)
-
-		if !parentsMatch && !parentDead {
-			shouldTakeChildren := len(deploymentDTO.Children) > 0 && checkChildren(parent, deploymentDTO.Children...)
-			if !shouldTakeChildren {
-				// case where i have the deployment, its not my parent speaking to me, my parent is not dead
-				// and i should not take the children
-				w.WriteHeader(http.StatusConflict)
-
-				return
-			}
-
-			log.Debug("won't take deployment but should take children")
+			return
 		}
 	}
 
 	hTable.Lock()
 
 	parent = hTable.getParent(deploymentID)
-
-	parentID = nilString
-	if parent != nil {
-		parentID = parent.ID
-	}
-
-	log.Debugf("my parent is %s and the presented parent is %s", parentID,
-		deploymentParentID)
+	logParentReceivedAndDeploymentParent(parent, deploymentDTO)
 
 	alreadyHadDeployment := false
 	if hTable.hasDeployment(deploymentDTO.DeploymentID) {
 		alreadyHadDeployment = true
-		parentsMatch := parent != nil && deploymentDTO.Parent != nil && parentID == deploymentParentID
-		parentDead := parent != nil && !pTable.hasParent(parentID)
 
-		if !parentsMatch && !parentDead {
-			shouldTakeChildren := len(deploymentDTO.Children) > 0 && checkChildren(parent, deploymentDTO.Children...)
+		shouldTakeChildren, conflict := checkIfShouldTakeChildren(parent, deploymentDTO)
+		if conflict {
+			w.WriteHeader(http.StatusConflict)
+			hTable.Unlock()
 
-			if !shouldTakeChildren {
-				// after locking to add guarantee that in the meanwhile it wasn't added
-				w.WriteHeader(http.StatusConflict)
-				hTable.Unlock()
+			return
+		}
 
-				return
-			}
-
+		if shouldTakeChildren {
 			log.Debugf("will take children %+v for deployment %s", deploymentDTO.Children, deploymentID)
 			takeChildren(deploymentID, parent, deploymentDTO.Children...)
 
@@ -340,7 +349,7 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	hTable.Unlock()
 
 	if !alreadyHadDeployment {
-		d := deploymentYAMLToDeployment(&deploymentYAML, deploymentDTO.Static)
+		d := deploymentYAMLToDeployment(deploymentYAML, deploymentDTO.Static)
 		go addDeploymentAsync(d, deploymentDTO.DeploymentID, deploymentYAML.InstanceNameFmt)
 	}
 
@@ -603,8 +612,6 @@ func deleteDeployment(deploymentID string) (success bool, parentStatus int) {
 	}
 
 	hTable.removeDeployment(deploymentID)
-
-	go deleteDeploymentAsync(deploymentID)
 
 	return
 }

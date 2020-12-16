@@ -18,10 +18,11 @@ const (
 	MetricLocation           = "METRIC_LOCATION"
 	MetricLocationInVicinity = "METRIC_LOCATION_VICINITY"
 
-	// DEPLOYMENT METRICS
-	metricNumberOfInstancesPerDeploymentID   = "METRIC_NUMBER_OF_INSTANCES_PER_DEPLOYMENT_%s"
-	metricLoadPerDeploymentInChildren        = "METRIC_LOAD_PER_DEPLOYMENT_%s_IN_CHILDREN"
 	metricAggLoadPerDeploymentInChildren     = "METRIC_AGG_LOAD_PER_DEPLOYMENT_%s_IN_CHILDREN"
+	metricNumberOfInstancesPerDeploymentID   = "METRIC_NUMBER_OF_INSTANCES_PER_DEPLOYMENT_%s"
+
+	// DEPLOYMENT METRICS
+	metricLoadPerDeploymentInChildren        = "METRIC_LOAD_PER_DEPLOYMENT_%s_IN_CHILDREN"
 	metricClientLatencyPerDeployment         = "METRIC_CLIENT_LATENCY_PER_DEPLOYMENT_%s"
 	metricProcessingTimePerDeployment        = "METRIC_PROCESSING_TIME_PER_DEPLOYMENT_%s"
 	metricAverageClientLocationPerDeployment = "METRIC_AVERAGE_CLIENT_LOCATION_PER_DEPLOYMENT_%s"
