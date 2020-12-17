@@ -22,7 +22,7 @@ import (
 
 const (
 	maximumLoad            = 300
-	staleCyclesNumToRemove = int((float64(archimedesHTTPClient.ResetToFallbackTimeout) * (3. / 2.)) /
+	staleCyclesNumToRemove = int((float64(archimedesHTTPClient.ResetToFallbackTimeout) * 3.) /
 		float64(autonomicUtils.DefaultGoalCycleTimeout))
 
 	loadBalanceGoalID          = "GOAL_LOAD_BALANCE"
@@ -99,7 +99,7 @@ func (l *deploymentLoadBalanceGoal) Optimize(optDomain domain) (isAlreadyMax boo
 	return isAlreadyMax, optRange, actionArgs
 }
 
-func (l *deploymentLoadBalanceGoal) handleNotMaximized(optRange result, ordered result,
+func (l *deploymentLoadBalanceGoal) handleNotMaximized(optRange, ordered result,
 	sortingCriteria map[string]interface{}) (isAlreadyMax bool, newOptRange result, actionArgs []interface{}) {
 	l.staleCycles = 0
 	hasAlternatives := l.checkIfHasAlternatives(sortingCriteria)

@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,11 +49,14 @@ var (
 	instanceToContainer sync.Map
 	fallback            *utils.Node
 	myself              *utils.Node
+	location            string
 
 	stopContainerTimeoutVar = stopContainerTimeout
 )
 
 func InitServer(deplFactory deployer.ClientFactory) {
+	log.SetLevel(log.DebugLevel)
+
 	deplClient = deplFactory.New(servers.DeployerLocalHostPort)
 
 	for {
@@ -82,7 +86,14 @@ func InitServer(deplFactory deployer.ClientFactory) {
 
 	instanceToContainer = sync.Map{}
 
-	log.SetLevel(log.InfoLevel)
+	var ok bool
+
+	location, ok = os.LookupEnv(utils.LocationEnvVarName)
+	if !ok {
+		log.Panic("no location env var")
+	}
+
+	log.Debugf("Node at location %s", location)
 }
 
 func startInstanceHandler(w http.ResponseWriter, r *http.Request) {
@@ -155,9 +166,7 @@ func getEnvVars(containerInstance *api.ContainerInstanceDTO, instanceID string,
 	portsEnvVar := fmt.Sprintf(envVarFormatString, utils.PortsEnvVarName, strings.Join(portBindingsEnvVar, ";"))
 	replicaNumEnvVar := fmt.Sprintf(envVarFormatString, utils.ReplicaNumEnvVarName,
 		strconv.Itoa(containerInstance.ReplicaNumber))
-
-	// TODO CHANGE THIS TO USE THE ACTUAL LOCATION TOKEN
-	locationEnvVar := fmt.Sprintf(envVarFormatString, utils.LocationEnvVarName, "0c")
+	locationEnvVar := fmt.Sprintf(envVarFormatString, utils.LocationEnvVarName, location)
 
 	for idx, envVar := range containerInstance.EnvVars {
 		if envVar == instanceIDEnvVarReplace {

@@ -492,10 +492,6 @@ func addDeploymentAsync(deployment *deployment, deploymentID string, instanceNam
 	}
 }
 
-func deleteDeploymentAsync(deploymentID string) {
-	autonomicClient.DeleteDeployment(deploymentID)
-}
-
 func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool) *deployment {
 	log.Debugf("%+v", deploymentYAML)
 

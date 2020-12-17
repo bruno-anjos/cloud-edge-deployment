@@ -103,5 +103,7 @@ func removeInstance(deploymentID, instanceID string, existed bool) {
 		}
 	}
 
+	heartbeatsMap.Delete(instanceID)
+
 	log.Errorf("Removed unresponsive instance %s", instanceID)
 }

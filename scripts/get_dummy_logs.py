@@ -11,6 +11,7 @@ clients_config_file = f"{os.path.expanduser('~')}" \
 
 log_prefixes = ["archimedes", "autonomic", "deployer", "scheduler"]
 
+
 def get_client_logs(logs_dir_name):
     client_logs_dir = f"{logs_dir_name}/client_logs"
     os.mkdir(client_logs_dir)
@@ -27,12 +28,16 @@ def get_client_logs(logs_dir_name):
             cmd = f"docker logs {client}".split(" ")
             subprocess.run(cmd, stdout=client_log_fp)
 
+
 def get_specific_logs(logs_dir_name, dummy, logs_prefix):
-    docker_logs_cmd = f"docker exec {dummy} cat logs/{logs_prefix}_logs".split(" ")
-    log_path = f"{logs_dir_name}/{dummy}/{logs_prefix}_logs"
+    inside_docker_cmd = f"docker logs {logs_prefix}".split(" ")
+    docker_logs_cmd = f"docker exec {dummy}".split(" ")
+    docker_logs_cmd.extend(inside_docker_cmd)
+    log_path = f"{logs_dir_name}/{dummy}/{logs_prefix}"
     print(log_path)
+    print(docker_logs_cmd)
     with open(log_path, "w") as log_file:
-        subprocess.run(docker_logs_cmd, stdout=log_file)
+        subprocess.run(docker_logs_cmd, stdout=log_file, stderr=log_file)
 
 
 def get_dummy_logs(logs_dir_name, dummy):

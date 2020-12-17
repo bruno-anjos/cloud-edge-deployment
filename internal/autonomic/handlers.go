@@ -40,7 +40,7 @@ func addDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 
 func removeDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	deploymentID := utils.ExtractPathVar(r, deploymentIDPathVar)
-	autonomicSystem.removeDeployment(deploymentID, "a")
+	autonomicSystem.removeDeployment(deploymentID)
 }
 
 func getAllDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {

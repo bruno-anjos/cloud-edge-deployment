@@ -198,7 +198,7 @@ func (c *Client) SendInstanceHeartbeatToDeployerPeriodically() {
 	status := c.RegisterHearbeatDeploymentInstance(deploymentID, instanceID)
 	switch status {
 	case http.StatusConflict:
-		log.Debugf("deployment %s instance %s already has a heartbeat sender", deploymentID, instanceID)
+		log.Infof("deployment %s instance %s already has a heartbeat sender", deploymentID, instanceID)
 
 		return
 	case http.StatusOK:
