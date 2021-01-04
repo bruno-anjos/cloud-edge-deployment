@@ -3,8 +3,13 @@
 subnet=$1
 name=$2
 
+if [ -z $name ]; then
+  name="swarm_network"
+fi
+
+
 if [ -z $subnet ] || [ -z $name ]; then
-  echo "setup needs exactly 2 arguments"
+  echo "setup takes 2 arguments (net_name defaults to swarm_network)"
   echo "setup.sh <subnet> <net_name>"
   exit
 fi
@@ -22,3 +27,4 @@ done
 docker network create -d overlay --attachable --subnet $subnet $name
 
 export DOCKER_NET="$name"
+export DOCKER_MANAGER="$host"

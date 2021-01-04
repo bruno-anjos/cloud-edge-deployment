@@ -1,23 +1,39 @@
 #!/usr/bin/python3
 import json
 import os
+import socket
 import subprocess
 import sys
 from multiprocessing import Pool
 
 import s2sphere
 
-dummy_network = "dummies-network"
+dummy_network = "swarm-network"
 project_path = os.path.expanduser("~/go/src/github.com/bruno-anjos/cloud-edge-deployment")
+nodes = subprocess.getoutput("oarprint host").strip().split("\n")
+host = socket.gethostname().strip()
+
+
+def exec_cmd_on_nodes(cmd):
+    for node in nodes:
+        if node == host:
+            subprocess.run(cmd, shell=True)
+        else:
+            exec_cmd_on_node(cmd, node)
+
+
+def exec_cmd_on_node(cmd, node):
+    remote_cmd = f"oarsh {node} -- {cmd}"
+    subprocess.run(remote_cmd)
 
 
 def del_everything():
     print("Deleting everything...")
-    list_containers_cmd = "docker ps -a -q"
+    list_containers_cmd = "docker service ls -q -a"
     containers = " ".join(subprocess.getoutput(list_containers_cmd).split("\n"))
-    remove_cmd = f"docker stop {containers} ; docker rm {containers} ; docker network rm {dummy_network} ; docker " \
-                 f"volume prune -f ; docker system prune -f"
+    remove_cmd = f"docker service rm {containers} ; docker network rm {dummy_network}"
     subprocess.run(remove_cmd, shell=True)
+    exec_cmd_on_nodes("docker volume prune -f ; docker system prune -f")
 
 
 def build_dummy_node_image():
@@ -26,21 +42,16 @@ def build_dummy_node_image():
     subprocess.run(build_cmd, shell=True)
 
 
-def create_network():
-    print("Creating network...")
-    create_network_cmd = f"docker network create --subnet=192.168.192.1/20 {dummy_network}"
-    subprocess.run(create_network_cmd, shell=True)
-
-
 NAME = "name"
 NODE_IP = "ip"
 LOCATION = "location"
 
 
 def launch_dummy(info):
-    launch_cmd = f'docker run -d --network=dummies-network --privileged --ip {info[NODE_IP]} --name=' \
-                 f'{info[NAME]}  --hostname {info[NAME]} --env NODE_IP="{info[NODE_IP]}" --env ' \
-                 f'NODE_ID="{info[NAME]}" --env LOCATION="{info[LOCATION]}" brunoanjos/dummy_node:latest'
+    launch_cmd = f'docker service create --replicas 1 --name {info[NAME]} --cap-add CAP_NET_ADMIN ' \
+                 f'--cap-add CAT_SYS_ADMIN ' \
+                 f'--network=swarm-network --hostname {info[NAME]} --env NODE_IP="{info[NODE_IP]}" ' \
+                 f'--env NODE_ID="{info[NAME]}" --env LOCATION="{info[LOCATION]}" brunoanjos/dummy_node:latest'
     subprocess.run(launch_cmd, shell=True)
 
 
@@ -93,7 +104,6 @@ def load_s2_locations():
 
 del_everything()
 build_dummy_node_image()
-create_network()
 
 args = sys.argv[1:]
 if len(args) != 1:
