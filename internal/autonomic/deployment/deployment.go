@@ -101,11 +101,12 @@ func (a *Deployment) AddChild(child *utils.Node, location s2.CellID) {
 }
 
 func (a *Deployment) RemoveChild(childID string) {
+	log.Debugf("removing child %s", childID)
 	a.Children.Delete(childID)
 
 	_, ok := a.Exploring.Load(childID)
 	if ok {
-		a.BlacklistNodes(Myself.ID, childID)
+		a.BlacklistNodes(Myself.ID, []string{childID}, map[string]struct{}{Myself.ID: {}})
 	}
 }
 
@@ -152,20 +153,24 @@ func (a *Deployment) GetLoad() float64 {
 	return value.(float64)
 }
 
-func (a *Deployment) BlacklistNodes(origin string, nodes ...string) {
+func (a *Deployment) BlacklistNodes(origin string, nodes []string, nodesVisited map[string]struct{}) {
 	log.Debugf("blacklisting %+v", nodes)
 
 	for _, node := range nodes {
 		a.Blacklist.Store(node, nil)
 	}
 
+	nodesVisited[Myself.ID] = struct{}{}
+
 	autoClient := a.autoFactory.New("")
-
 	if a.Parent != nil {
-		autoClient.SetHostPort(a.Parent.Addr + ":" + strconv.Itoa(autonomic.Port))
+		_, hasVisitedParent := nodesVisited[a.Parent.ID]
+		if !hasVisitedParent {
+			autoClient.SetHostPort(a.Parent.Addr + ":" + strconv.Itoa(autonomic.Port))
 
-		if a.Parent != nil && origin != a.Parent.ID {
-			autoClient.BlacklistNodes(a.DeploymentID, Myself.ID, nodes...)
+			if origin != a.Parent.ID {
+				autoClient.BlacklistNodes(a.DeploymentID, Myself.ID, nodes, nodesVisited)
+			}
 		}
 	}
 
@@ -174,10 +179,15 @@ func (a *Deployment) BlacklistNodes(origin string, nodes ...string) {
 		if childID == origin {
 			return true
 		}
+
+		if _, ok := nodesVisited[childID]; ok {
+			return true
+		}
+
 		log.Debugf("telling %s to blacklist %+v for %s", childID, nodes, a.DeploymentID)
 		nodeWithLoc := value.(*nodeWithLocation)
 		autoClient.SetHostPort(nodeWithLoc.Node.Addr + ":" + strconv.Itoa(autonomic.Port))
-		autoClient.BlacklistNodes(a.DeploymentID, Myself.ID, nodes...)
+		autoClient.BlacklistNodes(a.DeploymentID, Myself.ID, nodes, nodesVisited)
 
 		return true
 	})

@@ -39,5 +39,6 @@ type (
 		Static          bool
 		DepthFactor     float64  `yaml:"depthFactor"`
 		InstanceNameFmt []string `yaml:"instanceNameFmt"`
+		RemovePath      string   `yaml:"removePath"`
 	}
 )

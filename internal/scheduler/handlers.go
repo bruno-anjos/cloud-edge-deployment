@@ -122,6 +122,13 @@ func startInstanceHandler(w http.ResponseWriter, r *http.Request) {
 func stopInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("handling delete instance")
 
+	requestBody := api.StopInstanceRequestBody{}
+
+	err := json.NewDecoder(r.Body).Decode(&requestBody)
+	if err != nil {
+		log.Panic(err)
+	}
+
 	instanceID := internalUtils.ExtractPathVar(r, instanceIDPathVar)
 
 	if instanceID == "" {
@@ -139,7 +146,7 @@ func stopInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	contID := value.(typeInstanceToContainerMapValue)
-	go stopContainerAsync(instanceID, contID)
+	go stopContainerAsync(instanceID, contID, requestBody.URL, requestBody.RemovePath)
 }
 
 func stopAllInstancesHandler(_ http.ResponseWriter, _ *http.Request) {
@@ -167,6 +174,7 @@ func getEnvVars(containerInstance *api.ContainerInstanceDTO, instanceID string,
 	replicaNumEnvVar := fmt.Sprintf(envVarFormatString, utils.ReplicaNumEnvVarName,
 		strconv.Itoa(containerInstance.ReplicaNumber))
 	locationEnvVar := fmt.Sprintf(envVarFormatString, utils.LocationEnvVarName, location)
+	nodeIDEnvVar := fmt.Sprintf(envVarFormatString, utils.NodeIDEnvVarName, myself.ID)
 
 	for idx, envVar := range containerInstance.EnvVars {
 		if envVar == instanceIDEnvVarReplace {
@@ -175,7 +183,7 @@ func getEnvVars(containerInstance *api.ContainerInstanceDTO, instanceID string,
 	}
 
 	envVars = append(envVars, deploymentIDEnvVar, instanceIDEnvVar, locationEnvVar, fallbackEnvVar, nodeIPEnvVar,
-		replicaNumEnvVar, portsEnvVar)
+		replicaNumEnvVar, portsEnvVar, nodeIDEnvVar)
 	envVars = append(envVars, containerInstance.EnvVars...)
 
 	return envVars
@@ -311,7 +319,19 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	log.Debugf("container %s started for instance %s", cont.ID, instanceID)
 }
 
-func stopContainerAsync(instanceID, contID string) {
+func stopContainerAsync(instanceID, contID, url, removePath string) {
+	if removePath != "" {
+		log.Infof("url: %s, path: %s", url, removePath)
+
+		httpClient := http.Client{}
+		req := internalUtils.BuildRequest(http.MethodGet, url, removePath, nil)
+
+		_, err := httpClient.Do(req)
+		if err != nil {
+			log.Panic(err)
+		}
+	}
+
 	err := dockerClient.ContainerStop(context.Background(), contID, &stopContainerTimeoutVar)
 	if err != nil {
 		log.Panic(err)

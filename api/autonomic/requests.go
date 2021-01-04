@@ -12,8 +12,9 @@ type (
 		ToExclude map[string]interface{}
 	}
 	BlacklistNodeRequestBody struct {
-		Origin string
-		Nodes  []string
+		Origin       string
+		Nodes        []string
+		NodesVisited map[string]struct{}
 	}
 	AddDeploymentChildRequestBody  = utils.Node
 	SetDeploymentParentRequestBody = utils.Node

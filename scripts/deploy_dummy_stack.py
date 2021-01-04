@@ -17,18 +17,19 @@ def del_everything():
     containers = " ".join(subprocess.getoutput(list_containers_cmd).split("\n"))
     remove_cmd = f"docker stop {containers} ; docker rm {containers} ; docker network rm {dummy_network} ; docker " \
                  f"volume prune -f ; docker system prune -f"
-    subprocess.run(remove_cmd)
+    subprocess.run(remove_cmd, shell=True)
 
 
 def build_dummy_node_image():
     print("Building dummy node image...")
     build_cmd = f"bash {project_path}/build/dummy_node/build_dummy_node.sh"
-    subprocess.run(build_cmd)
+    subprocess.run(build_cmd, shell=True)
 
 
 def create_network():
+    print("Creating network...")
     create_network_cmd = f"docker network create --subnet=192.168.192.1/20 {dummy_network}"
-    subprocess.run(create_network_cmd)
+    subprocess.run(create_network_cmd, shell=True)
 
 
 NAME = "name"
@@ -40,15 +41,17 @@ def launch_dummy(info):
     launch_cmd = f'docker run -d --network=dummies-network --privileged --ip {info[NODE_IP]} --name=' \
                  f'{info[NAME]}  --hostname {info[NAME]} --env NODE_IP="{info[NODE_IP]}" --env ' \
                  f'NODE_ID="{info[NAME]}" --env LOCATION="{info[LOCATION]}" brunoanjos/dummy_node:latest'
-    subprocess.run(launch_cmd)
+    subprocess.run(launch_cmd, shell=True)
 
 
 def start_services_in_dummy(info):
     start_services_cmd = f"docker exec {info[NAME]} ./deploy_services.sh"
-    subprocess.run(start_services_cmd)
+    subprocess.run(start_services_cmd, shell=True)
 
 
 def build_dummy_infos(num, s2_locs):
+    print("Building dummy nodes infos...")
+
     infos = []
     for i in range(1, num + 1):
         carry = i // 255
@@ -70,6 +73,7 @@ def build_dummy_infos(num, s2_locs):
 
 
 def load_s2_locations():
+    print("Loading s2 locations...")
     with open(f"{project_path}/scripts/visualizer/locations.json", 'r') as locations_fp:
         locations = json.load(locations_fp)["nodes"]
 
@@ -82,6 +86,8 @@ def load_s2_locations():
             )
         ).to_token()
 
+    print(s2_locs)
+
     return s2_locs
 
 
@@ -93,7 +99,7 @@ args = sys.argv[1:]
 if len(args) != 1:
     print("usage: deploy_dummy_stack.sh num_nodes")
 
-num_nodes = int(sys.argv[0])
+num_nodes = int(args[0])
 
 s2_locations = load_s2_locations()
 dummy_infos = build_dummy_infos(num_nodes, s2_locations)

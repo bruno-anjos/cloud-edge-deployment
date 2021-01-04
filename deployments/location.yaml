@@ -1,4 +1,4 @@
-replicas: 4
+replicas: 1
 deploymentName: location
 containers:
   - image: docker.io/brunoanjos/location:latest
@@ -15,3 +15,4 @@ containers:
 static: False
 depthFactor: 1
 instanceNameFmt: [ "$DEPLOYMENT_NAME", "-", "$REPLICA_NUM"]
+removePath: "/location/removing_instance"

@@ -26,7 +26,7 @@ type Client interface {
 	GetVicinity() (vicinity *autonomic.Vicinity, status int)
 	GetLocation() (location s2.CellID, status int)
 	SetExploredSuccessfully(deploymentID, childID string) (status int)
-	BlacklistNodes(deploymentID, origin string, nodes ...string) (status int)
+	BlacklistNodes(deploymentID, origin string, nodes []string, nodesVisited map[string]struct{}) (status int)
 }
 
 type ClientFactory interface {

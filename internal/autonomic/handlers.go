@@ -201,6 +201,6 @@ func blacklistNodeHandler(w http.ResponseWriter, r *http.Request) {
 
 	depl := value.(deploymentsMapValue)
 
-	log.Debugf("%s told me to blacklist %+v", reqBody.Origin, reqBody.Nodes)
-	depl.BlacklistNodes(reqBody.Origin, reqBody.Nodes...)
+	log.Debugf("%s told me to blacklist %+v (%s)", reqBody.Origin, reqBody.Nodes, deploymentID)
+	depl.BlacklistNodes(reqBody.Origin, reqBody.Nodes, reqBody.NodesVisited)
 }

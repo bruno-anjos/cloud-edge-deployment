@@ -19,6 +19,7 @@ import (
 
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -208,7 +209,7 @@ func newHierarchyTable() *hierarchyTable {
 	}
 }
 
-func (t *hierarchyTable) updateDeployment(deploymentID string, parent *utils.Node, grandparent *utils.Node) bool {
+func (t *hierarchyTable) updateDeployment(deploymentID string, parent, grandparent *utils.Node) bool {
 	value, ok := t.hierarchyEntries.Load(deploymentID)
 	if !ok {
 		return false
@@ -336,13 +337,22 @@ func (t *hierarchyTable) removeDeployment(deploymentID string) {
 		return
 	}
 
+	deploymentYAML := api.DeploymentYAML{}
+
+	err := yaml.Unmarshal(t.getDeploymentConfig(deploymentID), &deploymentYAML)
+	if err != nil {
+		log.Panic(err)
+	}
+
 	for instanceID := range instances {
-		status = schedulerClient.StopInstance(instanceID)
+		status = schedulerClient.StopInstance(instanceID, nodeIP, deploymentYAML.RemovePath)
 		if status != http.StatusOK {
 			log.Errorf("got status code %d from scheduler", status)
 
 			return
 		}
+
+		heartbeatsMap.Delete(instanceID)
 	}
 
 	parent := t.getParent(deploymentID)
@@ -854,7 +864,7 @@ func attemptToExtend(deploymentID string, targetNode *utils.Node, config *api.Ex
 			i++
 		}
 
-		autoClient.BlacklistNodes(deploymentID, myself.ID, toExcludeArr...)
+		autoClient.BlacklistNodes(deploymentID, myself.ID, toExcludeArr, map[string]struct{}{myself.ID: {}})
 	}
 }
 

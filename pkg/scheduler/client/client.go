@@ -21,7 +21,7 @@ func NewSchedulerClient(addr string) *Client {
 }
 
 func (c *Client) StartInstance(deploymentName, imageName, instanceName string, ports nat.PortSet,
-	replicaNum int, static bool, envVars []string, command []string) (status int) {
+	replicaNum int, static bool, envVars, command []string) (status int) {
 	reqBody := api.StartInstanceRequestBody{
 		DeploymentName: deploymentName,
 		ImageName:      imageName,
@@ -41,9 +41,14 @@ func (c *Client) StartInstance(deploymentName, imageName, instanceName string, p
 	return
 }
 
-func (c *Client) StopInstance(instanceID string) (status int) {
+func (c *Client) StopInstance(instanceID, ip, removePath string) (status int) {
 	path := api.GetInstancePath(instanceID)
-	req := internalUtils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
+	body := api.StopInstanceRequestBody{
+		RemovePath: removePath,
+		URL:        ip,
+	}
+
+	req := internalUtils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, body)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 

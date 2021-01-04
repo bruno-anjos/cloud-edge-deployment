@@ -150,9 +150,10 @@ func (c *Client) SetExploredSuccessfully(deploymentID, childID string) (status i
 	return
 }
 
-func (c *Client) BlacklistNodes(deploymentID, origin string, nodes ...string) (status int) {
+func (c *Client) BlacklistNodes(deploymentID, origin string, nodes []string,
+	nodesVisited map[string]struct{}) (status int) {
 	path := api.GetBlacklistPath(deploymentID)
-	reqBody := api.BlacklistNodeRequestBody{Origin: origin, Nodes: nodes}
+	reqBody := api.BlacklistNodeRequestBody{Origin: origin, Nodes: nodes, NodesVisited: nodesVisited}
 
 	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)

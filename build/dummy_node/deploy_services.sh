@@ -7,12 +7,12 @@ PORT=""
 set -e
 
 while :; do
-	if ! docker info >/dev/null 2>&1; then
-		echo "Docker does not seem to be running, run it first and retry"
-		sleep 2s
-	else
-		break
-	fi
+  if ! docker info >/dev/null 2>&1; then
+    echo "Docker does not seem to be running, run it first and retry"
+    sleep 2s
+  else
+    break
+  fi
 done
 
 HOSTNAME=$(hostname)
@@ -20,8 +20,8 @@ HOSTNAME=$(hostname)
 ./load_images.sh
 
 run() {
-	docker run -d --network="bridge" --env NODE_IP="$NODE_IP" --env NODE_ID="$NODE_ID" --name=$SERVICE_NAME \
-		-p $PORT:$PORT $OPTIONS --hostname "$HOSTNAME" brunoanjos/$SERVICE_NAME:latest
+  docker run -d --network="bridge" --env NODE_IP="$NODE_IP" --env NODE_ID="$NODE_ID" --env LOCATION="$LOCATION" \
+    --name=$SERVICE_NAME -p $PORT:$PORT $OPTIONS --hostname "$HOSTNAME" brunoanjos/$SERVICE_NAME:latest
 }
 
 SERVICE_NAME="archimedes"

@@ -8,7 +8,9 @@ import (
 	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer/client"
 
+	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 )
 
 type (
@@ -89,7 +91,14 @@ func instanceHeartbeatChecker() {
 }
 
 func removeInstance(deploymentID, instanceID string, existed bool) {
-	status := schedulerClient.StopInstance(instanceID)
+	deploymentYAML := api.DeploymentYAML{}
+
+	err := yaml.Unmarshal(hTable.getDeploymentConfig(deploymentID), &deploymentYAML)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	status := schedulerClient.StopInstance(instanceID, nodeIP, deploymentYAML.RemovePath)
 	if status != http.StatusOK {
 		log.Errorf("while trying to remove instance %s after timeout, scheduler returned status %d",
 			instanceID, status)
@@ -102,8 +111,6 @@ func removeInstance(deploymentID, instanceID string, existed bool) {
 				instanceID, status)
 		}
 	}
-
-	heartbeatsMap.Delete(instanceID)
 
 	log.Errorf("Removed unresponsive instance %s", instanceID)
 }

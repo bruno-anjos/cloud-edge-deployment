@@ -3,6 +3,7 @@ package deployer
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -84,6 +85,8 @@ var (
 	archFactory  archimedes.ClientFactory
 	deplFactory  deployer.ClientFactory
 	schedFactory scheduler.ClientFactory
+
+	nodeIP string
 )
 
 func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimedes.ClientFactory,
@@ -136,6 +139,12 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 	location = s2.CellFromCellID(locationID)
 
 	log.Debugf("got location %s", location.ID().ToToken())
+
+	var exists bool
+	nodeIP, exists = os.LookupEnv(utils.NodeIPEnvVarName)
+	if !exists {
+		log.Panic("no IP env var")
+	}
 
 	go sendHeartbeatsPeriodically()
 	go sendAlternativesPeriodically()
@@ -208,7 +217,7 @@ func childDeletedDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	hTable.removeChild(deploymentID, childID)
 	children.Delete(childID)
 
-	autonomicClient.BlacklistNodes(deploymentID, myself.ID, childID)
+	autonomicClient.BlacklistNodes(deploymentID, myself.ID, []string{childID}, map[string]struct{}{myself.ID: {}})
 }
 
 func getDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
