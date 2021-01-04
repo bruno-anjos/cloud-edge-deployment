@@ -1,8 +1,7 @@
 #!/bin/bash
 
 subnet=$1
-gateway=$2
-name=$3
+name=$2
 
 if [ -z $subnet ] || [ -z $name ]; then
   echo "setup needs exactly 2 arguments"
