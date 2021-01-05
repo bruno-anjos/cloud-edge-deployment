@@ -52,6 +52,9 @@ var (
 	location            string
 
 	stopContainerTimeoutVar = stopContainerTimeout
+
+	getPortLock = sync.Mutex{}
+	usedPorts   = map[string]struct{}{}
 )
 
 func InitServer(deplFactory deployer.ClientFactory) {
@@ -381,6 +384,9 @@ func deleteAllInstances() {
 }
 
 func getFreePort(protocol string) string {
+	getPortLock.Lock()
+	defer getPortLock.Unlock()
+
 	switch protocol {
 	case servers.TCP:
 		addr, err := net.ResolveTCPAddr(servers.TCP, "0.0.0.0:0")
@@ -405,7 +411,10 @@ func getFreePort(protocol string) string {
 			panic(err)
 		}
 
-		return natPort.Port()
+		port := natPort.Port()
+		usedPorts[port] = struct{}{}
+
+		return port
 	case servers.UDP:
 		addr, err := net.ResolveUDPAddr(servers.UDP, "0.0.0.0:0")
 		if err != nil {
@@ -429,7 +438,10 @@ func getFreePort(protocol string) string {
 			panic(err)
 		}
 
-		return natPort.Port()
+		port := natPort.Port()
+		usedPorts[port] = struct{}{}
+
+		return port
 	default:
 		panic(errors.Errorf("invalid port protocol: %s", protocol))
 	}

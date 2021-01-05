@@ -30,7 +30,7 @@ def exec_cmd_on_nodes(cmd):
 
 
 def exec_cmd_on_node(cmd, node):
-    remote_cmd = f"oarsh {node} -- {cmd}"
+    remote_cmd = f"oarsh {node} -- '{cmd}'"
     run_cmd_with_try(remote_cmd)
 
 
@@ -245,13 +245,6 @@ else:
     os.environ["DOCKER_NET"] = network
     del_everything()
 
-print("Building images...")
-
-if swarm:
-    build_dummy_node_image_swarm()
-else:
-    build_dummy_node_image()
-
 ips = [str(ip) for ip in IPNetwork(cidr_provided)]
 # Ignore first two IPs since they normally are the NetAddr and the Gateway, and ignore last one since normally it's the
 # broadcast IP
@@ -269,6 +262,13 @@ else:
     create_network()
     dummy_infos = build_dummy_infos(num_nodes, s2_locations)
 
+print("Writing node IPs...")
+with open(f"{project_path}/build/deployer/node_ips.json", "w") as node_ips_fp:
+    node_ips = {}
+    for dummy in dummy_infos:
+        node_ips[dummy[NAME]] = dummy[NODE_IP]
+    json.dump(node_ips, node_ips_fp)
+
 print("Writing fallback...")
 with open(f"{project_path}/build/deployer/fallback.json", "r+") as fallback_fp:
     fallback = json.load(fallback_fp)
@@ -278,7 +278,15 @@ with open(f"{project_path}/build/deployer/fallback.json", "r+") as fallback_fp:
                 fallback["Addr"] = aux_node[NODE_IP]
                 break
     fallback_fp.truncate(0)
+    fallback_fp.seek(0)
     json.dump(fallback, fallback_fp)
+
+print("Building images...")
+
+if swarm:
+    build_dummy_node_image_swarm()
+else:
+    build_dummy_node_image()
 
 print("Launching...")
 

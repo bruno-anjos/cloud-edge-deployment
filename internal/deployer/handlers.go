@@ -142,6 +142,7 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 
 	var exists bool
 	nodeIP, exists = os.LookupEnv(utils.NodeIPEnvVarName)
+
 	if !exists {
 		log.Panic("no IP env var")
 	}

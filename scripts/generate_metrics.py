@@ -3,9 +3,9 @@
 import json
 import os
 import random
+import sys
 
 import s2sphere
-import sys
 
 """
 {
@@ -310,7 +310,7 @@ def write_final_tree(trees_to_write, nodes_locations, output_dir):
 
 
 if len(sys.argv) < 4:
-    print("usage: python3 generate_metrics.py output_dir number_of_services prefix number_of_nodes")
+    print("usage: python3 generate_metrics.py output_dir prefix number_of_nodes")
     exit(1)
 
 args = sys.argv[1:]
@@ -372,10 +372,8 @@ print("At least one tree size:", atLeastOneTreeSize)
 outputDir = args[0]
 if not outputDir.endswith("/"):
     outputDir += "/"
-numServices = int(args[1])
-prefix = args[2]
-numberOfNodes = int(args[3])
-print("Number of services:", numServices)
+prefix = args[1]
+numberOfNodes = int(args[2])
 print("Prefix:", prefix)
 print("Number of Nodes:", numberOfNodes)
 
@@ -406,6 +404,6 @@ print(f"neighborhood size: {neighSize}")
 print("-------------------------------- TREE --------------------------------")
 
 trees, treeSizes, fallback, nodesLocations, nodesChildren, \
-neighborhoods = gen_trees(neighSize, loadedConfig)
+    neighborhoods = gen_trees(neighSize, loadedConfig)
 
 write_final_tree(trees, nodesLocations, outputDir)

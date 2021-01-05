@@ -3,6 +3,7 @@ package deployer
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -12,6 +13,10 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	nodeIPsFilepath = "/node_ips.json"
 )
 
 func setAlternativesHandler(_ http.ResponseWriter, r *http.Request) {
@@ -38,6 +43,18 @@ func loadAlternativesPeriodically() {
 	const timeout = 30 * time.Second
 	ticker := time.NewTicker(timeout)
 
+	filePtr, err := os.Open(nodeIPsFilepath)
+	if err != nil {
+		panic(err)
+	}
+
+	var nodeIPs map[string]string
+
+	err = json.NewDecoder(filePtr).Decode(&nodeIPs)
+	if err != nil {
+		panic(err)
+	}
+
 	for {
 		<-ticker.C
 
@@ -47,7 +64,8 @@ func loadAlternativesPeriodically() {
 		}
 
 		for _, neighbor := range vicinity.Nodes {
-			onNodeUp(neighbor.ID, neighbor.Addr)
+			log.Debugf("Alternative: %s -> %s", neighbor.ID, nodeIPs[neighbor.ID])
+			onNodeUp(neighbor.ID, nodeIPs[neighbor.ID])
 		}
 	}
 }
