@@ -4,7 +4,7 @@ subnet=$1
 name=$2
 
 if [ -z $name ]; then
-  name="swarm_network"
+  name="swarm-network"
 fi
 
 

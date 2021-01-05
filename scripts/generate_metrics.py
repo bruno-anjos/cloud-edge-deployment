@@ -391,11 +391,8 @@ if fallbackConfig:
 print("Nodes: ", nodes)
 
 ids_to_nodes = {}
-for i, aux_node_id in enumerate(nodes):
-    node_num = (i + 1) % 255
-    carry = (i + 1) // 255
-    ip = f"192.168.19{3 + carry}.{node_num}"
-    aux_node = {"Id": aux_node_id, "Addr": ip}
+for aux_node_id in nodes:
+    aux_node = {"Id": aux_node_id}
     ids_to_nodes[aux_node_id] = aux_node
 
 filelist = os.listdir(outputDir)

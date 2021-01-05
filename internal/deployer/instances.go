@@ -1,6 +1,7 @@
 package deployer
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer/client"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
+	"github.com/docker/go-connections/nat"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
@@ -98,7 +100,21 @@ func removeInstance(deploymentID, instanceID string, existed bool) {
 		log.Panic(err)
 	}
 
-	status := schedulerClient.StopInstance(instanceID, nodeIP, deploymentYAML.RemovePath)
+	instance, status := archimedesClient.GetInstance(instanceID)
+	if status != http.StatusOK {
+		log.Panicf("status %d while getting instance %s", status, instanceID)
+	}
+
+	var (
+		outport string
+		ports   []nat.PortBinding
+	)
+
+	for _, ports = range instance.PortTranslation {
+		outport = ports[0].HostPort
+	}
+
+	status = schedulerClient.StopInstance(instanceID, fmt.Sprintf("%s:%s", nodeIP, outport), deploymentYAML.RemovePath)
 	if status != http.StatusOK {
 		log.Errorf("while trying to remove instance %s after timeout, scheduler returned status %d",
 			instanceID, status)

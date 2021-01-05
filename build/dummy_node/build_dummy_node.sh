@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [[ -z "${CLOUD_EDGE_DEPLOYMENT}" ]]; then
+  export CLOUD_EDGE_DEPLOYMENT="/home/b.anjos/go/src/github.com/bruno-anjos/cloud-edge-deployment"
+fi
+
 BUILD_DIR="$CLOUD_EDGE_DEPLOYMENT"/build
 
 # Clear previous build directories and files

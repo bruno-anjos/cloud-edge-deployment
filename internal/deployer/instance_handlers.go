@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"sync"
 
-	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
+	"github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -24,7 +24,7 @@ func registerDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	instanceID := utils.ExtractPathVar(r, instanceIDPathVar)
 
-	instanceDTO := archimedes2.InstanceDTO{}
+	instanceDTO := deployer.RegisterDeploymentInstanceRequestBody{}
 
 	err := json.NewDecoder(r.Body).Decode(&instanceDTO)
 	if err != nil {

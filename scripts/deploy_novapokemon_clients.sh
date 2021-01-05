@@ -3,14 +3,14 @@
 set -e
 
 if [ $# -ne 4 ]; then
-	echo "usage: deploy_novapokemon_clients.sh num_clients region fallback logs_dir"
+	echo "usage: deploy_novapokemon_clients.sh <num_clients> <region> <logs_dir> <network>"
 	exit
 fi
 
 num_clients=$1
 region=$2
-fallback=$3
-logs_dir=$4
+logs_dir=$3
+network=$4
 
 if [ -n "$(ls -A "$logs_dir")" ]; then
 	read -p "There are logs in $logs_dir. Continue(y\\N)?" -n 1 -r
@@ -25,6 +25,9 @@ docker run -v /tmp/services:/services debian:latest sh -c "rm -rf /services/*"
 
 bash "$NOVAPOKEMON"/scripts/build_client.sh
 
+fallback=$(python3 -c 'import json; import os; dir = os.getenv("CLOUD_EDGE_DEPLOYMENT"); '\
+'fp = open(f"{dir}/build/deployer/fallback.json", "r"); fallback = json.load(fp); print(fallback["Addr"]); fp.close()')
+
 docker run -d --env NUM_CLIENTS="$num_clients" --env REGION="$region" \
 	--env FALLBACK_URL="$fallback" --env-file "$CLOUD_EDGE_DEPLOYMENT"/scripts/client-env.list \
-	--network dummies-network -v "$logs_dir":/logs -v /tmp/services:/services brunoanjos/client:latest
+	--network "$network" -v "$logs_dir":/logs -v /tmp/services:/services brunoanjos/client:latest

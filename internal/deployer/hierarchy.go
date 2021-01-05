@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -9,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	archimedes2 "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
+	archimedesAPI "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
@@ -17,6 +18,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
+	"github.com/docker/go-connections/nat"
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -321,7 +323,7 @@ func (t *hierarchyTable) removeDeployment(deploymentID string) {
 		return
 	}
 
-	var instances map[string]*archimedes2.Instance
+	var instances map[string]*archimedesAPI.Instance
 
 	instances, status = archimedesClient.GetDeployment(deploymentID)
 	if status != http.StatusOK {
@@ -344,8 +346,24 @@ func (t *hierarchyTable) removeDeployment(deploymentID string) {
 		log.Panic(err)
 	}
 
+	var instance *archimedesAPI.Instance
 	for instanceID := range instances {
-		status = schedulerClient.StopInstance(instanceID, nodeIP, deploymentYAML.RemovePath)
+		instance, status = archimedesClient.GetInstance(instanceID)
+		if status != http.StatusOK {
+			log.Panicf("status %d while getting instance %s", status, instanceID)
+		}
+
+		var (
+			outport string
+			ports   []nat.PortBinding
+		)
+
+		for _, ports = range instance.PortTranslation {
+			outport = ports[0].HostPort
+		}
+
+		status = schedulerClient.StopInstance(instanceID, fmt.Sprintf("%s:%s", nodeIP, outport),
+			deploymentYAML.RemovePath)
 		if status != http.StatusOK {
 			log.Errorf("got status code %d from scheduler", status)
 
