@@ -263,11 +263,13 @@ else:
     dummy_infos = build_dummy_infos(num_nodes, s2_locations)
 
 print("Writing node IPs...")
-with open(f"{project_path}/build/deployer/node_ips.json", "w") as node_ips_fp:
+with open(f"{project_path}/build/deployer/node_ips.json", "w") as deployer_ips_fp,\
+        open(f"{project_path}/build/autonomic/node_ips.json", "w") as autonomic_ips_fp:
     node_ips = {}
     for dummy in dummy_infos:
         node_ips[dummy[NAME]] = dummy[NODE_IP]
-    json.dump(node_ips, node_ips_fp)
+    json.dump(node_ips, deployer_ips_fp)
+    json.dump(node_ips, autonomic_ips_fp)
 
 print("Writing fallback...")
 with open(f"{project_path}/build/deployer/fallback.json", "r+") as fallback_fp:

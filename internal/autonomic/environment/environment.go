@@ -6,6 +6,8 @@ import (
 	"os"
 	"sync"
 
+	metrics "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
+	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -17,6 +19,7 @@ type Environment struct {
 const (
 	metricsFolder        = "metrics/"
 	metricsFileExtension = ".met"
+	nodeIPsFilepath      = "/node_ips.json"
 )
 
 func NewEnvironment() *Environment {
@@ -41,16 +44,21 @@ func (e *Environment) loadSimFile() {
 		panic(err)
 	}
 
-	var metrics map[string]interface{}
+	var metricsMap map[string]interface{}
 
-	err = json.Unmarshal(data, &metrics)
+	err = json.Unmarshal(data, &metricsMap)
 	if err != nil {
 		panic(err)
 	}
 
-	for metricID, metricValue := range metrics {
+	for metricID, metricValue := range metricsMap {
 		log.Debugf("loaded metric %s with value %v", metricID, metricValue)
 		e.TrackMetric(metricID)
+
+		if metricID == metrics.MetricLocationInVicinity {
+			metricValue = loadVicinity(metricValue)
+		}
+
 		e.setMetric(metricID, metricValue)
 	}
 }
@@ -87,6 +95,35 @@ func (e *Environment) copy() (copy *Environment) {
 	})
 
 	return
+}
+
+func loadVicinity(metricValue interface{}) interface{} {
+	var locationsInVicinity metrics.VicinityMetric
+
+	err := mapstructure.Decode(metricValue, &locationsInVicinity)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	filePtr, err := os.Open(nodeIPsFilepath)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	var nodeIPs map[string]string
+
+	err = json.NewDecoder(filePtr).Decode(&nodeIPs)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	for nodeID, node := range locationsInVicinity.Nodes {
+		node.Addr = nodeIPs[nodeID]
+	}
+
+	log.Debugf("Loaded IPs: %+v", locationsInVicinity.Nodes)
+
+	return locationsInVicinity
 }
 
 // Change this for lower API call.
