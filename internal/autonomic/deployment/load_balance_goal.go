@@ -46,20 +46,13 @@ type (
 
 type deploymentLoadBalanceGoal struct {
 	deployment       *Deployment
-	dependencies     []string
 	staleCycles      int
 	overloadedCycles int
 }
 
 func newLoadBalanceGoal(deployment *Deployment) *deploymentLoadBalanceGoal {
-	dependencies := []string{
-		metrics.GetAggLoadPerDeploymentInChildrenMetricID(deployment.DeploymentID),
-		metrics.GetLoadPerDeploymentInChildrenMetricID(deployment.DeploymentID),
-	}
-
 	return &deploymentLoadBalanceGoal{
-		deployment:   deployment,
-		dependencies: dependencies,
+		deployment: deployment,
 	}
 }
 
@@ -299,10 +292,6 @@ func (l *deploymentLoadBalanceGoal) GenerateAction(targets []*utils.Node, args .
 	}
 
 	return nil
-}
-
-func (l *deploymentLoadBalanceGoal) GetDependencies() (metrics []string) {
-	return l.dependencies
 }
 
 func (l *deploymentLoadBalanceGoal) GetID() string {

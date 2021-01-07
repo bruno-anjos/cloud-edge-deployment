@@ -81,12 +81,6 @@ func New(deploymentID, strategyID string, suspected *sync.Map, depthFactor float
 		return nil, errors.Errorf("invalid strategy: %s", strategyID)
 	}
 
-	dependencies := strat.GetDependencies()
-
-	for _, deploymentMetric := range dependencies {
-		env.TrackMetric(deploymentMetric)
-	}
-
 	s.Strategy = strat
 
 	return s, nil

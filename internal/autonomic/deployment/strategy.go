@@ -6,7 +6,6 @@ import (
 
 type strategy interface {
 	Optimize() actions.Action
-	GetDependencies() (metricIds []string)
 	GetID() string
 }
 
@@ -31,6 +30,7 @@ func (b *basicStrategy) Optimize() actions.Action {
 
 	for _, g := range b.goals {
 		isAlreadyMax, optRange, actionArgs := g.Optimize(nextDomain)
+
 		if isAlreadyMax {
 			nextDomain = optRange
 		} else {
@@ -44,14 +44,6 @@ func (b *basicStrategy) Optimize() actions.Action {
 	}
 
 	return goalToChooseActionFrom.GenerateAction(nextDomain, goalActionArgs)
-}
-
-func (b *basicStrategy) GetDependencies() (metricIds []string) {
-	for _, g := range b.goals {
-		metricIds = append(metricIds, g.GetDependencies()...)
-	}
-
-	return
 }
 
 func (b *basicStrategy) GetID() string {

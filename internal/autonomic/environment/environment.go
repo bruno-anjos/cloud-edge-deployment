@@ -1,131 +1,54 @@
 package environment
 
 import (
-	"encoding/json"
-	"io/ioutil"
-	"os"
-	"sync"
+	"context"
+	"time"
 
-	metrics "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
-	"github.com/mitchellh/mapstructure"
-	log "github.com/sirupsen/logrus"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	exporter "github.com/nm-morais/demmon-exporter"
 )
 
 type Environment struct {
-	trackedMetrics *sync.Map
-	metrics        *sync.Map
+	exporter *exporter.Exporter
 }
 
 const (
-	metricsFolder        = "metrics/"
-	metricsFileExtension = ".met"
-	nodeIPsFilepath      = "/node_ips.json"
+	logFolder = "/exporter"
+
+	autonomicService       = "ced-autonomic"
+	exportMetricsFrequency = 5 * time.Second
 )
 
-func NewEnvironment() *Environment {
-	env := &Environment{
-		trackedMetrics: &sync.Map{},
-		metrics:        &sync.Map{},
-	}
-
-	env.loadSimFile()
-
-	return env
+var exporterConf = &exporter.Conf{
+	Silent:          true,
+	LogFolder:       logFolder,
+	ImporterHost:    "localhost",
+	ImporterPort:    8090,
+	LogFile:         "exporter.log",
+	DialAttempts:    3,
+	DialBackoffTime: 1 * time.Second,
+	DialTimeout:     3 * time.Second,
+	RequestTimeout:  3 * time.Second,
 }
 
-func (e *Environment) loadSimFile() {
-	hostname, err := os.Hostname()
+func NewEnvironment(myself *utils.Node) *Environment {
+	e, err := exporter.New(exporterConf, myself.Addr, autonomicService, nil)
 	if err != nil {
 		panic(err)
 	}
 
-	data, err := ioutil.ReadFile(metricsFolder + hostname + metricsFileExtension)
-	if err != nil {
-		panic(err)
+	go e.ExportLoop(context.TODO(), exportMetricsFrequency)
+
+	return &Environment{
+		exporter: e,
 	}
-
-	var metricsMap map[string]interface{}
-
-	err = json.Unmarshal(data, &metricsMap)
-	if err != nil {
-		panic(err)
-	}
-
-	for metricID, metricValue := range metricsMap {
-		log.Debugf("loaded metric %s with value %v", metricID, metricValue)
-		e.TrackMetric(metricID)
-
-		if metricID == metrics.MetricLocationInVicinity {
-			metricValue = loadVicinity(metricValue)
-		}
-
-		e.setMetric(metricID, metricValue)
-	}
-}
-
-func (e *Environment) TrackMetric(metricID string) {
-	_, loaded := e.trackedMetrics.LoadOrStore(metricID, nil)
-	if loaded {
-		return
-	}
-
-	registerMetricInLowerAPI(metricID)
 }
 
 func (e *Environment) GetMetric(metricID string) (value interface{}, ok bool) {
-	return e.metrics.Load(metricID)
 }
 
-func (e *Environment) setMetric(metricID string, value interface{}) {
-	e.metrics.Store(metricID, value)
+func (e *Environment) SetMetric(metricID string, value interface{}) {
 }
 
-func (e *Environment) deleteMetric(metricID string) {
-	e.metrics.Delete(metricID)
-}
-
-func (e *Environment) copy() (copy *Environment) {
-	newMap := &sync.Map{}
-	copy = &Environment{metrics: newMap}
-
-	e.metrics.Range(func(key, value interface{}) bool {
-		newMap.Store(key, value)
-
-		return true
-	})
-
-	return
-}
-
-func loadVicinity(metricValue interface{}) interface{} {
-	var locationsInVicinity metrics.VicinityMetric
-
-	err := mapstructure.Decode(metricValue, &locationsInVicinity)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	filePtr, err := os.Open(nodeIPsFilepath)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	var nodeIPs map[string]string
-
-	err = json.NewDecoder(filePtr).Decode(&nodeIPs)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	for nodeID, node := range locationsInVicinity.Nodes {
-		node.Addr = nodeIPs[nodeID]
-	}
-
-	log.Debugf("Loaded IPs: %+v", locationsInVicinity.Nodes)
-
-	return locationsInVicinity
-}
-
-// Change this for lower API call.
-func registerMetricInLowerAPI(_ string) {
+func (e *Environment) DeleteMetric(metricID string) {
 }

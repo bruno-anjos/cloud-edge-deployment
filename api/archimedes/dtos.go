@@ -35,24 +35,27 @@ type DiscoverMsg struct {
 	Entries   map[string]*DeploymentsTableEntryDTO
 }
 
+const (
+	AddRemoteDeploymentMessageID = iota
+	AddRemoteInstanceMessageID
+	RemoveRemoteDeploymentMessageID
+)
+
 type AddRemoteDeploymentMsg struct {
-	MessageID    uuid.UUID
-	Origin       *utils.Node
-	NeighborSent *utils.Node
-	Deployment   *Deployment
+	MessageID  uuid.UUID
+	Origin     *utils.Node
+	Deployment *Deployment
 }
 
 type AddRemoteInstanceMsg struct {
-	MessageID    uuid.UUID
-	Origin       *utils.Node
-	NeighborSent *utils.Node
-	Instance     *Instance
+	MessageID uuid.UUID
+	Origin    *utils.Node
+	Instance  *Instance
 }
 
 type RemoveRemoteDeploymentMsg struct {
 	MessageID    uuid.UUID
 	Origin       *utils.Node
-	NeighborSent *utils.Node
 	DeploymentID string
 }
 

@@ -17,7 +17,6 @@ type goal interface {
 	Order(candidates domain, sortingCriteria map[string]interface{}) (ordered result)
 	Filter(candidates, domain domain) (filtered result)
 	Cutoff(candidates domain, candidatesCriteria map[string]interface{}) (cutoff result, maxed bool)
-	GetDependencies() (metrics []string)
 	GetID() string
 }
 

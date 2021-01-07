@@ -22,6 +22,9 @@ import (
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
+	"github.com/mitchellh/mapstructure"
+	client "github.com/nm-morais/demmon-client/pkg"
+	"github.com/nm-morais/demmon-common/body_types"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -36,8 +39,6 @@ type (
 	redirectingToMeMapValue = *sync.Map
 
 	redirectionsMapValue = *redirectedConfig
-
-	messagesSeenKey = uuid.UUID
 )
 
 const (
@@ -61,6 +62,8 @@ var (
 	deplFactory deployer.ClientFactory
 
 	messagesSeen = sync.Map{}
+
+	demCli client.DemmonClient
 )
 
 func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.ClientFactory) {
@@ -94,6 +97,47 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.
 	archimedesID = uuid.New().String()
 
 	log.Infof("ARCHIMEDES ID: %s", archimedesID)
+
+	msgChan, _, err := demCli.InstallBroadcastMessageHandler(1)
+	if err != nil {
+		panic(err)
+	}
+
+	go handleBroadcastMessages(msgChan)
+}
+
+func handleBroadcastMessages(msgChan <-chan body_types.Message) {
+	for msg := range msgChan {
+		switch msg.ID {
+		case api.AddRemoteDeploymentMessageID:
+			var addMsg api.AddRemoteDeploymentMsg
+
+			err := mapstructure.Decode(msg.Content, &addMsg)
+			if err != nil {
+				log.Panic(err)
+			}
+
+			addRemoteDeploymentHandler(&addMsg)
+		case api.AddRemoteInstanceMessageID:
+			var addMsg api.AddRemoteInstanceMsg
+
+			err := mapstructure.Decode(msg.Content, &addMsg)
+			if err != nil {
+				log.Panic(err)
+			}
+
+			addRemoteInstanceHandler(&addMsg)
+		case api.RemoveRemoteDeploymentMessageID:
+			var remMsg api.RemoveRemoteDeploymentMsg
+
+			err := mapstructure.Decode(msg.Content, &remMsg)
+			if err != nil {
+				log.Panic(err)
+			}
+
+			removeRemoteDeploymentHandler(&remMsg)
+		}
+	}
 }
 
 func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
@@ -136,7 +180,21 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Debugf("added deployment %s", deploymentID)
 
-	// TODO broadcast add deployment
+	err = demCli.BroadcastMessage(
+		body_types.Message{
+			ID:  api.AddRemoteDeploymentMessageID,
+			TTL: maxHops,
+			Content: api.AddRemoteDeploymentMsg{
+				MessageID:  uuid.New(),
+				Origin:     myself,
+				Deployment: deployment,
+			},
+		},
+	)
+
+	if err != nil {
+		log.Panic(err)
+	}
 
 	clientsManager.AddDeployment(deploymentID)
 }
@@ -156,7 +214,20 @@ func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	sTable.deleteDeployment(deploymentID)
 	redirectServicesMap.Delete(deploymentID)
 
-	// TODO broadcast delete deployment
+	err := demCli.BroadcastMessage(
+		body_types.Message{
+			ID:  api.RemoveRemoteDeploymentMessageID,
+			TTL: maxHops,
+			Content: api.RemoveRemoteDeploymentMsg{
+				MessageID:    uuid.New(),
+				Origin:       myself,
+				DeploymentID: deploymentID,
+			},
+		},
+	)
+	if err != nil {
+		log.Panic(err)
+	}
 
 	log.Debugf("deleted deployment %s", deploymentID)
 }
@@ -204,7 +275,22 @@ func registerDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sTable.addInstance(deploymentID, instanceID, instance)
-	// TODO broadcast add instance
+
+	err = demCli.BroadcastMessage(
+		body_types.Message{
+			ID:  api.AddRemoteInstanceMessageID,
+			TTL: maxHops,
+			Content: api.AddRemoteInstanceMsg{
+				MessageID: uuid.New(),
+				Origin:    myself,
+				Instance:  instance,
+			},
+		},
+	)
+	if err != nil {
+		log.Panic(err)
+	}
+
 	log.Debugf("added instance %s to deployment %s", instanceID, deploymentID)
 }
 
@@ -734,6 +820,7 @@ func addRemoteInstanceHandler(addMsg *api.AddRemoteInstanceMsg) {
 	instance.Hops++
 	instance.Local = false
 	instance.Static = true
+	instance.Initialized = true
 
 	ok = sTable.deploymentHasInstance(instance.DeploymentID, instance.ID)
 	if ok {

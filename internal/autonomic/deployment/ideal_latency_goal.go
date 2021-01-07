@@ -60,21 +60,11 @@ type (
 type idealLatency struct {
 	deployment        *Deployment
 	myLocation        s2.CellID
-	dependencies      []string
 	centroidsExtended map[s2.CellID]interface{}
 	depthFactor       float64
 }
 
 func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
-	dependencies := []string{
-		metrics.GetProcessingTimePerDeploymentMetricID(deployment.DeploymentID),
-		metrics.GetClientLatencyPerDeploymentMetricID(deployment.DeploymentID),
-		metrics.MetricLocation,
-		metrics.GetAverageClientLocationPerDeploymentMetricID(deployment.DeploymentID),
-		metrics.MetricLocationInVicinity,
-		metrics.GetNumInstancesMetricID(deployment.DeploymentID),
-	}
-
 	value, ok := deployment.Environment.GetMetric(metrics.MetricLocation)
 	if !ok {
 		panic("could not get location from environment")
@@ -82,7 +72,6 @@ func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
 
 	return &idealLatency{
 		deployment:        deployment,
-		dependencies:      dependencies,
 		myLocation:        s2.CellIDFromToken(value.(string)),
 		centroidsExtended: map[s2.CellID]interface{}{},
 		depthFactor:       deployment.DepthFactor,
@@ -427,10 +416,6 @@ func (i *idealLatency) generateMultipleExtendAction(targets result, args ...inte
 
 func (i *idealLatency) extendedCentroidCallback(centroid s2.CellID) {
 	i.centroidsExtended[centroid] = nil
-}
-
-func (i *idealLatency) GetDependencies() (metrics []string) {
-	return i.dependencies
 }
 
 func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthestChild string,
