@@ -9,11 +9,11 @@ import (
 
 	deployerAPI "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/golang/geo/s2"
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
@@ -65,7 +65,7 @@ type idealLatency struct {
 }
 
 func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
-	value, ok := deployment.Environment.GetMetric(metrics.MetricLocation)
+	value, ok := deployment.Environment.GetMetric(environment.metricLocation)
 	if !ok {
 		panic("could not get location from environment")
 	}
@@ -189,14 +189,14 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 		}
 	}
 
-	value, ok = i.deployment.Environment.GetMetric(metrics.MetricLocationInVicinity)
+	value, ok = i.deployment.Environment.GetMetric(environment.metricLocationInVicinity)
 	if !ok {
-		log.Debugf("no value for metric %s", metrics.MetricLocationInVicinity)
+		log.Debugf("no value for metric %s", environment.metricLocationInVicinity)
 
 		return nil, nil, false
 	}
 
-	var vicinity metrics.VicinityMetric
+	var vicinity environment.VicinityMetric
 
 	err := mapstructure.Decode(value, &vicinity)
 	if err != nil {
@@ -444,14 +444,9 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthes
 			value interface{}
 		)
 
-		_, ok = i.deployment.Environment.GetMetric(metrics.MetricNodeAddr)
+		value, ok = i.deployment.Environment.GetMetric(environment.metricLocation)
 		if !ok {
-			log.Panicf("no value for metric %s", metrics.MetricNodeAddr)
-		}
-
-		value, ok = i.deployment.Environment.GetMetric(metrics.MetricLocation)
-		if !ok {
-			log.Panicf("no value for metric %s", metrics.MetricNodeAddr)
+			log.Panicf("no value for metric %s", environment.metricLocation)
 		}
 
 		var location s2.CellID
@@ -473,7 +468,7 @@ func (i *idealLatency) GetID() string {
 }
 
 func (i *idealLatency) checkProcessingTime() bool {
-	processintTimeMetric := metrics.GetProcessingTimePerDeploymentMetricID(i.deployment.DeploymentID)
+	processintTimeMetric := environment.GetProcessingTimePerDeploymentMetricID(i.deployment.DeploymentID)
 
 	value, ok := i.deployment.Environment.GetMetric(processintTimeMetric)
 	if !ok {
@@ -483,7 +478,7 @@ func (i *idealLatency) checkProcessingTime() bool {
 	}
 
 	processingTime := value.(float64)
-	clientLatencyMetric := metrics.GetClientLatencyPerDeploymentMetricID(i.deployment.DeploymentID)
+	clientLatencyMetric := environment.GetClientLatencyPerDeploymentMetricID(i.deployment.DeploymentID)
 
 	value, ok = i.deployment.Environment.GetMetric(clientLatencyMetric)
 	if !ok {

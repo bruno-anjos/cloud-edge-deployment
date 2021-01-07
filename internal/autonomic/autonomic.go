@@ -20,7 +20,6 @@ import (
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 
@@ -58,7 +57,7 @@ func newSystem(autoFactory autonomic.ClientFactory, archFactory archimedes.Clien
 	return &system{
 		deployments:      &sync.Map{},
 		exitChans:        &sync.Map{},
-		env:              environment.NewEnvironment(),
+		env:              environment.NewEnvironment(deployment.Myself),
 		suspected:        &sync.Map{},
 		deployerClient:   deplFactory.New(servers.DeployerLocalHostPort),
 		archimedesClient: archFactory.New(servers.ArchimedesLocalHostPort),
@@ -83,6 +82,8 @@ func (a *system) addDeployment(deploymentID, strategyID string, depthFactor floa
 		a.exitChans.Store(deploymentID, exitChan)
 
 		go a.handleDeployment(depl, exitChan)
+
+		return
 	}
 
 	log.Debugf("new deployment %s has exploringTTL %d", deploymentID, exploringTTL)
@@ -132,14 +133,14 @@ func (a *system) addDeploymentChild(deploymentID string, child *utils.Node) {
 
 	s := value.(deploymentsMapValue)
 
-	value, ok = a.env.GetMetric(metrics.MetricLocationInVicinity)
+	value, ok = a.env.GetMetric(environment.metricLocationInVicinity)
 	if !ok {
-		log.Errorf("no metric %s", metrics.MetricLocationInVicinity)
+		log.Errorf("no metric %s", environment.metricLocationInVicinity)
 
 		return
 	}
 
-	var vicinityMetric metrics.VicinityMetric
+	var vicinityMetric environment.VicinityMetric
 
 	err := mapstructure.Decode(value, &vicinityMetric)
 	if err != nil {
@@ -209,12 +210,12 @@ func (a *system) isNodeInVicinity(nodeID string) bool {
 }
 
 func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]interface{}) *utils.Node {
-	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
+	value, ok := a.env.GetMetric(environment.metricLocationInVicinity)
 	if !ok {
 		return nil
 	}
 
-	var vicinity metrics.VicinityMetric
+	var vicinity environment.VicinityMetric
 
 	err := mapstructure.Decode(value, &vicinity)
 	if err != nil {
@@ -262,12 +263,12 @@ func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]inter
 }
 
 func (a *system) getVicinity() *autonomicAPI.Vicinity {
-	value, ok := a.env.GetMetric(metrics.MetricLocationInVicinity)
+	value, ok := a.env.GetMetric(environment.metricLocationInVicinity)
 	if !ok {
 		return nil
 	}
 
-	var vicinityMetric metrics.VicinityMetric
+	var vicinityMetric environment.VicinityMetric
 
 	err := mapstructure.Decode(value, &vicinityMetric)
 	if err != nil {
@@ -286,7 +287,7 @@ func (a *system) getVicinity() *autonomicAPI.Vicinity {
 }
 
 func (a *system) getMyLocation() (s2.CellID, error) {
-	value, ok := a.env.GetMetric(metrics.MetricLocation)
+	value, ok := a.env.GetMetric(environment.metricLocation)
 	if !ok {
 		return 0, errors.New("could not fetch my location")
 	}

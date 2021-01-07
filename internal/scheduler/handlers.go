@@ -54,7 +54,6 @@ var (
 	stopContainerTimeoutVar = stopContainerTimeout
 
 	getPortLock = sync.Mutex{}
-	usedPorts   = map[string]struct{}{}
 )
 
 func InitServer(deplFactory deployer.ClientFactory) {
@@ -213,95 +212,119 @@ func pullImage(containerInstance *api.ContainerInstanceDTO, imageName string) {
 }
 
 func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
-	portBindings := generatePortBindings(containerInstance.Ports)
+	success := false
 
-	// Create container and get containers id in response
-	var instanceID string
-	if containerInstance.InstanceName == "" {
-		instanceID = containerInstance.DeploymentName + "-" + servers.RandomString(randomChars) + "-" + myself.ID
-	} else {
-		instanceID = containerInstance.InstanceName
-	}
+	var (
+		portBindings nat.PortMap
+		instanceID   string
+		contID       string
+	)
+	for !success {
+		// This can fail because the OS might give us a freeport that has not yet been fully released by docker
 
-	log.Debugf("instance %s has following portBindings: %+v", instanceID, portBindings)
+		portBindings = generatePortBindings(containerInstance.Ports)
 
-	envVars := getEnvVars(containerInstance, instanceID, portBindings)
-
-	images, err := dockerClient.ImageList(context.Background(), types.ImageListOptions{})
-	if err != nil {
-		panic(err)
-	}
-
-	splits := strings.Split(containerInstance.ImageName, "/")[1:]
-
-	var imageName string
-
-	if splits[0] == "library" {
-		imageName = splits[1]
-	} else {
-		imageName = splits[0] + "/" + splits[1]
-	}
-
-	log.Debugf("imagename: %s", imageName)
-
-	hasImage := false
-
-	for _, image := range images {
-		if image.RepoTags[0] == imageName {
-			log.Debugf("%s matches %s", image.RepoTags[0], imageName)
-
-			hasImage = true
+		// Create container and get containers id in response
+		if containerInstance.InstanceName == "" {
+			instanceID = containerInstance.DeploymentName + "-" + servers.RandomString(randomChars) + "-" + myself.ID
+		} else {
+			instanceID = containerInstance.InstanceName
 		}
-	}
 
-	if !hasImage {
-		pullImage(containerInstance, imageName)
-		imageName = containerInstance.ImageName
-	} else {
-		log.Debugf("image %s already exists locally", imageName)
-	}
+		log.Debugf("instance %s has following portBindings: %+v", instanceID, portBindings)
 
-	//nolint:exhaustivestruct
-	containerConfig := container.Config{
-		Cmd:          containerInstance.Command,
-		Env:          envVars,
-		Image:        imageName,
-		Hostname:     fmt.Sprintf("%s-%d", containerInstance.DeploymentName, containerInstance.ReplicaNumber),
-		ExposedPorts: containerInstance.Ports,
-	}
+		envVars := getEnvVars(containerInstance, instanceID, portBindings)
 
-	//nolint:exhaustivestruct
-	hostConfig := container.HostConfig{
-		NetworkMode:  "bridge",
-		PortBindings: portBindings,
-	}
-
-	// nolint:exhaustivestruct
-	err = dockerClient.ContainerRemove(context.Background(), instanceID, types.ContainerRemoveOptions{
-		Force: true,
-	})
-
-	if err != nil {
-		log.Infof(err.Error())
-	}
-
-	cont, err := dockerClient.ContainerCreate(context.Background(), &containerConfig, &hostConfig, nil,
-		instanceID)
-	if err != nil {
-		panic(err)
-	}
-
-	if len(cont.Warnings) > 0 {
-		for _, warn := range cont.Warnings {
-			log.Warn(warn)
+		images, err := dockerClient.ImageList(context.Background(), types.ImageListOptions{})
+		if err != nil {
+			panic(err)
 		}
+
+		splits := strings.Split(containerInstance.ImageName, "/")[1:]
+
+		var imageName string
+
+		if splits[0] == "library" {
+			imageName = splits[1]
+		} else {
+			imageName = splits[0] + "/" + splits[1]
+		}
+
+		log.Debugf("imagename: %s", imageName)
+
+		hasImage := false
+
+		for _, image := range images {
+			if image.RepoTags[0] == imageName {
+				log.Debugf("%s matches %s", image.RepoTags[0], imageName)
+
+				hasImage = true
+			}
+		}
+
+		if !hasImage {
+			pullImage(containerInstance, imageName)
+			imageName = containerInstance.ImageName
+		} else {
+			log.Debugf("image %s already exists locally", imageName)
+		}
+
+		//nolint:exhaustivestruct
+		containerConfig := container.Config{
+			Cmd:          containerInstance.Command,
+			Env:          envVars,
+			Image:        imageName,
+			Hostname:     fmt.Sprintf("%s-%d", containerInstance.DeploymentName, containerInstance.ReplicaNumber),
+			ExposedPorts: containerInstance.Ports,
+		}
+
+		hostConfig := container.HostConfig{
+			NetworkMode:  "bridge",
+			PortBindings: portBindings,
+		}
+
+		// nolint:exhaustivestruct
+		err = dockerClient.ContainerRemove(context.Background(), instanceID, types.ContainerRemoveOptions{
+			Force: true,
+		})
+
+		if err != nil {
+			log.Infof(err.Error())
+		}
+
+		cont, err := dockerClient.ContainerCreate(context.Background(), &containerConfig, &hostConfig, nil,
+			instanceID)
+		if err != nil {
+			panic(err)
+		}
+
+		contID = cont.ID
+
+		if len(cont.Warnings) > 0 {
+			for _, warn := range cont.Warnings {
+				log.Warn(warn)
+			}
+		}
+
+		// Spin container up
+		err = dockerClient.ContainerStart(context.Background(), cont.ID, types.ContainerStartOptions{})
+		if err != nil {
+			log.Warn(err)
+			continue
+		} else {
+			success = true
+		}
+
+		instanceToContainer.Store(instanceID, cont.ID)
+
+		log.Debugf("container %s started for instance %s", cont.ID, instanceID)
 	}
 
 	// Add container instance to deployer
 	status := deplClient.RegisterDeploymentInstance(containerInstance.DeploymentName, instanceID,
 		containerInstance.Static, portBindings, true)
 	if status != http.StatusOK {
-		err = dockerClient.ContainerStop(context.Background(), cont.ID, &stopContainerTimeoutVar)
+		err := dockerClient.ContainerStop(context.Background(), contID, &stopContainerTimeoutVar)
 		if err != nil {
 			log.Error(err)
 		}
@@ -310,16 +333,6 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 
 		return
 	}
-
-	// Spin container up
-	err = dockerClient.ContainerStart(context.Background(), cont.ID, types.ContainerStartOptions{})
-	if err != nil {
-		panic(err)
-	}
-
-	instanceToContainer.Store(instanceID, cont.ID)
-
-	log.Debugf("container %s started for instance %s", cont.ID, instanceID)
 }
 
 func stopContainerAsync(instanceID, contID, url, removePath string) {
@@ -336,6 +349,15 @@ func stopContainerAsync(instanceID, contID, url, removePath string) {
 	}
 
 	err := dockerClient.ContainerStop(context.Background(), contID, &stopContainerTimeoutVar)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	err = dockerClient.ContainerRemove(context.Background(), contID, types.ContainerRemoveOptions{
+		RemoveVolumes: true,
+		RemoveLinks:   true,
+		Force:         true,
+	})
 	if err != nil {
 		log.Panic(err)
 	}
@@ -412,7 +434,6 @@ func getFreePort(protocol string) string {
 		}
 
 		port := natPort.Port()
-		usedPorts[port] = struct{}{}
 
 		return port
 	case servers.UDP:
@@ -439,7 +460,6 @@ func getFreePort(protocol string) string {
 		}
 
 		port := natPort.Port()
-		usedPorts[port] = struct{}{}
 
 		return port
 	default:

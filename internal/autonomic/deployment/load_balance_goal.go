@@ -8,7 +8,6 @@ import (
 	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	autonomicUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
@@ -16,6 +15,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
@@ -142,14 +142,14 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain domain
 	info = nil
 	success = false
 
-	value, ok := l.deployment.Environment.GetMetric(metrics.MetricLocationInVicinity)
+	value, ok := l.deployment.Environment.GetMetric(environment.metricLocationInVicinity)
 	if !ok {
-		log.Debugf("no value for metric %s", metrics.MetricLocationInVicinity)
+		log.Debugf("no value for metric %s", environment.metricLocationInVicinity)
 
 		return nil, nil, false
 	}
 
-	var locationsInVicinity metrics.VicinityMetric
+	var locationsInVicinity environment.VicinityMetric
 
 	err := mapstructure.Decode(value, &locationsInVicinity)
 	if err != nil {

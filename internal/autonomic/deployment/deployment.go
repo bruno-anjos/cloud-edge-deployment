@@ -8,7 +8,6 @@ import (
 	autonomicAPI "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/metrics"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
@@ -135,7 +134,7 @@ func (a *Deployment) ToDTO() *autonomicAPI.DeploymentDTO {
 }
 
 func (a *Deployment) GetLoad() float64 {
-	metric := metrics.GetLoadPerDeployment(a.DeploymentID)
+	metric := environment.GetLoadPerDeploymentMetricID(a.DeploymentID)
 
 	value, ok := a.Environment.GetMetric(metric)
 	if !ok {
