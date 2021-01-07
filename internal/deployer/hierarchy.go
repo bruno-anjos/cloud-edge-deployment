@@ -346,13 +346,7 @@ func (t *hierarchyTable) removeDeployment(deploymentID string) {
 		log.Panic(err)
 	}
 
-	var instance *archimedesAPI.Instance
-	for instanceID := range instances {
-		instance, status = archimedesClient.GetInstance(instanceID)
-		if status != http.StatusOK {
-			log.Panicf("status %d while getting instance %s", status, instanceID)
-		}
-
+	for instanceID, instance := range instances {
 		var (
 			outport string
 			ports   []nat.PortBinding
