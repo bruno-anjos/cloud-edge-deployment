@@ -11,25 +11,21 @@ import (
 
 type (
 	deploymentsTableEntry struct {
-		Host         *utils.Node
-		Deployment   *api.Deployment
-		Instances    *sync.Map
-		NumberOfHops int
-		MaxHops      int
-		Version      int
-		EntryLock    *sync.RWMutex
+		Host       *utils.Node
+		Deployment *api.Deployment
+		Instances  *sync.Map
+		MaxHops    int
+		EntryLock  *sync.RWMutex
 	}
 )
 
 func newTempDeploymentTableEntry() *deploymentsTableEntry {
 	return &deploymentsTableEntry{
-		Host:         nil,
-		Deployment:   nil,
-		Instances:    nil,
-		NumberOfHops: 0,
-		MaxHops:      0,
-		Version:      0,
-		EntryLock:    &sync.RWMutex{},
+		Host:       nil,
+		Deployment: nil,
+		Instances:  nil,
+		MaxHops:    0,
+		EntryLock:  &sync.RWMutex{},
 	}
 }
 
@@ -51,12 +47,10 @@ func (se *deploymentsTableEntry) toChangedDTO() *api.DeploymentsTableEntryDTO {
 	})
 
 	return &api.DeploymentsTableEntryDTO{
-		Host:         se.Host,
-		Deployment:   se.Deployment,
-		Instances:    instances,
-		NumberOfHops: se.NumberOfHops,
-		MaxHops:      se.MaxHops,
-		Version:      se.Version,
+		Host:       se.Host,
+		Deployment: se.Deployment,
+		Instances:  instances,
+		MaxHops:    se.MaxHops,
 	}
 }
 
@@ -75,12 +69,10 @@ func (se *deploymentsTableEntry) toDTO() *api.DeploymentsTableEntryDTO {
 	})
 
 	return &api.DeploymentsTableEntryDTO{
-		Host:         se.Host,
-		Deployment:   se.Deployment,
-		Instances:    instances,
-		NumberOfHops: se.NumberOfHops,
-		MaxHops:      se.MaxHops,
-		Version:      se.Version,
+		Host:       se.Host,
+		Deployment: se.Deployment,
+		Instances:  instances,
+		MaxHops:    se.MaxHops,
 	}
 }
 
@@ -97,9 +89,6 @@ type (
 
 	typeInstancesMapKey   = string
 	typeInstancesMapValue = *api.Instance
-
-	typeNeighborsDeploymentsMapKey   = string
-	typeNeighborsDeploymentsMapValue = *sync.Map
 )
 
 func newDeploymentsTable() *deploymentsTable {
@@ -109,60 +98,6 @@ func newDeploymentsTable() *deploymentsTable {
 		instancesMap:            sync.Map{},
 		neighborsDeploymentsMap: sync.Map{},
 	}
-}
-
-func (st *deploymentsTable) updateDeployment(deploymentID string, newEntry *api.DeploymentsTableEntryDTO) bool {
-	value, ok := st.deploymentsMap.Load(deploymentID)
-	if !ok {
-		log.Panicf("deployment %s doesnt exist", deploymentID)
-	}
-
-	entry := value.(typeDeploymentsTableMapValue)
-	entry.EntryLock.RLock()
-
-	log.Debugf("got deployment on version %d, have %d", entry.Version, newEntry.Version)
-
-	// ignore messages with no new information
-	if newEntry.Version <= entry.Version {
-		log.Debug("discarding message due to version being older or equal")
-
-		return false
-	}
-
-	entry.EntryLock.RUnlock()
-	entry.EntryLock.Lock()
-	defer entry.EntryLock.Unlock()
-
-	// message is fresher, comes from the closest neighbor or closer and it has new information
-	entry.Host = newEntry.Host
-	entry.Deployment = newEntry.Deployment
-
-	entry.Instances.Range(func(key, value interface{}) bool {
-		instanceID := key.(typeInstancesMapKey)
-		_, ok = newEntry.Instances[instanceID]
-		if !ok {
-			st.instancesMap.Delete(instanceID)
-		}
-
-		return true
-	})
-
-	newInstancesMap := &sync.Map{}
-
-	for instanceID, instance := range newEntry.Instances {
-		newInstancesMap.Store(instanceID, instance)
-		st.instancesMap.Store(instanceID, instance)
-	}
-
-	entry.Instances = newInstancesMap
-	entry.NumberOfHops = newEntry.NumberOfHops
-	entry.Version = newEntry.Version
-	entry.MaxHops = maxHops
-
-	log.Debugf("updated deployment %s table entry to: %+v", deploymentID, entry)
-	log.Debugf("with instances %+v", newEntry.Instances)
-
-	return true
 }
 
 func (st *deploymentsTable) addDeployment(deploymentID string, newEntry *api.DeploymentsTableEntryDTO) (added bool) {
@@ -201,8 +136,6 @@ func (st *deploymentsTable) addDeployment(deploymentID string, newEntry *api.Dep
 	}
 
 	newTableEntry.Instances = newInstancesMap
-	newTableEntry.NumberOfHops = newEntry.NumberOfHops
-	newTableEntry.Version = newEntry.Version
 	newTableEntry.MaxHops = maxHops
 
 	deploymentsMap := &sync.Map{}
@@ -271,6 +204,32 @@ func (st *deploymentsTable) getAllDeploymentInstances(deploymentID string) map[s
 	return instances
 }
 
+func (st *deploymentsTable) getAllLocalDeploymentInstances(deploymentID string) map[string]*api.Instance {
+	instances := map[string]*api.Instance{}
+
+	value, ok := st.deploymentsMap.Load(deploymentID)
+	if !ok {
+		return instances
+	}
+
+	entry := value.(typeDeploymentsTableMapValue)
+	entry.EntryLock.RLock()
+	defer entry.EntryLock.RUnlock()
+
+	entry.Instances.Range(func(key, value interface{}) bool {
+		instanceID := key.(string)
+		instance := value.(typeInstancesMapValue)
+
+		if instance.IP == myself.Addr {
+			instances[instanceID] = instance
+		}
+
+		return true
+	})
+
+	return instances
+}
+
 func (st *deploymentsTable) addInstance(deploymentID, instanceID string, instance *api.Instance) (added bool) {
 	value, ok := st.deploymentsMap.Load(deploymentID)
 	if !ok {
@@ -284,7 +243,6 @@ func (st *deploymentsTable) addInstance(deploymentID, instanceID string, instanc
 	defer entry.EntryLock.Unlock()
 
 	entry.Instances.Store(instanceID, instance)
-	entry.Version++
 
 	st.instancesMap.Store(instanceID, instance)
 
@@ -357,6 +315,27 @@ func (st *deploymentsTable) deleteDeployment(deploymentID string) {
 	st.deploymentsMap.Delete(deploymentID)
 }
 
+func (st *deploymentsTable) deleteDeploymentInstancesFrom(deploymentID string, from *utils.Node) {
+	value, ok := st.deploymentsMap.Load(deploymentID)
+	if !ok {
+		return
+	}
+
+	entry := value.(typeDeploymentsTableMapValue)
+	entry.EntryLock.Lock()
+	defer entry.EntryLock.Unlock()
+
+	entry.Instances.Range(func(key, value interface{}) bool {
+		instanceID := key.(typeInstancesMapKey)
+		instance := value.(typeInstancesMapValue)
+		if instance.IP == from.Addr {
+			entry.Instances.Delete(instanceID)
+		}
+
+		return true
+	})
+}
+
 func (st *deploymentsTable) deleteInstance(deploymentID, instanceID string) {
 	value, ok := st.instancesMap.Load(deploymentID)
 	if ok {
@@ -383,41 +362,6 @@ func (st *deploymentsTable) deleteInstance(deploymentID, instanceID string) {
 	st.instancesMap.Delete(instanceID)
 }
 
-func (st *deploymentsTable) toChangedDiscoverMsg() *api.DiscoverMsg {
-	entries := map[string]*api.DeploymentsTableEntryDTO{}
-
-	st.deploymentsMap.Range(func(key, value interface{}) bool {
-		deploymentID := key.(typeDeploymentsTableMapKey)
-		entry := value.(typeDeploymentsTableMapValue)
-
-		entry.EntryLock.RLock()
-
-		if entry.NumberOfHops+1 > maxHops {
-			return true
-		}
-
-		defer entry.EntryLock.RUnlock()
-
-		entryDTO := entry.toChangedDTO()
-		entryDTO.NumberOfHops++
-
-		entries[deploymentID] = entryDTO
-
-		return true
-	})
-
-	if len(entries) == 0 {
-		return nil
-	}
-
-	return &api.DiscoverMsg{
-		MessageID:    uuid.New(),
-		Origin:       archimedesID,
-		NeighborSent: archimedesID,
-		Entries:      entries,
-	}
-}
-
 func (st *deploymentsTable) toDiscoverMsg() *api.DiscoverMsg {
 	entries := map[string]*api.DeploymentsTableEntryDTO{}
 
@@ -436,24 +380,8 @@ func (st *deploymentsTable) toDiscoverMsg() *api.DiscoverMsg {
 	}
 
 	return &api.DiscoverMsg{
-		MessageID:    uuid.New(),
-		Origin:       archimedesID,
-		NeighborSent: archimedesID,
-		Entries:      entries,
+		MessageID: uuid.New(),
+		Origin:    myself,
+		Entries:   entries,
 	}
-}
-
-func (st *deploymentsTable) deleteNeighborDeployments(neighborID string) {
-	value, ok := st.neighborsDeploymentsMap.Load(neighborID)
-	if !ok {
-		return
-	}
-
-	deployments := value.(typeNeighborsDeploymentsMapValue)
-	deployments.Range(func(key, _ interface{}) bool {
-		deploymentID := key.(typeNeighborsDeploymentsMapKey)
-		sTable.deleteDeployment(deploymentID)
-
-		return true
-	})
 }

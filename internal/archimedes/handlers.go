@@ -2,7 +2,6 @@ package archimedes
 
 import (
 	"encoding/json"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -37,6 +36,8 @@ type (
 	redirectingToMeMapValue = *sync.Map
 
 	redirectionsMapValue = *redirectedConfig
+
+	messagesSeenKey = uuid.UUID
 )
 
 const (
@@ -58,6 +59,8 @@ var (
 
 	autoFactory autonomic.ClientFactory
 	deplFactory deployer.ClientFactory
+
+	messagesSeen = sync.Map{}
 )
 
 func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.ClientFactory) {
@@ -122,18 +125,19 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newTableEntry := &api.DeploymentsTableEntryDTO{
-		Host:         reqBody.Host,
-		Deployment:   deployment,
-		Instances:    map[string]*api.Instance{},
-		NumberOfHops: 0,
-		MaxHops:      0,
-		Version:      0,
+		Host:       reqBody.Host,
+		Deployment: deployment,
+		Instances:  map[string]*api.Instance{},
+		MaxHops:    maxHops,
+		Version:    0,
 	}
 
 	sTable.addDeployment(deploymentID, newTableEntry)
-	sendDeploymentsTable()
 
 	log.Debugf("added deployment %s", deploymentID)
+
+	// TODO broadcast add deployment
+
 	clientsManager.AddDeployment(deploymentID)
 }
 
@@ -151,6 +155,8 @@ func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	sTable.deleteDeployment(deploymentID)
 	redirectServicesMap.Delete(deploymentID)
+
+	// TODO broadcast delete deployment
 
 	log.Debugf("deleted deployment %s", deploymentID)
 }
@@ -186,28 +192,19 @@ func registerDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var host string
-	if instanceDTO.Local {
-		host = instanceID
-	} else {
-		host, _, err = net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			panic(err)
-		}
-	}
-
 	instance := &api.Instance{
 		ID:              instanceID,
-		IP:              host,
 		DeploymentID:    deploymentID,
+		IP:              myself.Addr,
 		PortTranslation: instanceDTO.PortTranslation,
 		Initialized:     instanceDTO.Static,
 		Static:          instanceDTO.Static,
 		Local:           instanceDTO.Local,
+		Hops:            0,
 	}
 
 	sTable.addInstance(deploymentID, instanceID, instance)
-	sendDeploymentsTable()
+	// TODO broadcast add instance
 	log.Debugf("added instance %s to deployment %s", instanceID, deploymentID)
 }
 
@@ -511,12 +508,17 @@ func resolveLocally(toResolve *api.ToResolveDTO, reqLogger *log.Entry) (resolved
 		return
 	}
 
-	instances := sTable.getAllDeploymentInstances(deployment.ID)
-
+	instances := sTable.getAllLocalDeploymentInstances(deployment.ID)
 	if len(instances) == 0 {
-		log.Debugf("no instances for deployment %s", deployment.ID)
+		reqLogger.Debugf("no local instances for deployment %s", deployment.ID)
 
-		return
+		instances = sTable.getAllDeploymentInstances(deployment.ID)
+
+		if len(instances) == 0 {
+			reqLogger.Debugf("no instances for deployment %s", deployment.ID)
+
+			return
+		}
 	}
 
 	var randInstance *api.Instance
@@ -533,7 +535,8 @@ func resolveLocally(toResolve *api.ToResolveDTO, reqLogger *log.Entry) (resolved
 
 	resolved, found = resolveInstance(toResolve.Port, randInstance)
 	if found {
-		log.Debugf("resolved %s:%s to %s:%s", toResolve.Host, toResolve.Port.Port(), resolved.Host, resolved.Port)
+		reqLogger.Debugf("resolved %s:%s to %s:%s", toResolve.Host, toResolve.Port.Port(), resolved.Host,
+			resolved.Port)
 	}
 
 	return resolved, found
@@ -714,13 +717,72 @@ func getClientCentroidsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func sendDeploymentsTable() {
-	discoverMsg := sTable.toChangedDiscoverMsg()
-	if discoverMsg == nil {
+func addRemoteInstanceHandler(addMsg *api.AddRemoteInstanceMsg) {
+	_, ok := messagesSeen.Load(addMsg.MessageID)
+	if ok {
+		log.Debugf("repeated message %s", addMsg.MessageID.String())
 		return
 	}
 
-	broadcastMsgWithHorizon(discoverMsg, maxHops)
+	_, ok = sTable.getDeployment(addMsg.Instance.DeploymentID)
+	if !ok {
+		log.Debugf("deployment %s missing", addMsg.Instance.DeploymentID)
+		return
+	}
+
+	instance := *addMsg.Instance
+	instance.Hops++
+	instance.Local = false
+	instance.Static = true
+
+	ok = sTable.deploymentHasInstance(instance.DeploymentID, instance.ID)
+	if ok {
+		log.Debugf("already have instance %s for deployment %s", instance.ID,
+			instance.DeploymentID)
+		return
+	}
+
+	sTable.addInstance(instance.DeploymentID, instance.ID, &instance)
+}
+
+func addRemoteDeploymentHandler(addMsg *api.AddRemoteDeploymentMsg) {
+	_, ok := messagesSeen.Load(addMsg.MessageID)
+	if ok {
+		log.Debugf("repeated message %s", addMsg.MessageID.String())
+		return
+	}
+
+	_, ok = sTable.getDeployment(addMsg.Deployment.ID)
+	if ok {
+		log.Debugf("deployment %s already present", addMsg.Deployment.ID)
+		return
+	}
+
+	newTableEntry := &api.DeploymentsTableEntryDTO{
+		Host:       addMsg.Origin,
+		Deployment: addMsg.Deployment,
+		Instances:  map[string]*api.Instance{},
+		MaxHops:    maxHops,
+		Version:    0,
+	}
+
+	sTable.addDeployment(addMsg.Deployment.ID, newTableEntry)
+}
+
+func removeRemoteDeploymentHandler(remMsg *api.RemoveRemoteDeploymentMsg) {
+	_, ok := messagesSeen.Load(remMsg.MessageID)
+	if ok {
+		log.Debugf("repeated message %s", remMsg.MessageID.String())
+		return
+	}
+
+	_, ok = sTable.getDeployment(remMsg.DeploymentID)
+	if !ok {
+		log.Debugf("deployment %s is missing", remMsg.DeploymentID)
+		return
+	}
+
+	sTable.deleteDeploymentInstancesFrom(remMsg.DeploymentID, remMsg.Origin)
 }
 
 func resolveInstance(originalPort nat.Port, instance *api.Instance) (*api.ResolvedDTO, bool) {
@@ -733,10 +795,6 @@ func resolveInstance(originalPort nat.Port, instance *api.Instance) (*api.Resolv
 		Host: myself.Addr,
 		Port: portNatResolved[0].HostPort,
 	}, true
-}
-
-func broadcastMsgWithHorizon(_ *api.DiscoverMsg, _ int) {
-	// This simulates the lower level layer.
 }
 
 func checkForClosestNodeRedirection(deploymentID string, clientLocation s2.CellID) (redirectTo *utils.Node) {

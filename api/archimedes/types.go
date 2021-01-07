@@ -17,4 +17,5 @@ type Instance struct {
 	Initialized     bool
 	Static          bool
 	Local           bool
+	Hops            int
 }
