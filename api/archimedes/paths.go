@@ -18,7 +18,6 @@ const (
 	RedirectPath                = "/deployments/%s/redirect"
 	RedirectedPath              = "/deployments/%s/redirected"
 	SetResolvingAnswerPath      = "/deployments/asnwer"
-	LoadPath                    = "/deployments/%s/load"
 	AvgClientLocationPath       = "/deployments/%s/avg_cli_loc"
 	ExploringClientLocationPath = "/deployments/%s/exploring_loc"
 	AddDeploymentNodePath       = "/deployments/%s/node"
@@ -52,10 +51,6 @@ func GetRedirectPath(deploymentID string) string {
 
 func GetRedirectedPath(deploymentID string) string {
 	return PrefixPath + fmt.Sprintf(RedirectedPath, deploymentID)
-}
-
-func GetLoadPath(deploymentID string) string {
-	return PrefixPath + fmt.Sprintf(LoadPath, deploymentID)
 }
 
 func GetAvgClientLocationPath(deploymentID string) string {
