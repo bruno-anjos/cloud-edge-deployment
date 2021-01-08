@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	autonomicAPI "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	deployerAPI "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	autonomicUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
@@ -15,15 +14,13 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
-	"github.com/mitchellh/mapstructure"
-	"github.com/pkg/errors"
-
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
+	client "github.com/nm-morais/demmon-client/pkg"
 )
 
 type (
@@ -45,6 +42,8 @@ type (
 		autoFactory  autonomic.ClientFactory
 		deplFactory  deployer.ClientFactory
 		schedFactory scheduler.ClientFactory
+
+		demmonCli *client.DemmonClient
 	}
 )
 
@@ -57,9 +56,9 @@ func newSystem(autoFactory autonomic.ClientFactory, archFactory archimedes.Clien
 	return &system{
 		deployments:      &sync.Map{},
 		exitChans:        &sync.Map{},
-		env:              environment.NewEnvironment(deployment.Myself),
+		env:              environment.NewEnvironment(deployment.Myself, location, autoFactory.New()),
 		suspected:        &sync.Map{},
-		deployerClient:   deplFactory.New(servers.DeployerLocalHostPort),
+		deployerClient:   deplFactory.New(),
 		archimedesClient: archFactory.New(servers.ArchimedesLocalHostPort),
 		archFactory:      archFactory,
 		autoFactory:      autoFactory,
@@ -104,6 +103,8 @@ func (a *system) addDeployment(deploymentID, strategyID string, depthFactor floa
 	a.exitChans.Store(deploymentID, exitChan)
 
 	go a.handleDeployment(s, exitChan)
+
+	a.env.AddDeploymentInterestSet(deploymentID, environment.LocationQuery, environment.MetricLocation)
 }
 
 func (a *system) removeDeployment(deploymentID string) {
@@ -133,21 +134,8 @@ func (a *system) addDeploymentChild(deploymentID string, child *utils.Node) {
 
 	s := value.(deploymentsMapValue)
 
-	value, ok = a.env.GetMetric(environment.metricLocationInVicinity)
-	if !ok {
-		log.Errorf("no metric %s", environment.metricLocationInVicinity)
-
-		return
-	}
-
-	var vicinityMetric environment.VicinityMetric
-
-	err := mapstructure.Decode(value, &vicinityMetric)
-	if err != nil {
-		panic(err)
-	}
-
-	cellValue, ok := vicinityMetric.Locations[child.ID]
+	locationsInVicinity := a.env.GetLocationInVicinity()
+	childLocation, ok := locationsInVicinity[child.ID]
 	if !ok {
 		log.Errorf("no location for child %s", child.ID)
 
@@ -156,10 +144,10 @@ func (a *system) addDeploymentChild(deploymentID string, child *utils.Node) {
 
 	log.Debugf("adding child %s", child.ID)
 
-	location := s2.CellIDFromToken(cellValue)
-
 	a.suspected.Delete(child.ID)
-	s.AddChild(child, location)
+	s.AddChild(child, childLocation)
+
+	a.env.UpdateDeploymentInterestSet(deploymentID, environment.MetricLocation, s.GetChildrenAsArray())
 }
 
 func (a *system) removeDeploymentChild(deploymentID, childID string) {
@@ -203,29 +191,17 @@ func (a *system) getDeployments() (deployments map[string]*deployment.Deployment
 }
 
 func (a *system) isNodeInVicinity(nodeID string) bool {
-	vicinity := a.getVicinity()
-	_, ok := vicinity.Nodes[nodeID]
-
-	return ok
+	return a.env.IsInVicinity(nodeID)
 }
 
 func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]interface{}) *utils.Node {
-	value, ok := a.env.GetMetric(environment.metricLocationInVicinity)
-	if !ok {
-		return nil
-	}
+	vicinity := a.env.GetVicinity()
+	locationsPerNode := a.env.GetLocationInVicinity()
 
-	var vicinity environment.VicinityMetric
+	ordered := make([]*utils.Node, 0, len(vicinity))
 
-	err := mapstructure.Decode(value, &vicinity)
-	if err != nil {
-		panic(err)
-	}
-
-	ordered := make([]*utils.Node, 0, len(vicinity.Nodes))
-
-	for nodeID, node := range vicinity.Nodes {
-		if _, ok = toExclude[nodeID]; ok {
+	for nodeID, node := range vicinity {
+		if _, ok := toExclude[nodeID]; ok {
 			continue
 		}
 
@@ -234,13 +210,13 @@ func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]inter
 
 	locationCells := make([]s2.Cell, len(locations))
 
-	for _, location := range locations {
-		locationCells = append(locationCells, s2.CellFromCellID(location))
+	for _, auxLoc := range locations {
+		locationCells = append(locationCells, s2.CellFromCellID(auxLoc))
 	}
 
 	sort.Slice(ordered, func(i, j int) bool {
-		iID := s2.CellIDFromToken(vicinity.Locations[ordered[i].ID])
-		jID := s2.CellIDFromToken(vicinity.Locations[ordered[j].ID])
+		iID := locationsPerNode[ordered[i].ID]
+		jID := locationsPerNode[ordered[j].ID]
 
 		iCell := s2.CellFromCellID(iID)
 		jCell := s2.CellFromCellID(jID)
@@ -260,39 +236,6 @@ func (a *system) closestNodeTo(locations []s2.CellID, toExclude map[string]inter
 	}
 
 	return ordered[0]
-}
-
-func (a *system) getVicinity() *autonomicAPI.Vicinity {
-	value, ok := a.env.GetMetric(environment.metricLocationInVicinity)
-	if !ok {
-		return nil
-	}
-
-	var vicinityMetric environment.VicinityMetric
-
-	err := mapstructure.Decode(value, &vicinityMetric)
-	if err != nil {
-		panic(err)
-	}
-
-	vicinity := &autonomicAPI.Vicinity{
-		Nodes:     vicinityMetric.Nodes,
-		Locations: map[string]s2.CellID{},
-	}
-	for nodeID, cellToken := range vicinityMetric.Locations {
-		vicinity.Locations[nodeID] = s2.CellIDFromToken(cellToken)
-	}
-
-	return vicinity
-}
-
-func (a *system) getMyLocation() (s2.CellID, error) {
-	value, ok := a.env.GetMetric(environment.metricLocation)
-	if !ok {
-		return 0, errors.New("could not fetch my location")
-	}
-
-	return s2.CellIDFromToken(value.(string)), nil
 }
 
 func (a *system) handleDeployment(deployment *deployment.Deployment, exit <-chan interface{}) {
@@ -322,19 +265,19 @@ func (a *system) handleDeployment(deployment *deployment.Deployment, exit <-chan
 func (a *system) performAction(action actions.Action) {
 	switch assertedAction := action.(type) {
 	case *actions.RedirectAction:
-		assertedAction.Execute(a.archimedesClient)
+		assertedAction.Execute(servers.ArchimedesLocalHostPort, a.archimedesClient)
 	case *actions.ExtendDeploymentAction:
-		assertedAction.Execute(a.deployerClient)
+		assertedAction.Execute("", a.deployerClient)
 	case *actions.MultipleExtendDeploymentAction:
-		assertedAction.Execute(a.deployerClient)
+		assertedAction.Execute(servers.DeployerLocalHostPort, a.deployerClient)
 	case *actions.RemoveDeploymentAction:
-		assertedAction.Execute(a.deployerClient)
+		assertedAction.Execute(servers.DeployerLocalHostPort, a.deployerClient)
 	default:
 		log.Errorf("could not execute action of type %s", action.GetActionID())
 	}
 }
 
-func (a *system) getLoad(deploymentID string) (float64, bool) {
+func (a *system) getLoad(deploymentID string) (int, bool) {
 	value, ok := a.deployments.Load(deploymentID)
 	if !ok {
 		return 0, false

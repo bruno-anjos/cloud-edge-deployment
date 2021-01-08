@@ -7,6 +7,6 @@ import (
 
 type ClientFactory struct{}
 
-func (cf *ClientFactory) New(addr string) autonomic.Client {
-	return client.NewAutonomicClient(addr)
+func (cf *ClientFactory) New() autonomic.Client {
+	return client.NewAutonomicClient()
 }

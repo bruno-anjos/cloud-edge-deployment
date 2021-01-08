@@ -133,17 +133,20 @@ func (a *Deployment) ToDTO() *autonomicAPI.DeploymentDTO {
 	}
 }
 
-func (a *Deployment) GetLoad() float64 {
-	metric := environment.GetLoadPerDeploymentMetricID(a.DeploymentID)
+func (a *Deployment) GetLoad() int {
+	return environment.GetLoad(a.Environment.DemmonCli, a.DeploymentID, Myself)
+}
 
-	value, ok := a.Environment.GetMetric(metric)
-	if !ok {
-		log.Debugf("no value for metric %s", metric)
+func (a *Deployment) GetChildrenAsArray() (children []*utils.Node) {
+	a.Children.Range(func(key, value interface{}) bool {
+		childWithLoc := value.(*nodeWithLocation)
 
-		return 0
-	}
+		children = append(children, childWithLoc.Node)
 
-	return value.(float64)
+		return true
+	})
+
+	return
 }
 
 func (a *Deployment) BlacklistNodes(origin string, nodes []string, nodesVisited map[string]struct{}) {
@@ -155,14 +158,13 @@ func (a *Deployment) BlacklistNodes(origin string, nodes []string, nodesVisited 
 
 	nodesVisited[Myself.ID] = struct{}{}
 
-	autoClient := a.autoFactory.New("")
+	autoClient := a.autoFactory.New()
 	if a.Parent != nil {
 		_, hasVisitedParent := nodesVisited[a.Parent.ID]
 		if !hasVisitedParent {
-			autoClient.SetHostPort(a.Parent.Addr + ":" + strconv.Itoa(autonomic.Port))
-
+			addr := a.Parent.Addr + ":" + strconv.Itoa(autonomic.Port)
 			if origin != a.Parent.ID {
-				autoClient.BlacklistNodes(a.DeploymentID, Myself.ID, nodes, nodesVisited)
+				autoClient.BlacklistNodes(addr, a.DeploymentID, Myself.ID, nodes, nodesVisited)
 			}
 		}
 	}
@@ -179,8 +181,8 @@ func (a *Deployment) BlacklistNodes(origin string, nodes []string, nodesVisited 
 
 		log.Debugf("telling %s to blacklist %+v for %s", childID, nodes, a.DeploymentID)
 		nodeWithLoc := value.(*nodeWithLocation)
-		autoClient.SetHostPort(nodeWithLoc.Node.Addr + ":" + strconv.Itoa(autonomic.Port))
-		autoClient.BlacklistNodes(a.DeploymentID, Myself.ID, nodes, nodesVisited)
+		addr := nodeWithLoc.Node.Addr + ":" + strconv.Itoa(autonomic.Port)
+		autoClient.BlacklistNodes(addr, a.DeploymentID, Myself.ID, nodes, nodesVisited)
 
 		return true
 	})

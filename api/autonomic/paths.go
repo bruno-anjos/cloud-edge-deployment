@@ -15,11 +15,11 @@ const (
 	DeploymentParentPath         = "/deployments/%s/parent"
 	IsNodeInVicinityPath         = "/vicinity/%s"
 	ClosestNodePath              = "/closest"
-	VicinityPath                 = "/vicinity"
 	MyLocationPath               = "/location"
 	LoadPath                     = "/load/%s"
 	ExplorePath                  = "/explored/%s/%s"
 	BlacklistPath                = "/blacklist/%s"
+	GetIDPath                    = "/getid"
 )
 
 func GetDeploymentsPath() string {
@@ -48,10 +48,6 @@ func GetIsNodeInVicinityPath(nodeID string) string {
 
 func GetClosestNodePath() string {
 	return PrefixPath + ClosestNodePath
-}
-
-func GetVicinityPath() string {
-	return PrefixPath + VicinityPath
 }
 
 func GetMyLocationPath() string {

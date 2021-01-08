@@ -1,13 +1,17 @@
 package clients
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/cell"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/golang/geo/s2"
+	exporter "github.com/nm-morais/demmon-exporter"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -24,29 +28,82 @@ type (
 
 	numReqsLastMinuteMapValue = *batchValue
 
+	gaugesMapKey   = string
+	gaugesMapValue = *exporter.Gauge
+
 	Manager struct {
 		numReqsLastMinute sync.Map
 		currBatch         sync.Map
 		exploringCells    sync.Map
+		gauges            sync.Map
 		cellManager       *cell.Manager
+		exporter          *exporter.Exporter
 	}
 )
 
 const (
-	batchTimer = 10 * time.Second
+	batchTimer             = 10 * time.Second
+	loadExportFrequency    = 5 * time.Second
+	metricsExportFrequency = 20 * time.Second
+
+	archimedesService = "ced-archimedes"
+
+	logFolder  = "/exporter"
+	daemonPort = 8090
+
+	loadSamples = 10
 )
 
 func NewManager() *Manager {
+	exporterConf := &exporter.Conf{
+		Silent:          true,
+		LogFolder:       logFolder,
+		ImporterHost:    "localhost",
+		ImporterPort:    daemonPort,
+		LogFile:         "exporter.log",
+		DialAttempts:    3,
+		DialBackoffTime: 1 * time.Second,
+		DialTimeout:     3 * time.Second,
+		RequestTimeout:  3 * time.Second,
+	}
+
+	exp, err := exporter.New(exporterConf, deployment.Myself.Addr, archimedesService, nil)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	go exp.ExportLoop(context.TODO(), metricsExportFrequency)
+
 	r := &Manager{
 		numReqsLastMinute: sync.Map{},
 		currBatch:         sync.Map{},
 		exploringCells:    sync.Map{},
+		gauges:            sync.Map{},
 		cellManager:       cell.NewManager(),
+		exporter:          exp,
 	}
 
+	go r.exportLoadsPeriodically()
 	go r.manageLoadBatch()
 
 	return r
+}
+
+func (r *Manager) exportLoadsPeriodically() {
+	ticker := time.NewTicker(loadExportFrequency)
+	for {
+		r.gauges.Range(func(key, value interface{}) bool {
+			deploymentID := key.(gaugesMapKey)
+			gauge := value.(gaugesMapValue)
+
+			load := r.getLoad(deploymentID)
+			gauge.Set(float64(load))
+
+			return true
+		})
+
+		<-ticker.C
+	}
 }
 
 func (r *Manager) AddDeployment(deploymentID string) {
@@ -61,6 +118,9 @@ func (r *Manager) AddDeployment(deploymentID string) {
 		NumReqs:   0,
 	}
 	r.currBatch.LoadOrStore(deploymentID, newBatch)
+
+	r.gauges.LoadOrStore(deploymentID, r.exporter.NewGauge(environment.MetricLoad,
+		loadSamples).With(environment.DeploymentTag, deploymentID))
 }
 
 func (r *Manager) UpdateNumRequests(deploymentID string, location s2.CellID) {
@@ -112,17 +172,14 @@ func (r *Manager) updateBatch(deploymentID string, location s2.CellID) {
 	log.Debugf("adding to batch %d (%d)", location, atomic.LoadInt64(&entry.NumReqs))
 }
 
-func (r *Manager) GetLoad(deploymentID string) (load int) {
+func (r *Manager) getLoad(deploymentID string) (load int) {
 	value, ok := r.numReqsLastMinute.Load(deploymentID)
 	if !ok {
 		return 0
 	}
 
 	entry := value.(numReqsLastMinuteMapValue)
-
-	if ok {
-		load = int(entry.NumReqs)
-	}
+	load = int(entry.NumReqs)
 
 	return
 }

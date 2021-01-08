@@ -59,12 +59,12 @@ var (
 func InitServer(deplFactory deployer.ClientFactory) {
 	log.SetLevel(log.DebugLevel)
 
-	deplClient = deplFactory.New(servers.DeployerLocalHostPort)
+	deplClient = deplFactory.New()
 
 	for {
 		var status int
 
-		fallback, status = deplClient.GetFallback()
+		fallback, status = deplClient.GetFallback(servers.DeployerLocalHostPort)
 		if status == http.StatusOK {
 			break
 		}
@@ -321,7 +321,8 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 	}
 
 	// Add container instance to deployer
-	status := deplClient.RegisterDeploymentInstance(containerInstance.DeploymentName, instanceID,
+	status := deplClient.RegisterDeploymentInstance(servers.DeployerLocalHostPort, containerInstance.DeploymentName,
+		instanceID,
 		containerInstance.Static, portBindings, true)
 	if status != http.StatusOK {
 		err := dockerClient.ContainerStop(context.Background(), contID, &stopContainerTimeoutVar)

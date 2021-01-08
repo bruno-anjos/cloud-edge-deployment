@@ -81,7 +81,7 @@ func (i *idealLatencyStrategy) Optimize() actions.Action {
 		success = i.handleRedirectAction(action)
 	} else if i.redirecting {
 		i.redirecting = false
-		i.archClient.RemoveRedirect(i.deployment.DeploymentID)
+		i.archClient.RemoveRedirect(servers.ArchimedesLocalHostPort, i.deployment.DeploymentID)
 	}
 
 	if !success {
@@ -112,7 +112,7 @@ func (i *idealLatencyStrategy) handleRedirectAction(action actions.Action) (succ
 
 func (i *idealLatencyStrategy) handleRedirecting() bool {
 	// case where i WAS already redirecting
-	redirected, status := i.archClient.GetRedirected(i.deployment.DeploymentID)
+	redirected, status := i.archClient.GetRedirected(servers.ArchimedesLocalHostPort, i.deployment.DeploymentID)
 	if status != http.StatusOK {
 		return false
 	}
@@ -121,7 +121,7 @@ func (i *idealLatencyStrategy) handleRedirecting() bool {
 		targetArchClient := i.deployment.archFactory.New(i.redirectingTo.Addr + ":" + strconv.Itoa(
 			archimedes.Port))
 
-		status = targetArchClient.RemoveRedirect(i.deployment.DeploymentID)
+		status = targetArchClient.RemoveRedirect(servers.ArchimedesLocalHostPort, i.deployment.DeploymentID)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while removing redirections for deployment %s at %s", status,
 				i.deployment.DeploymentID, i.redirectingTo)

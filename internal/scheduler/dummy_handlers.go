@@ -38,7 +38,8 @@ func dummyStartInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	portBindings := generatePortBindings(containerInstance.Ports)
 
-	status := deplClient.RegisterDeploymentInstance(containerInstance.DeploymentName, instanceID,
+	status := deplClient.RegisterDeploymentInstance(servers.DeployerLocalHostPort, containerInstance.DeploymentName,
+		instanceID,
 		containerInstance.Static,
 		portBindings, true)
 

@@ -14,13 +14,13 @@ type Client struct {
 	utils.GenericClient
 }
 
-func NewSchedulerClient(addr string) *Client {
+func NewSchedulerClient() *Client {
 	return &Client{
-		GenericClient: client.NewGenericClient(addr),
+		GenericClient: client.NewGenericClient(),
 	}
 }
 
-func (c *Client) StartInstance(deploymentName, imageName, instanceName string, ports nat.PortSet,
+func (c *Client) StartInstance(addr, deploymentName, imageName, instanceName string, ports nat.PortSet,
 	replicaNum int, static bool, envVars, command []string) (status int) {
 	reqBody := api.StartInstanceRequestBody{
 		DeploymentName: deploymentName,
@@ -34,30 +34,30 @@ func (c *Client) StartInstance(deploymentName, imageName, instanceName string, p
 	}
 
 	path := api.GetInstancesPath()
-	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, reqBody)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) StopInstance(instanceID, ip, removePath string) (status int) {
+func (c *Client) StopInstance(addr, instanceID, ip, removePath string) (status int) {
 	path := api.GetInstancePath(instanceID)
 	body := api.StopInstanceRequestBody{
 		RemovePath: removePath,
 		URL:        ip,
 	}
 
-	req := internalUtils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, body)
+	req := internalUtils.BuildRequest(http.MethodDelete, addr, path, body)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) StopAllInstances() (status int) {
+func (c *Client) StopAllInstances(addr string) (status int) {
 	path := api.GetInstancesPath()
-	req := internalUtils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodDelete, addr, path, nil)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 

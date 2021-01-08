@@ -7,6 +7,6 @@ import (
 
 type ClientFactory struct{}
 
-func (cf *ClientFactory) New(addr string) scheduler.Client {
-	return client.NewSchedulerClient(addr)
+func (cf *ClientFactory) New() scheduler.Client {
+	return client.NewSchedulerClient()
 }

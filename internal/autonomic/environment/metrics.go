@@ -1,7 +1,9 @@
 package environment
 
 const (
-	metricLocation           = "METRIC_LOCATION"
-	metricLocationInVicinity = "METRIC_LOCATION_VICINITY"
-	metricLoad               = "METRIC_LOAD"
+	MetricLocation           = "METRIC_LOCATION"
+	MetricLocationInVicinity = "METRIC_LOCATION_VICINITY"
+	MetricLoad               = "METRIC_LOAD"
+
+	nodeIDTag = "NodeID"
 )

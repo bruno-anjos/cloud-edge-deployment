@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -39,7 +40,8 @@ func registerDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 		go cleanUnresponsiveInstance(deploymentID, instanceID, &instanceDTO, initChan)
 	} else {
-		status := archimedesClient.RegisterDeploymentInstance(deploymentID, instanceID, instanceDTO.Static,
+		status := archimedesClient.RegisterDeploymentInstance(servers.ArchimedesLocalHostPort, deploymentID,
+			instanceID, instanceDTO.Static,
 			instanceDTO.PortTranslation, instanceDTO.Local)
 		if status != http.StatusOK {
 			log.Debugf("got status %d while adding instance %s to archimedes", status, instanceID)

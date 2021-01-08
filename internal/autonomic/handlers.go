@@ -3,25 +3,43 @@ package autonomic
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/scheduler"
+	cedUtils "github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
+	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 )
 
-var autonomicSystem *system
+var (
+	autonomicSystem *system
+	location        s2.CellID
+)
 
 func InitServer(autoFactory autonomic.ClientFactory, archFactory archimedes.ClientFactory,
 	deplFactory deployer.ClientFactory, schedFactory scheduler.ClientFactory) {
 	log.SetLevel(log.DebugLevel)
 
+	locationToken, ok := os.LookupEnv(cedUtils.LocationEnvVarName)
+	if !ok {
+		log.Panic("location env var not set")
+	}
+
+	location = s2.CellIDFromToken(locationToken)
+
 	autonomicSystem = newSystem(autoFactory, archFactory, deplFactory, schedFactory)
 
 	log.SetLevel(log.InfoLevel)
+}
+
+func getIDHandler(w http.ResponseWriter, _ *http.Request) {
+	utils.SendJSONReplyOK(w, deployment.Myself.ID)
 }
 
 func addDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
@@ -118,29 +136,8 @@ func closestNodeToHandler(w http.ResponseWriter, r *http.Request) {
 	utils.SendJSONReplyOK(w, closest)
 }
 
-func getVicinityHandler(w http.ResponseWriter, _ *http.Request) {
-	vicinity := autonomicSystem.getVicinity()
-	if vicinity == nil {
-		utils.SendJSONReplyStatus(w, http.StatusNotFound, nil)
-
-		return
-	}
-
-	respBody := *vicinity
-
-	utils.SendJSONReplyOK(w, respBody)
-}
-
 func getMyLocationHandler(w http.ResponseWriter, _ *http.Request) {
-	location, err := autonomicSystem.getMyLocation()
-	if err != nil {
-		utils.SendJSONReplyStatus(w, http.StatusNotFound, 0)
-
-		return
-	}
-
 	respBody := location
-
 	utils.SendJSONReplyOK(w, respBody)
 }
 

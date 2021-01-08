@@ -18,11 +18,11 @@ const (
 	setDeploymentParentName   = "SET_DEPLOYMENT_PARENT"
 	isNodeInVicinityName      = "IS_NODE_IN_VICINITY"
 	closestNodeName           = "CLOSEST_NODE"
-	getVicinityName           = "GET_VICINITY"
 	getMyLocationName         = "GET_MY_LOCATION"
 	getLoadName               = "GET_LOAD"
 	exploredSuccessfullyName  = "EXPLORED_SUCCESSFULLY"
 	blacklistName             = "BLACKLIST"
+	getIDName                 = "GET_ID"
 )
 
 // Path variables
@@ -45,15 +45,22 @@ var (
 	deploymentParentRoute     = fmt.Sprintf(autonomic.DeploymentParentPath, _deploymentIDPathVarFormatted)
 	isNodeInVicinityRoute     = fmt.Sprintf(autonomic.IsNodeInVicinityPath, _nodeIDPathVarFormatted)
 	closestNodeRoute          = autonomic.ClosestNodePath
-	getVicinityRoute          = autonomic.VicinityPath
 	getMyLocationRoute        = autonomic.MyLocationPath
 	getLoadRoute              = fmt.Sprintf(autonomic.LoadPath, _deploymentIDPathVarFormatted)
 	exploredSuccessfullyRoute = fmt.Sprintf(autonomic.ExplorePath, _deploymentIDPathVarFormatted,
 		_childIDPathVarFormatted)
 	blacklistRoute = fmt.Sprintf(autonomic.BlacklistPath, _deploymentIDPathVarFormatted)
+	getIDRoute     = autonomic.GetIDPath
 )
 
 var Routes = []servers.Route{
+	{
+		Name:        getIDName,
+		Method:      http.MethodGet,
+		Pattern:     getIDRoute,
+		HandlerFunc: getIDHandler,
+	},
+
 	{
 		Name:        blacklistName,
 		Method:      http.MethodPost,
@@ -80,13 +87,6 @@ var Routes = []servers.Route{
 		Method:      http.MethodGet,
 		Pattern:     getMyLocationRoute,
 		HandlerFunc: getMyLocationHandler,
-	},
-
-	{
-		Name:        getVicinityName,
-		Method:      http.MethodGet,
-		Pattern:     getVicinityRoute,
-		HandlerFunc: getVicinityHandler,
 	},
 
 	{

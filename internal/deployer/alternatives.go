@@ -3,20 +3,18 @@ package deployer
 import (
 	"encoding/json"
 	"net/http"
-	"os"
 	"strconv"
-	"time"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
+	client "github.com/nm-morais/demmon-client/pkg"
+	"github.com/nm-morais/demmon-common/body_types"
 	log "github.com/sirupsen/logrus"
-)
-
-const (
-	nodeIPsFilepath = "/node_ips.json"
 )
 
 func setAlternativesHandler(_ http.ResponseWriter, r *http.Request) {
@@ -35,37 +33,55 @@ func setAlternativesHandler(_ http.ResponseWriter, r *http.Request) {
 	nodeAlternatives[deployerID] = reqBody
 }
 
-func simulateAlternatives() {
-	go loadAlternativesPeriodically()
+func updateAlternatives() {
+	demmonCliConf := client.DemmonClientConf{
+		DemmonPort:     environment.DaemonPort,
+		DemmonHostAddr: myself.Addr,
+		RequestTimeout: environment.ClientRequestTimeout,
+	}
+
+	demmonCli := client.New(demmonCliConf)
+
+	res, err, _, updateChan := demmonCli.SubscribeNodeUpdates()
+	if err != nil {
+		log.Panic(err)
+	}
+
+	addNodes(res.Children...)
+	addNodes(res.Siblings...)
+	addNodes(res.Parent)
+
+	go getAlternativesPeriodically(updateChan)
 }
 
-func loadAlternativesPeriodically() {
-	const timeout = 30 * time.Second
-	ticker := time.NewTicker(timeout)
+func addNodes(peers ...*body_types.Peer) {
+	for _, peer := range peers {
+		addr := peer.IP.String() + ":" + strconv.Itoa(autonomic.Port)
 
-	filePtr, err := os.Open(nodeIPsFilepath)
-	if err != nil {
-		panic(err)
-	}
-
-	var nodeIPs map[string]string
-
-	err = json.NewDecoder(filePtr).Decode(&nodeIPs)
-	if err != nil {
-		panic(err)
-	}
-
-	for {
-		<-ticker.C
-
-		vicinity, status := autonomicClient.GetVicinity()
+		id, status := autonomicClient.GetID(addr)
 		if status != http.StatusOK {
-			continue
+			log.Error("got status %d while getting location for %s", addr)
 		}
 
-		for _, neighbor := range vicinity.Nodes {
-			log.Debugf("Alternative: %s -> %s", neighbor.ID, nodeIPs[neighbor.ID])
-			onNodeUp(neighbor.ID, nodeIPs[neighbor.ID])
+		onNodeUp(id, peer.IP.String())
+	}
+}
+
+func getAlternativesPeriodically(updateChan <-chan body_types.NodeUpdates) {
+	for nodeUpdate := range updateChan {
+		addr := nodeUpdate.Peer.IP.String() + ":" + strconv.Itoa(autonomic.Port)
+		id, status := autonomicClient.GetID(addr)
+		if status != http.StatusOK {
+			log.Error("got status %d while getting location for %s", addr)
+		}
+
+		switch nodeUpdate.Type {
+		case body_types.NodeUp:
+			log.Debugf("Alternative Up: %s -> %s", id, nodeUpdate.Peer.IP.String())
+			onNodeUp(id, nodeUpdate.Peer.IP.String())
+		case body_types.NodeDown:
+			log.Debugf("Alternative Down: %s -> %s", id, nodeUpdate.Peer.IP.String())
+			onNodeDown(id)
 		}
 	}
 }
@@ -104,9 +120,10 @@ func sendAlternatives() {
 }
 
 func sendAlternativesTo(neighbor *utils.Node, alternatives []*utils.Node) {
-	depClient := deplFactory.New(neighbor.Addr + ":" + strconv.Itoa(deployer.Port))
+	depClient := deplFactory.New()
+	addr := neighbor.Addr + ":" + strconv.Itoa(deployer.Port)
 
-	status := depClient.SendAlternatives(myself.Addr, alternatives)
+	status := depClient.SendAlternatives(addr, myself.Addr, alternatives)
 	if status != http.StatusOK {
 		log.Errorf("got status %d while sending alternatives to %s", status, neighbor.Addr)
 	}

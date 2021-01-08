@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -75,21 +76,12 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.
 	autoFactory = autoFactoryAux
 	deplFactory = deplFactoryAux
 
-	var (
-		locationID s2.CellID
-		status     int
-		autoClient = autoFactory.New(servers.AutonomicLocalHostPort)
-	)
-
-	const timeoutBetweenTries = 10 * time.Second
-
-	for status != http.StatusOK {
-		locationID, status = autoClient.GetLocation()
-
-		time.Sleep(timeoutBetweenTries)
+	locationToken, ok := os.LookupEnv(utils.LocationEnvVarName)
+	if !ok {
+		log.Panic("location env not set")
 	}
 
-	myLocation = s2.CellFromCellID(locationID)
+	myLocation = s2.CellFromCellID(s2.CellIDFromToken(locationToken))
 
 	redirectTargets = &nodesPerDeployment{}
 	exploringNodes = &explorersPerDeployment{}
@@ -473,11 +465,11 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	deplClient := deplFactory.New(servers.DeployerLocalHostPort)
+	deplClient := deplFactory.New()
 
 	resolved, found := resolveLocally(reqBody.ToResolve, reqLogger)
 	if !found {
-		fallback, status := deplClient.GetFallback()
+		fallback, status := deplClient.GetFallback(servers.DeployerLocalHostPort)
 		if status != http.StatusOK {
 			reqLogger.Errorf("got status %+v while asking for fallback from deployer", fallback)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -785,13 +777,6 @@ func removeDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
 	log.Debugf("deleted node %s for deployment %s", nodeID, deploymentID)
 }
 
-func getLoadHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentID := internalUtils.ExtractPathVar(r, deploymentIDPathVar)
-
-	load := clientsManager.GetLoad(deploymentID)
-	internalUtils.SendJSONReplyOK(w, load)
-}
-
 func getClientCentroidsHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentID := internalUtils.ExtractPathVar(r, deploymentIDPathVar)
 
@@ -913,9 +898,10 @@ func checkForClosestNodeRedirection(deploymentID string, clientLocation s2.CellI
 		// TODO this can be change by a load and delete probably
 		has := exploringNodes.checkAndDelete(deploymentID, redirectTo.ID)
 		if has {
-			autoClient := autoFactory.New(myself.Addr + ":" + strconv.Itoa(archimedes.Port))
+			addr := myself.Addr + ":" + strconv.Itoa(archimedes.Port)
+			autoClient := autoFactory.New()
 
-			status = autoClient.SetExploredSuccessfully(deploymentID, redirectTo.ID)
+			status = autoClient.SetExploredSuccessfully(addr, deploymentID, redirectTo.ID)
 			if status != http.StatusOK {
 				log.Errorf("got status %d when setting %s exploration as success", status, redirectTo)
 			}

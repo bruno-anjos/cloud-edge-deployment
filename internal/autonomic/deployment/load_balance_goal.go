@@ -1,7 +1,6 @@
 package deployment
 
 import (
-	"net/http"
 	"sort"
 	"strconv"
 
@@ -9,14 +8,11 @@ import (
 	deployer2 "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
 	autonomicUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/utils"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/archimedes"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
-	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -118,8 +114,8 @@ func (l *deploymentLoadBalanceGoal) handleNotMaximized(optRange, ordered result,
 	)
 
 	for _, node := range optRange {
-		archClient.SetHostPort(node.Addr + ":" + strconv.Itoa(archimedes.Port))
-		can, _ := archClient.CanRedirectToYou(l.deployment.DeploymentID, Myself.ID)
+		addr := node.Addr + ":" + strconv.Itoa(archimedes.Port)
+		can, _ := archClient.CanRedirectToYou(addr, l.deployment.DeploymentID, Myself.ID)
 
 		log.Debugf("%s deployment %s to redirect: %t", node, l.deployment.DeploymentID, can)
 
@@ -142,27 +138,10 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain domain
 	info = nil
 	success = false
 
-	value, ok := l.deployment.Environment.GetMetric(environment.metricLocationInVicinity)
-	if !ok {
-		log.Debugf("no value for metric %s", environment.metricLocationInVicinity)
-
-		return nil, nil, false
-	}
-
-	var locationsInVicinity environment.VicinityMetric
-
-	err := mapstructure.Decode(value, &locationsInVicinity)
-	if err != nil {
-		panic(err)
-	}
+	vicinity := l.deployment.Environment.GetVicinity()
 
 	info = map[string]interface{}{}
-	archClient := l.deployment.archFactory.New(Myself.Addr + ":" + strconv.Itoa(archimedes.Port))
-
-	load, status := archClient.GetLoad(l.deployment.DeploymentID)
-	if status != http.StatusOK {
-		load = 0
-	}
+	load := l.deployment.GetLoad()
 
 	domain = append(domain, Myself)
 	info[Myself.ID] = infoValueType{
@@ -170,7 +149,7 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain domain
 		Node: Myself,
 	}
 
-	for nodeID, node := range locationsInVicinity.Nodes {
+	for nodeID, node := range vicinity {
 		_, okS := l.deployment.Suspected.Load(nodeID)
 		if okS || (l.deployment.Parent != nil && nodeID == l.deployment.Parent.ID) {
 			log.Debugf("ignoring %s", nodeID)
@@ -180,19 +159,10 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain domain
 
 		domain = append(domain, node)
 
-		archClient.SetHostPort(node.Addr + ":" + strconv.Itoa(archimedes.Port))
-
-		load, status = archClient.GetLoad(l.deployment.DeploymentID)
-		if status != http.StatusOK {
-			info[nodeID] = infoValueType{
-				Load: 0,
-				Node: node,
-			}
-		} else {
-			info[nodeID] = infoValueType{
-				Load: load,
-				Node: node,
-			}
+		load = environment.GetLoad(l.deployment.Environment.DemmonCli, l.deployment.DeploymentID, node)
+		info[nodeID] = infoValueType{
+			Load: load,
+			Node: node,
 		}
 
 		log.Debugf("%s has load: %d(%d)", nodeID, info[nodeID].(infoValueType).Load, load)
@@ -257,15 +227,7 @@ func (l *deploymentLoadBalanceGoal) GenerateAction(targets []*utils.Node, args .
 
 	switch args[lbActionTypeArgIndex].(string) {
 	case actions.ExtendDeploymentID:
-		autoClient := l.deployment.autoFactory.New(targets[0].Addr + ":" + strconv.Itoa(autonomic.Port))
-
-		location, status := autoClient.GetLocation()
-		if status != http.StatusOK {
-			log.Errorf("got status %d while getting %s location", status, targets[0])
-
-			return nil
-		}
-
+		location := environment.GetLocation(l.deployment.Environment.DemmonCli, targets[0])
 		toExclude := map[string]interface{}{}
 
 		l.deployment.Blacklist.Range(func(key, value interface{}) bool {
@@ -303,14 +265,14 @@ func (l *deploymentLoadBalanceGoal) handleOverload(candidates result) (
 	actionArgs = make([]interface{}, lbNumArgs)
 
 	actionArgs[lbActionTypeArgIndex] = actions.ExtendDeploymentID
-	deplClient := l.deployment.deplFactory.New("")
+	deplClient := l.deployment.deplFactory.New()
 
 	for _, candidate := range candidates {
 		_, okC := l.deployment.Children.Load(candidate)
 		if !okC {
-			deplClient.SetHostPort(candidate.Addr + ":" + strconv.Itoa(deployer.Port))
+			addr := candidate.Addr + ":" + strconv.Itoa(deployer.Port)
 
-			hasDeployment, _ := deplClient.HasDeployment(l.deployment.DeploymentID)
+			hasDeployment, _ := deplClient.HasDeployment(addr, l.deployment.DeploymentID)
 			if hasDeployment {
 				continue
 			}
@@ -342,15 +304,7 @@ func (l *deploymentLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 		return false
 	}
 
-	archClient := l.deployment.archFactory.New(servers.ArchimedesLocalHostPort)
-
-	load, status := archClient.GetLoad(l.deployment.DeploymentID)
-	if status != http.StatusOK {
-		log.Errorf("got status %d when asking for load for deployment %s", status, l.deployment.DeploymentID)
-
-		return false
-	}
-
+	load := l.deployment.GetLoad()
 	if load > 0 {
 		l.staleCycles = 0
 		log.Debugf("%s should NOT be removed, because it has load %d", l.deployment.DeploymentID, load)
@@ -368,16 +322,16 @@ func (l *deploymentLoadBalanceGoal) checkIfHasAlternatives(sortingCriteria map[s
 	hasAlternatives bool) {
 	myLoad := sortingCriteria[Myself.ID].(infoValueType).Load
 
-	deplClient := l.deployment.deplFactory.New("")
+	deplClient := l.deployment.deplFactory.New()
 
 	for _, value := range sortingCriteria {
 		infoValue := value.(infoValueType)
 
 		load := infoValue.Load
 		if float64(load) < maximumLoad && float64(load) < float64(myLoad)/2. {
-			deplClient.SetHostPort(infoValue.Node.Addr + ":" + strconv.Itoa(deployer.Port))
+			addr := infoValue.Node.Addr + ":" + strconv.Itoa(deployer.Port)
 
-			hasDeployment, _ := deplClient.HasDeployment(l.deployment.DeploymentID)
+			hasDeployment, _ := deplClient.HasDeployment(addr, l.deployment.DeploymentID)
 			if hasDeployment {
 				hasAlternatives = true
 

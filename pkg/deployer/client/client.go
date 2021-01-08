@@ -25,15 +25,15 @@ type Client struct {
 	utils.GenericClient
 }
 
-func NewDeployerClient(addr string) *Client {
+func NewDeployerClient() *Client {
 	return &Client{
-		GenericClient: client.NewGenericClient(addr),
+		GenericClient: client.NewGenericClient(),
 	}
 }
 
-func (c *Client) GetDeployments() (deploymentIds []string, status int) {
+func (c *Client) GetDeployments(addr string) (deploymentIds []string, status int) {
 	path := api.GetDeploymentsPath()
-	req := internalUtils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodGet, addr, path, nil)
 
 	var resp api.GetDeploymentsResponseBody
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, &resp)
@@ -42,7 +42,7 @@ func (c *Client) GetDeployments() (deploymentIds []string, status int) {
 	return
 }
 
-func (c *Client) RegisterDeployment(deploymentID string, static bool, deploymentYamlBytes []byte,
+func (c *Client) RegisterDeployment(addr, deploymentID string, static bool, deploymentYamlBytes []byte,
 	grandparent, parent *utils.Node, children []*utils.Node, exploringTTL int) (status int) {
 	reqBody := api.RegisterDeploymentRequestBody{
 		DeploymentConfig: &api.DeploymentDTO{
@@ -56,14 +56,14 @@ func (c *Client) RegisterDeployment(deploymentID string, static bool, deployment
 		ExploringTTL: exploringTTL,
 	}
 	path := api.GetDeploymentsPath()
-	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, reqBody)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) ExtendDeploymentTo(deploymentID string, node *utils.Node, exploringTTL int,
+func (c *Client) ExtendDeploymentTo(addr, deploymentID string, node *utils.Node, exploringTTL int,
 	config *api.ExtendDeploymentConfig) (status int) {
 	reqBody := api.ExtendDeploymentRequestBody{
 		Node:         node,
@@ -72,23 +72,23 @@ func (c *Client) ExtendDeploymentTo(deploymentID string, node *utils.Node, explo
 	}
 
 	path := api.GetExtendDeploymentPath(deploymentID)
-	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, reqBody)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) DeleteDeployment(deploymentID string) (status int) {
+func (c *Client) DeleteDeployment(addr, deploymentID string) (status int) {
 	path := api.GetDeploymentPath(deploymentID)
-	req := internalUtils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodDelete, addr, path, nil)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) RegisterDeploymentInstance(deploymentID, instanceID string, static bool,
+func (c *Client) RegisterDeploymentInstance(addr, deploymentID, instanceID string, static bool,
 	portTranslation nat.PortMap, local bool) (status int) {
 	reqBody := api.RegisterDeploymentInstanceRequestBody{
 		Static:          static,
@@ -96,32 +96,32 @@ func (c *Client) RegisterDeploymentInstance(deploymentID, instanceID string, sta
 		Local:           local,
 	}
 	path := api.GetDeploymentInstancePath(deploymentID, instanceID)
-	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, reqBody)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) RegisterHearbeatDeploymentInstance(deploymentID, instanceID string) (status int) {
+func (c *Client) RegisterHearbeatDeploymentInstance(addr, deploymentID, instanceID string) (status int) {
 	path := api.GetDeploymentInstanceAlivePath(deploymentID, instanceID)
-	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, nil)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) SendHearbeatDeploymentInstance(deploymentID, instanceID string) (status int) {
+func (c *Client) SendHearbeatDeploymentInstance(addr, deploymentID, instanceID string) (status int) {
 	path := api.GetDeploymentInstanceAlivePath(deploymentID, instanceID)
-	req := internalUtils.BuildRequest(http.MethodPut, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodPut, addr, path, nil)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) WarnOfDeadChild(deploymentID, deadChildID string, grandChild *utils.Node,
+func (c *Client) WarnOfDeadChild(addr, deploymentID, deadChildID string, grandChild *utils.Node,
 	alternatives map[string]*utils.Node, locations []s2.CellID) (status int) {
 	var reqBody api.DeadChildRequestBody
 	reqBody.Grandchild = grandChild
@@ -129,50 +129,50 @@ func (c *Client) WarnOfDeadChild(deploymentID, deadChildID string, grandChild *u
 	reqBody.Locations = locations
 
 	path := api.GetDeadChildPath(deploymentID, deadChildID)
-	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, reqBody)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) SetGrandparent(deploymentID string, grandparent *utils.Node) (status int) {
+func (c *Client) SetGrandparent(addr, deploymentID string, grandparent *utils.Node) (status int) {
 	reqBody := *grandparent
 
 	path := api.GetSetGrandparentPath(deploymentID)
-	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, reqBody)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) WarnThatIAmParent(deploymentID string, parent, grandparent *utils.Node) (status int) {
+func (c *Client) WarnThatIAmParent(addr, deploymentID string, parent, grandparent *utils.Node) (status int) {
 	reqBody := api.IAmYourParentRequestBody{
 		Parent:      parent,
 		Grandparent: grandparent,
 	}
 
 	path := api.GetImYourParentPath(deploymentID)
-	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, reqBody)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) ChildDeletedDeployment(deploymentID, childID string) (status int) {
+func (c *Client) ChildDeletedDeployment(addr, deploymentID, childID string) (status int) {
 	path := api.GetDeploymentChildPath(deploymentID, childID)
-	req := internalUtils.BuildRequest(http.MethodDelete, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodDelete, addr, path, nil)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) GetHierarchyTable() (table map[string]*api.HierarchyEntryDTO, status int) {
+func (c *Client) GetHierarchyTable(addr string) (table map[string]*api.HierarchyEntryDTO, status int) {
 	path := api.GetHierarchyTablePath()
-	req := internalUtils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodGet, addr, path, nil)
 
 	var resp api.GetHierarchyTableResponseBody
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, &resp)
@@ -182,20 +182,20 @@ func (c *Client) GetHierarchyTable() (table map[string]*api.HierarchyEntryDTO, s
 	return
 }
 
-func (c *Client) SetParentAlive(parentID string) (status int) {
+func (c *Client) SetParentAlive(addr, parentID string) (status int) {
 	path := api.GetParentAlivePath(parentID)
-	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, nil)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) SendInstanceHeartbeatToDeployerPeriodically() {
+func (c *Client) SendInstanceHeartbeatToDeployerPeriodically(addr string) {
 	deploymentID := os.Getenv(utils.DeploymentEnvVarName)
 	instanceID := os.Getenv(utils.InstanceEnvVarName)
 
-	status := c.RegisterHearbeatDeploymentInstance(deploymentID, instanceID)
+	status := c.RegisterHearbeatDeploymentInstance(addr, deploymentID, instanceID)
 	switch status {
 	case http.StatusConflict:
 		log.Infof("deployment %s instance %s already has a heartbeat sender", deploymentID, instanceID)
@@ -212,7 +212,7 @@ func (c *Client) SendInstanceHeartbeatToDeployerPeriodically() {
 		<-ticker.C
 		log.Info("sending heartbeat to deployer")
 
-		status = c.SendHearbeatDeploymentInstance(deploymentID, instanceID)
+		status = c.SendHearbeatDeploymentInstance(addr, deploymentID, instanceID)
 		switch status {
 		case http.StatusNotFound:
 			log.Warnf("heartbeat to deployer retrieved not found")
@@ -223,33 +223,33 @@ func (c *Client) SendInstanceHeartbeatToDeployerPeriodically() {
 	}
 }
 
-func (c *Client) SendAlternatives(myID string, alternatives []*utils.Node) (status int) {
+func (c *Client) SendAlternatives(addr, myID string, alternatives []*utils.Node) (status int) {
 	reqBody := alternatives
 
 	path := api.GetSetAlternativesPath(myID)
-	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, reqBody)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) Fallback(deploymentID string, orphan *utils.Node, orphanLocation s2.CellID) (status int) {
+func (c *Client) Fallback(addr, deploymentID string, orphan *utils.Node, orphanLocation s2.CellID) (status int) {
 	var reqBody api.FallbackRequestBody
 	reqBody.Orphan = orphan
 	reqBody.OrphanLocation = orphanLocation
 
 	path := api.GetFallbackPath(deploymentID)
-	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, reqBody)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
 	return
 }
 
-func (c *Client) GetFallback() (fallback *utils.Node, status int) {
+func (c *Client) GetFallback(addr string) (fallback *utils.Node, status int) {
 	path := api.GetGetFallbackIDPath()
-	req := internalUtils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodGet, addr, path, nil)
 
 	var respBody api.GetFallbackResponseBody
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, &respBody)
@@ -259,9 +259,9 @@ func (c *Client) GetFallback() (fallback *utils.Node, status int) {
 	return
 }
 
-func (c *Client) HasDeployment(deploymentID string) (has bool, status int) {
+func (c *Client) HasDeployment(addr, deploymentID string) (has bool, status int) {
 	path := api.GetHasDeploymentPath(deploymentID)
-	req := internalUtils.BuildRequest(http.MethodGet, c.GetHostPort(), path, nil)
+	req := internalUtils.BuildRequest(http.MethodGet, addr, path, nil)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 
@@ -270,7 +270,7 @@ func (c *Client) HasDeployment(deploymentID string) (has bool, status int) {
 	return
 }
 
-func (c *Client) PropagateLocationToHorizon(deploymentID string, origin *utils.Node, location s2.CellID, tTL int8,
+func (c *Client) PropagateLocationToHorizon(addr, deploymentID string, origin *utils.Node, location s2.CellID, tTL int8,
 	op api.PropagateOpType) (status int) {
 	reqBody := api.PropagateLocationToHorizonRequestBody{
 		Operation: op,
@@ -280,7 +280,7 @@ func (c *Client) PropagateLocationToHorizon(deploymentID string, origin *utils.N
 	}
 
 	path := api.GetPropagateLocationToHorizonPath(deploymentID)
-	req := internalUtils.BuildRequest(http.MethodPost, c.GetHostPort(), path, reqBody)
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, reqBody)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
 

@@ -11,12 +11,12 @@ const (
 
 type Client interface {
 	utils.GenericClient
-	StartInstance(deploymentName, imageName, instanceName string, ports nat.PortSet, replicaNum int, static bool,
+	StartInstance(addr, deploymentName, imageName, instanceName string, ports nat.PortSet, replicaNum int, static bool,
 		envVars, command []string) (status int)
-	StopInstance(instanceID, ip, path string) (status int)
-	StopAllInstances() (status int)
+	StopInstance(addr, instanceID, ip, path string) (status int)
+	StopAllInstances(addr string) (status int)
 }
 
 type ClientFactory interface {
-	New(addr string) Client
+	New() Client
 }

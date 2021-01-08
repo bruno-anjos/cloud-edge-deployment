@@ -7,6 +7,6 @@ import (
 
 type ClientFactory struct{}
 
-func (cf *ClientFactory) New(addr string) deployer.Client {
-	return client.NewDeployerClient(addr)
+func (cf *ClientFactory) New() deployer.Client {
+	return client.NewDeployerClient()
 }

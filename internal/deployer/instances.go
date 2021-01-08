@@ -10,6 +10,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer/client"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/docker/go-connections/nat"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -39,7 +40,8 @@ func cleanUnresponsiveInstance(deploymentID, instanceID string, instanceDTO *arc
 	case <-alive:
 		log.Debugf("instance %s is up", instanceID)
 
-		status := archimedesClient.RegisterDeploymentInstance(deploymentID, instanceID, instanceDTO.Static,
+		status := archimedesClient.RegisterDeploymentInstance(servers.ArchimedesLocalHostPort, deploymentID,
+			instanceID, instanceDTO.Static,
 			instanceDTO.PortTranslation, instanceDTO.Local)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while registering deployment %s instance %s", status, deploymentID, instanceID)
@@ -100,7 +102,7 @@ func removeInstance(deploymentID, instanceID string, existed bool) {
 		log.Panic(err)
 	}
 
-	instance, status := archimedesClient.GetInstance(instanceID)
+	instance, status := archimedesClient.GetInstance(servers.ArchimedesLocalHostPort, instanceID)
 	if status != http.StatusOK {
 		log.Panicf("status %d while getting instance %s", status, instanceID)
 	}
@@ -114,13 +116,14 @@ func removeInstance(deploymentID, instanceID string, existed bool) {
 		outport = ports[0].HostPort
 	}
 
-	status = schedulerClient.StopInstance(instanceID, fmt.Sprintf("%s:%s", nodeIP, outport), deploymentYAML.RemovePath)
+	status = schedulerClient.StopInstance(servers.SchedulerLocalHostPort, instanceID, fmt.Sprintf("%s:%s", nodeIP,
+		outport), deploymentYAML.RemovePath)
 	if status != http.StatusOK {
 		log.Errorf("while trying to remove instance %s after timeout, scheduler returned status %d",
 			instanceID, status)
 	}
 
-	status = archimedesClient.DeleteDeploymentInstance(deploymentID, instanceID)
+	status = archimedesClient.DeleteDeploymentInstance(servers.ArchimedesLocalHostPort, deploymentID, instanceID)
 	if existed {
 		if status != http.StatusOK {
 			log.Errorf("while trying to remove instance %s after timeout, archimedes returned status %d",

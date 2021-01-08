@@ -6,7 +6,7 @@ import (
 
 type Action interface {
 	GetActionID() string
-	Execute(client utils.GenericClient)
+	Execute(addr string, client utils.GenericClient)
 }
 
 type basicAction struct {

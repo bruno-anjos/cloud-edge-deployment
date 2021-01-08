@@ -37,18 +37,17 @@ func (r *RedirectAction) getErrorRedirectingCallback() func() {
 	return r.ErrorRedirectingCallback
 }
 
-func (r *RedirectAction) Execute(client utils.GenericClient) {
+func (r *RedirectAction) Execute(_ string, client utils.GenericClient) {
 	assertedClient := client.(archimedes.Client)
-	assertedClient.SetHostPort(r.GetTarget().Addr + ":" + strconv.Itoa(archimedes.Port))
+	addr := r.GetTarget().Addr + ":" + strconv.Itoa(archimedes.Port)
 
-	status := assertedClient.WillRedirectToYou(r.getDeploymentID(), r.GetOrigin().ID)
+	status := assertedClient.WillRedirectToYou(addr, r.getDeploymentID(), r.GetOrigin().ID)
 	if status != http.StatusOK {
 		return
 	}
 
-	assertedClient.SetHostPort(r.GetOrigin().Addr + ":" + strconv.Itoa(archimedes.Port))
-
-	status = assertedClient.Redirect(r.getDeploymentID(), r.GetTarget().Addr, r.GetAmount())
+	addr = r.GetOrigin().Addr + ":" + strconv.Itoa(archimedes.Port)
+	status = assertedClient.Redirect(addr, r.getDeploymentID(), r.GetTarget().Addr, r.GetAmount())
 	if status != http.StatusOK {
 		r.getErrorRedirectingCallback()()
 	}

@@ -13,32 +13,32 @@ const (
 
 type Client interface {
 	utils.GenericClient
-	GetDeployments() (deploymentIds []string, status int)
-	RegisterDeployment(deploymentID string, static bool, deploymentYamlBytes []byte,
+	GetDeployments(addr string) (deploymentIds []string, status int)
+	RegisterDeployment(addr, deploymentID string, static bool, deploymentYamlBytes []byte,
 		grandparent, parent *utils.Node, children []*utils.Node, exploringTTL int) (status int)
-	ExtendDeploymentTo(deploymentID string, node *utils.Node, exploringTTL int,
+	ExtendDeploymentTo(addr, deploymentID string, node *utils.Node, exploringTTL int,
 		config *deployer.ExtendDeploymentConfig) (status int)
-	DeleteDeployment(deploymentID string) (status int)
-	RegisterDeploymentInstance(deploymentID, instanceID string, static bool,
+	DeleteDeployment(addr, deploymentID string) (status int)
+	RegisterDeploymentInstance(addr, deploymentID, instanceID string, static bool,
 		portTranslation nat.PortMap, local bool) (status int)
-	RegisterHearbeatDeploymentInstance(deploymentID, instanceID string) (status int)
-	SendHearbeatDeploymentInstance(deploymentID, instanceID string) (status int)
-	WarnOfDeadChild(deploymentID, deadChildID string, grandChild *utils.Node,
+	RegisterHearbeatDeploymentInstance(addr, deploymentID, instanceID string) (status int)
+	SendHearbeatDeploymentInstance(addr, deploymentID, instanceID string) (status int)
+	WarnOfDeadChild(addr, deploymentID, deadChildID string, grandChild *utils.Node,
 		alternatives map[string]*utils.Node, locations []s2.CellID) (status int)
-	SetGrandparent(deploymentID string, grandparent *utils.Node) (status int)
-	WarnThatIAmParent(deploymentID string, parent, grandparent *utils.Node) (status int)
-	ChildDeletedDeployment(deploymentID, childID string) (status int)
-	GetHierarchyTable() (table map[string]*deployer.HierarchyEntryDTO, status int)
-	SetParentAlive(parentID string) (status int)
-	SendInstanceHeartbeatToDeployerPeriodically()
-	SendAlternatives(myID string, alternatives []*utils.Node) (status int)
-	Fallback(deploymentID string, orphan *utils.Node, orphanLocation s2.CellID) (status int)
-	GetFallback() (fallback *utils.Node, status int)
-	HasDeployment(deploymentID string) (has bool, status int)
-	PropagateLocationToHorizon(deploymentID string, origin *utils.Node, location s2.CellID, TTL int8,
+	SetGrandparent(addr, deploymentID string, grandparent *utils.Node) (status int)
+	WarnThatIAmParent(addr, deploymentID string, parent, grandparent *utils.Node) (status int)
+	ChildDeletedDeployment(addr, deploymentID, childID string) (status int)
+	GetHierarchyTable(addr string) (table map[string]*deployer.HierarchyEntryDTO, status int)
+	SetParentAlive(addr, parentID string) (status int)
+	SendInstanceHeartbeatToDeployerPeriodically(addr string)
+	SendAlternatives(addr, myID string, alternatives []*utils.Node) (status int)
+	Fallback(addr, deploymentID string, orphan *utils.Node, orphanLocation s2.CellID) (status int)
+	GetFallback(addr string) (fallback *utils.Node, status int)
+	HasDeployment(addr, deploymentID string) (has bool, status int)
+	PropagateLocationToHorizon(addr, deploymentID string, origin *utils.Node, location s2.CellID, TTL int8,
 		op deployer.PropagateOpType) (status int)
 }
 
 type ClientFactory interface {
-	New(addr string) Client
+	New() Client
 }

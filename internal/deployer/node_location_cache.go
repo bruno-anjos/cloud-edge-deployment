@@ -22,11 +22,12 @@ type (
 func (nc *nodeLocationCache) get(node *utils.Node) (location s2.CellID) {
 	value, ok := nc.Load(node.ID)
 	if !ok {
-		autoClient := autoFactory.New(node.Addr + ":" + strconv.Itoa(autonomic.Port))
+		autoClient := autoFactory.New()
+		addr := node.Addr + ":" + strconv.Itoa(autonomic.Port)
 
 		var status int
 
-		location, status = autoClient.GetLocation()
+		location, status = autoClient.GetLocation(addr)
 		if status != http.StatusOK {
 			log.Errorf("got %d while trying to get %s location", status, node.ID)
 

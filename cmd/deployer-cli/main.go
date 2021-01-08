@@ -15,7 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var deployerClient = client.NewDeployerClient(servers.DeployerLocalHostPort)
+var deployerClient = client.NewDeployerClient()
 
 func main() {
 	debug := flag.Bool("d", false, "add debug logs")
@@ -78,15 +78,15 @@ func addDeployment(deploymentID, filename string) {
 		panic(err)
 	}
 
-	status := deployerClient.RegisterDeployment(deploymentID, deploymentYAML.Static, fileBytes, nil, nil, nil,
-		deployer2.NotExploringTTL)
+	status := deployerClient.RegisterDeployment(servers.DeployerLocalHostPort, deploymentID, deploymentYAML.Static,
+		fileBytes, nil, nil, nil, deployer2.NotExploringTTL)
 	if status != http.StatusOK {
 		log.Panicf("got status %d from deployer", status)
 	}
 }
 
 func deleteDeployment(deploymentID string) {
-	status := deployerClient.DeleteDeployment(deploymentID)
+	status := deployerClient.DeleteDeployment(servers.DeployerLocalHostPort, deploymentID)
 	if status != http.StatusOK {
 		log.Panicf("got status %d from deployer", status)
 	}

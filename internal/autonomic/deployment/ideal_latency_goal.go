@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 
@@ -13,9 +14,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/golang/geo/s2"
-	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -65,14 +64,14 @@ type idealLatency struct {
 }
 
 func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
-	value, ok := deployment.Environment.GetMetric(environment.metricLocation)
+	locationToken, ok := os.LookupEnv(utils.LocationEnvVarName)
 	if !ok {
 		panic("could not get location from environment")
 	}
 
 	return &idealLatency{
 		deployment:        deployment,
-		myLocation:        s2.CellIDFromToken(value.(string)),
+		myLocation:        s2.CellIDFromToken(locationToken),
 		centroidsExtended: map[s2.CellID]interface{}{},
 		depthFactor:       deployment.DepthFactor,
 	}
@@ -84,14 +83,14 @@ func (i *idealLatency) Optimize(optDomain domain) (isAlreadyMax bool, optRange r
 	actionArgs = nil
 
 	// check if processing time is the main reason for latency
-	processingTimeTooHigh := i.checkProcessingTime()
-	if processingTimeTooHigh {
-		return
-	}
+	// processingTimeTooHigh := i.checkProcessingTime()
+	// if processingTimeTooHigh {
+	//	return
+	// }
 
 	archClient := i.deployment.archFactory.New(servers.ArchimedesLocalHostPort)
 
-	centroids, status := archClient.GetClientCentroids(i.deployment.DeploymentID)
+	centroids, status := archClient.GetClientCentroids(servers.ArchimedesLocalHostPort, i.deployment.DeploymentID)
 	if status == http.StatusNotFound {
 		return
 	} else if status != http.StatusOK {
@@ -189,19 +188,8 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 		}
 	}
 
-	value, ok = i.deployment.Environment.GetMetric(environment.metricLocationInVicinity)
-	if !ok {
-		log.Debugf("no value for metric %s", environment.metricLocationInVicinity)
-
-		return nil, nil, false
-	}
-
-	var vicinity environment.VicinityMetric
-
-	err := mapstructure.Decode(value, &vicinity)
-	if err != nil {
-		panic(err)
-	}
+	vicinity := i.deployment.Environment.GetVicinity()
+	locations := i.deployment.Environment.GetLocationInVicinity()
 
 	centroids := arg.([]s2.CellID)
 
@@ -222,7 +210,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 
 	info = map[string]interface{}{}
 
-	for nodeID, cellValue := range vicinity.Locations {
+	for nodeID, node := range vicinity {
 		_, okC := i.deployment.Children.Load(nodeID)
 		_, okS := i.deployment.Suspected.Load(nodeID)
 
@@ -232,14 +220,14 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 			continue
 		}
 
-		location := s2.CellIDFromToken(cellValue)
+		location := locations[node.ID]
 
 		// create node map for centroids and respective distances
 		if i.deployment.Parent != nil && nodeID == i.deployment.Parent.ID {
 			info[hiddenParentID] = sortingCriteriaType{}
 		} else {
 			info[nodeID] = sortingCriteriaType{}
-			domain = append(domain, vicinity.Nodes[nodeID])
+			domain = append(domain, node)
 		}
 
 		var nodeCentroidsMap sortingCriteriaType
@@ -284,16 +272,16 @@ func (i *idealLatency) Cutoff(candidates domain, candidatesCriteria map[string]i
 	maxed bool) {
 	maxed = true
 
-	candidateClient := i.deployment.deplFactory.New("")
+	candidateClient := i.deployment.deplFactory.New()
 
 	for _, candidate := range candidates {
 		percentage := candidatesCriteria[candidate.ID].(float64)
 		log.Debugf("candidate %s distance percentage (me) %f", candidate, percentage)
 
 		if percentage < maximumDistancePercentage {
-			candidateClient.SetHostPort(candidate.Addr + ":" + strconv.Itoa(deployer.Port))
+			addr := candidate.Addr + ":" + strconv.Itoa(deployer.Port)
 
-			has, _ := candidateClient.HasDeployment(i.deployment.DeploymentID)
+			has, _ := candidateClient.HasDeployment(addr, i.deployment.DeploymentID)
 			if has {
 				log.Debugf("candidate %s already has deployment %s", candidate, i.deployment.DeploymentID)
 
@@ -439,24 +427,7 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthes
 	})
 
 	if furthestChildDistance == -1.0 {
-		var (
-			ok    bool
-			value interface{}
-		)
-
-		value, ok = i.deployment.Environment.GetMetric(environment.metricLocation)
-		if !ok {
-			log.Panicf("no value for metric %s", environment.metricLocation)
-		}
-
-		var location s2.CellID
-
-		err := mapstructure.Decode(value, &location)
-		if err != nil {
-			panic(err)
-		}
-
-		furthestChildDistance = servers.ChordAngleToKM(s2.CellFromCellID(location).
+		furthestChildDistance = servers.ChordAngleToKM(s2.CellFromCellID(i.myLocation).
 			DistanceToCell(s2.CellFromCellID(avgLocation)))
 	}
 
@@ -467,37 +438,37 @@ func (i *idealLatency) GetID() string {
 	return idealLatencyGoalID
 }
 
-func (i *idealLatency) checkProcessingTime() bool {
-	processintTimeMetric := environment.GetProcessingTimePerDeploymentMetricID(i.deployment.DeploymentID)
-
-	value, ok := i.deployment.Environment.GetMetric(processintTimeMetric)
-	if !ok {
-		log.Debugf("no value for metric %s", processintTimeMetric)
-
-		return false
-	}
-
-	processingTime := value.(float64)
-	clientLatencyMetric := environment.GetClientLatencyPerDeploymentMetricID(i.deployment.DeploymentID)
-
-	value, ok = i.deployment.Environment.GetMetric(clientLatencyMetric)
-	if !ok {
-		log.Debugf("no value for metric %s", clientLatencyMetric)
-
-		return false
-	}
-
-	latency := value.(float64)
-
-	processingTimePart := float32(processingTime) / float32(latency)
-	if processingTimePart > processingThreshold {
-		log.Debugf("most of the client latency is due to processing time (%f)", processingTimePart)
-
-		return true
-	}
-
-	return false
-}
+// func (i *idealLatency) checkProcessingTime() bool {
+// 	processintTimeMetric := environment.GetProcessingTimePerDeploymentMetricID(i.deployment.DeploymentID)
+//
+// 	value, ok := i.deployment.Environment.GetMetric(processintTimeMetric)
+// 	if !ok {
+// 		log.Debugf("no value for metric %s", processintTimeMetric)
+//
+// 		return false
+// 	}
+//
+// 	processingTime := value.(float64)
+// 	clientLatencyMetric := environment.GetClientLatencyPerDeploymentMetricID(i.deployment.DeploymentID)
+//
+// 	value, ok = i.deployment.Environment.GetMetric(clientLatencyMetric)
+// 	if !ok {
+// 		log.Debugf("no value for metric %s", clientLatencyMetric)
+//
+// 		return false
+// 	}
+//
+// 	latency := value.(float64)
+//
+// 	processingTimePart := float32(processingTime) / float32(latency)
+// 	if processingTimePart > processingThreshold {
+// 		log.Debugf("most of the client latency is due to processing time (%f)", processingTimePart)
+//
+// 		return true
+// 	}
+//
+// 	return false
+// }
 
 func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
 	numChildren := 0

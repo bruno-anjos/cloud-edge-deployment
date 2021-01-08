@@ -22,6 +22,7 @@ import (
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 
+	client "github.com/nm-morais/demmon-client/pkg"
 	"gopkg.in/yaml.v3"
 )
 
@@ -34,7 +35,6 @@ type (
 
 // Timeouts.
 const (
-	retryTimeout            = 10 * time.Second
 	sendAlternativesTimeout = 30 * time.Second
 	checkParentsTimeout     = 30
 	heartbeatTimeout        = 10
@@ -47,6 +47,9 @@ const (
 	maxHopsToLookFor = 5
 
 	maxHopslocationHorizon = 3
+
+	daemonPort           = 8090
+	clientRequestTimeout = 5 * time.Second
 )
 
 const (
@@ -59,6 +62,8 @@ var (
 	autonomicClient  autonomic.Client
 	archimedesClient archimedes.Client
 	schedulerClient  scheduler.Client
+
+	demmonCli *client.DemmonClient
 )
 
 var (
@@ -102,9 +107,9 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 	deplFactory = deplFactoryAux
 	schedFactory = schedFactoryAux
 
-	autonomicClient = autoFactory.New(servers.AutonomicLocalHostPort)
+	autonomicClient = autoFactory.New()
 	archimedesClient = archFactory.New(servers.ArchimedesLocalHostPort)
-	schedulerClient = schedFactory.New(servers.SchedulerLocalHostPort)
+	schedulerClient = schedFactory.New()
 
 	myAlternatives = sync.Map{}
 	nodeAlternatives = map[string][]*utils.Node{}
@@ -123,20 +128,22 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 	fallback = loadFallbackHostname(fallbackFilename)
 	log.Debugf("loaded fallback %+v", fallback)
 
-	simulateAlternatives()
+	updateAlternatives()
 
-	var (
-		locationID s2.CellID
-		status     int
-	)
-
-	for status != http.StatusOK {
-		locationID, status = autonomicClient.GetLocation()
-
-		time.Sleep(retryTimeout)
+	demmonCliConf := client.DemmonClientConf{
+		DemmonPort:     daemonPort,
+		DemmonHostAddr: myself.Addr,
+		RequestTimeout: clientRequestTimeout,
 	}
 
-	location = s2.CellFromCellID(locationID)
+	demmonCli = client.New(demmonCliConf)
+
+	locationToken, ok := os.LookupEnv(utils.LocationEnvVarName)
+	if !ok {
+		log.Panic("no location env var set")
+	}
+
+	location = s2.CellFromCellID(s2.CellIDFromToken(locationToken))
 
 	log.Debugf("got location %s", location.ID().ToToken())
 
@@ -166,9 +173,10 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 
 	switch reqBody.Operation {
 	case api.Add:
-		archimedesClient.AddDeploymentNode(deploymentID, reqBody.Child, reqBody.Location, false)
+		archimedesClient.AddDeploymentNode(servers.ArchimedesLocalHostPort, deploymentID, reqBody.Child,
+			reqBody.Location, false)
 	case api.Remove:
-		archimedesClient.DeleteDeploymentNode(deploymentID, reqBody.Child.ID)
+		archimedesClient.DeleteDeploymentNode(servers.ArchimedesLocalHostPort, deploymentID, reqBody.Child.ID)
 	}
 
 	parent := hTable.getParent(deploymentID)
@@ -176,9 +184,10 @@ func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deplClient := deplFactory.New(parent.Addr + ":" + strconv.Itoa(deployer.Port))
+	addr := parent.Addr + ":" + strconv.Itoa(deployer.Port)
+	deplClient := deplFactory.New()
 	log.Debugf("propagating %s location for deployments %+v to %s", reqBody.Child.ID, deploymentID, parent.ID)
-	deplClient.PropagateLocationToHorizon(deploymentID, reqBody.Child, reqBody.Location, reqBody.TTL+1,
+	deplClient.PropagateLocationToHorizon(addr, deploymentID, reqBody.Child, reqBody.Location, reqBody.TTL+1,
 		reqBody.Operation)
 }
 
@@ -218,7 +227,8 @@ func childDeletedDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 	hTable.removeChild(deploymentID, childID)
 	children.Delete(childID)
 
-	autonomicClient.BlacklistNodes(deploymentID, myself.ID, []string{childID}, map[string]struct{}{myself.ID: {}})
+	autonomicClient.BlacklistNodes(servers.AutonomicLocalHostPort, deploymentID, myself.ID, []string{childID},
+		map[string]struct{}{myself.ID: {}})
 }
 
 func getDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
@@ -367,12 +377,12 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func takeChildren(deploymentID string, parent *utils.Node, children ...*utils.Node) {
-	deplClient := deplFactory.New("")
+	deplClient := deplFactory.New()
 
 	for _, child := range children {
-		deplClient.SetHostPort(child.Addr + ":" + strconv.Itoa(deployer.Port))
+		addr := child.Addr + ":" + strconv.Itoa(deployer.Port)
 
-		status := deplClient.WarnThatIAmParent(deploymentID, myself, parent)
+		status := deplClient.WarnThatIAmParent(addr, deploymentID, myself, parent)
 		if status == http.StatusConflict {
 			log.Debugf("can not be %s parent since it already has a live parent", child.ID)
 
@@ -438,7 +448,7 @@ func hasDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 // Function simulating lower API.
 func getNodeCloserTo(locations []s2.CellID, _ int,
 	excludeNodes map[string]interface{}) (closest *utils.Node, found bool) {
-	closest = autonomicClient.GetClosestNode(locations, excludeNodes)
+	closest = autonomicClient.GetClosestNode(servers.AutonomicLocalHostPort, locations, excludeNodes)
 	found = closest != nil
 
 	return
@@ -469,7 +479,8 @@ func addDeploymentAsync(deployment *deployment, deploymentID string, instanceNam
 	log.Debugf("adding deployment %s (ni: %d, s: %t, fmt: %+v)", deploymentID, deployment.NumberOfInstances,
 		deployment.Static, instanceNameFmt)
 
-	status := archimedesClient.RegisterDeployment(deploymentID, deployment.Ports, myself)
+	status := archimedesClient.RegisterDeployment(servers.ArchimedesLocalHostPort, deploymentID, deployment.Ports,
+		myself)
 	if status != http.StatusOK {
 		log.Errorf("got status code %d from archimedes", status)
 
@@ -485,12 +496,13 @@ func addDeploymentAsync(deployment *deployment, deploymentID string, instanceNam
 			log.Debugf("formatted instance name: %s", instanceName)
 		}
 
-		status = schedulerClient.StartInstance(deploymentID, deployment.Image, instanceName, deployment.Ports, i,
+		status = schedulerClient.StartInstance(servers.SchedulerLocalHostPort, deploymentID, deployment.Image,
+			instanceName, deployment.Ports, i,
 			deployment.Static, deployment.EnvVars, deployment.Command)
 		if status != http.StatusOK {
 			log.Errorf("got status code %d from scheduler", status)
 
-			status = archimedesClient.DeleteDeployment(deploymentID)
+			status = archimedesClient.DeleteDeployment(servers.ArchimedesLocalHostPort, deploymentID)
 			if status != http.StatusOK {
 				log.Error("error deleting deployment that failed initializing")
 			}
@@ -548,7 +560,7 @@ func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool)
 
 func addNode(nodeDeployerID, addr string) {
 	if nodeDeployerID == "" {
-		panic("error while adding node up")
+		log.Panic("error while adding node up")
 	}
 
 	if nodeDeployerID == myself.ID {
@@ -569,10 +581,29 @@ func addNode(nodeDeployerID, addr string) {
 	myAlternatives.Store(nodeDeployerID, neighbor)
 }
 
+func removeNode(nodeID string) {
+	if nodeID == "" {
+		log.Panic("error while removing node")
+	}
+
+	myAlternatives.Delete(nodeID)
+}
+
 // Function simulation lower API
 // Node up is only triggered for nodes that appeared one hop away.
 func onNodeUp(id, addr string) {
 	addNode(id, addr)
+	sendAlternatives()
+
+	if !timer.Stop() {
+		<-timer.C
+	}
+
+	timer.Reset(sendAlternativesTimeout)
+}
+
+func onNodeDown(id string) {
+	removeNode(id)
 	sendAlternatives()
 
 	if !timer.Stop() {
@@ -602,9 +633,10 @@ func deleteDeployment(deploymentID string) (success bool, parentStatus int) {
 
 	parent := hTable.getParent(deploymentID)
 	if parent != nil {
-		client := deplFactory.New(parent.Addr + ":" + strconv.Itoa(deployer.Port))
+		deplClientAux := deplFactory.New()
+		addr := parent.Addr + ":" + strconv.Itoa(deployer.Port)
 
-		status := client.ChildDeletedDeployment(deploymentID, myself.ID)
+		status := deplClientAux.ChildDeletedDeployment(addr, deploymentID, myself.ID)
 		if status != http.StatusOK {
 			log.Errorf("got status %d from child deleted deployment", status)
 

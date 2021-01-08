@@ -13,7 +13,7 @@ import (
 func sendHeartbeatsPeriodically() {
 	ticker := time.NewTicker(heartbeatTimeout * time.Second)
 
-	childrenClient := deplFactory.New("")
+	childrenClient := deplFactory.New()
 
 	var childrenToRemove []string
 
@@ -24,8 +24,9 @@ func sendHeartbeatsPeriodically() {
 			childID := key.(string)
 			log.Debugf("sending heartbeat to %s", childID)
 			child := value.(typeChildrenMapValue)
-			childrenClient.SetHostPort(child.Addr + ":" + strconv.Itoa(deployer.Port))
-			status := childrenClient.SetParentAlive(myself.ID)
+			addr := child.Addr + ":" + strconv.Itoa(deployer.Port)
+
+			status := childrenClient.SetParentAlive(addr, myself.ID)
 			if status != http.StatusOK {
 				log.Errorf("got status %d while telling %s that i was alive", status, child.ID)
 				childrenToRemove = append(childrenToRemove, childID)
