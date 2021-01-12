@@ -2,7 +2,11 @@
 
 set -e
 
-BUILD_DIR="$CLOUD_EDGE_DEPLOYMENT"/build
+if [[ -z "${BUILD_DIR}" ]]; then
+  echo "BUILD_DIR environment variable missing"
+  exit 1
+fi
+
 CMD_DIR="$CLOUD_EDGE_DEPLOYMENT"/cmd
 
 function build() {

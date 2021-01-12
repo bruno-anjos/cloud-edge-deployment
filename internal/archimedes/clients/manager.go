@@ -58,7 +58,7 @@ func NewManager() *Manager {
 	exporterConf := &exporter.Conf{
 		Silent:          true,
 		LogFolder:       logFolder,
-		ImporterHost:    "localhost",
+		ImporterHost:    deployment.Myself.Addr,
 		ImporterPort:    daemonPort,
 		LogFile:         "exporter.log",
 		DialAttempts:    3,

@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/golang/geo/s2"
@@ -23,11 +22,6 @@ type (
 	typeInterestSetsValue struct {
 		ISID   int64
 		Finish chan interface{}
-	}
-
-	nodeWithLocation struct {
-		*utils.Node
-		Location s2.CellID
 	}
 
 	vicinityKey   = string
@@ -67,13 +61,14 @@ const (
 	DaemonPort = 8090
 
 	ClientRequestTimeout = 5 * time.Second
+	connectTimeout       = 5 * time.Second
 )
 
-var (
-	exporterConf = &exporter.Conf{
+func NewEnvironment(myself *utils.Node, location s2.CellID, autoClient autonomic.Client) *Environment {
+	exporterConf := &exporter.Conf{
 		Silent:          true,
 		LogFolder:       logFolder,
-		ImporterHost:    "localhost",
+		ImporterHost:    myself.Addr,
 		ImporterPort:    DaemonPort,
 		LogFile:         "exporter.log",
 		DialAttempts:    3,
@@ -82,15 +77,16 @@ var (
 		RequestTimeout:  3 * time.Second,
 	}
 
-	demmonCliConf = client.DemmonClientConf{
+	demmonCliConf := client.DemmonClientConf{
 		DemmonPort:     DaemonPort,
-		DemmonHostAddr: deployment.Myself.Addr,
+		DemmonHostAddr: myself.Addr,
 		RequestTimeout: ClientRequestTimeout,
 	}
-)
-
-func NewEnvironment(myself *utils.Node, location s2.CellID, autoClient autonomic.Client) *Environment {
 	demmonCli := client.New(demmonCliConf)
+	err := demmonCli.ConnectTimeout(connectTimeout)
+	if err != nil {
+		log.Panic(err)
+	}
 
 	exp, err := exporter.New(exporterConf, myself.Addr, autonomicService, nil)
 	if err != nil {
@@ -315,13 +311,13 @@ func getDeploymentIDMetricString(deploymentID, metricID string) string {
 const (
 	DeploymentTag = "Deployment"
 
-	LocationWithHostQuery  = `SelectLast(%s, {"Host": "%s"})`
+	locationWithHostQuery  = `SelectLast(%s, {"Host": "%s"})`
 	LocationQuery          = `SelectLast(%s)`
 	loadPerDeploymentQuery = `Avg(Select("%s", {"Host": "%s", "Deployment": "%s"}), "value")`
 )
 
 func GetLocation(demmonCli *client.DemmonClient, host *utils.Node) s2.CellID {
-	query := fmt.Sprintf(LocationWithHostQuery, MetricLocation, host.Addr)
+	query := fmt.Sprintf(locationWithHostQuery, MetricLocation, host.Addr)
 
 	timeseries, err := demmonCli.Query(query, queryTimeout)
 	if err != nil {

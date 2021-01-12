@@ -22,7 +22,6 @@ import (
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 
-	client "github.com/nm-morais/demmon-client/pkg"
 	"gopkg.in/yaml.v3"
 )
 
@@ -62,8 +61,6 @@ var (
 	autonomicClient  autonomic.Client
 	archimedesClient archimedes.Client
 	schedulerClient  scheduler.Client
-
-	demmonCli *client.DemmonClient
 )
 
 var (
@@ -129,14 +126,6 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 	log.Debugf("loaded fallback %+v", fallback)
 
 	updateAlternatives()
-
-	demmonCliConf := client.DemmonClientConf{
-		DemmonPort:     daemonPort,
-		DemmonHostAddr: myself.Addr,
-		RequestTimeout: clientRequestTimeout,
-	}
-
-	demmonCli = client.New(demmonCliConf)
 
 	locationToken, ok := os.LookupEnv(utils.LocationEnvVarName)
 	if !ok {

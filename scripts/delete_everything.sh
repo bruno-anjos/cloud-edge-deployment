@@ -5,6 +5,8 @@ echo "Deleting everything on $(hostname)"
 containers=$(docker ps -aq)
 docker stop $containers
 docker rm $containers
-docker network rm $DOCKER_NET
 docker volume prune -f
 docker system prune -f
+docker network rm $DOCKER_NET
+
+rm -rf /tmp/images/*

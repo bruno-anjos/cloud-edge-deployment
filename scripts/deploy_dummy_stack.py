@@ -30,7 +30,8 @@ def exec_cmd_on_nodes(cmd):
 
 
 def exec_cmd_on_node(cmd, node):
-    remote_cmd = f"oarsh {node} -- '{cmd}'"
+    path_var = os.environ["PATH"]
+    remote_cmd = f"oarsh {node} -- 'PATH=\"{path_var}\" && {cmd}'"
     run_cmd_with_try(remote_cmd)
 
 
@@ -67,25 +68,23 @@ def setup_swarm():
 def build_dummy_node_image():
     print("Building dummy node image...")
     build_cmd = f"bash {project_path}/build/dummy_node/build_dummy_node.sh"
-    run_cmd_with_try(build_cmd)
-
-
-def build_dummy_node_image_swarm():
-    print("Building dummy node images on all nodes...")
-    build_cmd = f"cd {project_path} && bash {project_path}/build/dummy_node/build_dummy_node.sh"
-    exec_cmd_on_nodes(build_cmd)
+    subprocess.run(build_cmd, shell=True)
 
 
 NAME = "name"
 NODE_IP = "ip"
 LOCATION = "location"
 NODE = "node"
+NUM = "num"
 
 
 def launch_dummy(info):
-    launch_cmd = f'docker run -d --network={network} --privileged --ip {info[NODE_IP]} --name=' \
-                 f'{info[NAME]} --hostname {info[NAME]} --env NODE_IP="{info[NODE_IP]}" --env ' \
-                 f'NODE_ID="{info[NAME]}" --env LOCATION="{info[LOCATION]}" brunoanjos/dummy_node:latest'
+    launch_cmd = f'docker run -d --network={network} --privileged --ip {info[NODE_IP]} ' \
+                 f'--name={info[NAME]} --hostname {info[NAME]} --env NODE_IP="{info[NODE_IP]}" --env ' \
+                 f'NODE_ID="{info[NAME]}" --env NODE_NUM="{info[NUM]}" --env LOCATION="{info[LOCATION]}" ' \
+                 f'--env LANDMARKS="{os.environ["LANDMARKS"]}" --env CONFIG_FILE="config/banjos_config.txt" ' \
+                 f'--env LATENCY_MAP="config/inet100Latencies_x0.04.txt" --env IPS_MAP="config/banjos_ips_config.txt"' \
+                 f' -v /tmp/images:/images brunoanjos/dummy_node:latest'
     if not swarm or info[NODE] == host:
         run_cmd_with_try(launch_cmd)
     else:
@@ -116,6 +115,7 @@ def build_dummy_infos(num, s2_locs):
             NAME: name,
             NODE_IP: ip,
             LOCATION: location,
+            NUM: i,
         }
 
         print(f"{name}: {ip} | {location}")
@@ -153,6 +153,7 @@ def build_dummy_infos_swarm(num, s2_locs, entrypoints_ips):
             NODE_IP: ip,
             LOCATION: location,
             NODE: node,
+            NUM: dummies_deployed - 1,
         }
 
         print(f"{name}: {ip} | {location} | {node}")
@@ -162,6 +163,12 @@ def build_dummy_infos_swarm(num, s2_locs, entrypoints_ips):
         curr_ip += 1
 
     return infos
+
+
+def update_dependencies(build_path):
+    print(f"Updating dependencies at {build_path}")
+    cmd = f'cd {build_path} && GO111MODULE="on" go mod tidy'
+    run_cmd_with_try(cmd)
 
 
 def load_s2_locations():
@@ -204,23 +211,73 @@ def setup_anchors():
         """
         output = exec_cmd_on_node_with_output(get_entrypoint_cmd, node).strip().split(" ", 1)[1]
         entrypoint_json = json.loads(output)
+
         entrypoints_ips.add(entrypoint_json["IPv4Address"].split("/")[0])
+
+        get_anchor_cmd = f"docker network inspect {network} | grep 'anchor' -A 5 -B 1"
+        output = exec_cmd_on_node_with_output(get_anchor_cmd, node).strip().split(" ", 1)[1]
+
+        if output[-1] == ",":
+            output = output[:-1]
+
+        anchor_json = json.loads(output)
+        entrypoints_ips.add(anchor_json["IPv4Address"].split("/")[0])
     return entrypoints_ips
 
 
+def generate_demmon_config(infos):
+    config_filename = "config/banjos_config.txt"
+    ips_filename = "config/banjos_ips_config.txt"
+
+    os.environ["CONFIG_FILE"] = config_filename
+    os.environ["IPS_MAP"] = ips_filename
+
+    config_file_path = f'{os.environ["DEMMON_DIR"]}/{config_filename}'
+    ips_config_file_path = f'{os.environ["DEMMON_DIR"]}/{ips_filename}'
+
+    with open(config_file_path, 'w') as config_file_fp:
+        for info in infos:
+            node_config = f"0 {info[NODE_IP]} {info[NAME]}\n"
+            config_file_fp.write(node_config)
+
+    with open(ips_config_file_path, 'w') as ips_config_file_fp:
+        for info in infos:
+            node_config = f"{info[NODE_IP]}\n"
+            ips_config_file_fp.write(node_config)
+
+
+def load_dummy_node_image_swarm():
+    load_cmd = f"docker load < {project_path}/build/dummy_node/dummy_node.tar"
+    exec_cmd_on_nodes(load_cmd)
+
+
+def copy_tmp_images_swarm():
+    for node in nodes:
+        if node == host:
+            continue
+        print(f"Copying /tmp images to {node}...")
+        cmd = f"scp -r /tmp/images b.anjos@{node}:/tmp/images"
+        run_cmd_with_try(cmd)
+
+
 args = sys.argv[1:]
-if len(args) != 2 and len(args) != 3:
-    print("usage: deploy_dummy_stack.sh <num_nodes> <cidr> [--swarm]")
-    print(len(args))
+if len(args) < 2:
+    print("usage: deploy_dummy_stack.sh <num_nodes> <cidr> [--swarm] [--demmon] [--build-only]")
     exit(1)
 
 swarm = False
+demmon = False
+build_only = False
 num_nodes_str = ""
 cidr_provided = ""
 
 for arg in args:
     if arg == "--swarm":
         swarm = True
+    elif arg == "--demmon":
+        demmon = True
+    elif arg == "--build-only":
+        build_only = True
     elif num_nodes_str == "":
         num_nodes_str = arg
     elif cidr_provided == "":
@@ -263,7 +320,7 @@ else:
     dummy_infos = build_dummy_infos(num_nodes, s2_locations)
 
 print("Writing node IPs...")
-with open(f"{project_path}/build/deployer/node_ips.json", "w") as deployer_ips_fp,\
+with open(f"{project_path}/build/deployer/node_ips.json", "w") as deployer_ips_fp, \
         open(f"{project_path}/build/autonomic/node_ips.json", "w") as autonomic_ips_fp:
     node_ips = {}
     for dummy in dummy_infos:
@@ -281,16 +338,31 @@ with open(f"{project_path}/build/deployer/fallback.json", "r+") as fallback_fp:
                 break
     fallback_fp.truncate(0)
     fallback_fp.seek(0)
+    os.environ["LANDMARKS"] = fallback["Addr"]
     json.dump(fallback, fallback_fp)
+
+update_dependencies(project_path)
+nm_morais_path = os.path.expanduser("~/go/src/github.com/nm-morais/")
+for file in os.listdir(nm_morais_path):
+    update_dependencies(nm_morais_path + file)
 
 print("Building images...")
 
+if demmon:
+    print("Generating demmon config...")
+    generate_demmon_config(dummy_infos)
+
+build_dummy_node_image()
+
 if swarm:
-    build_dummy_node_image_swarm()
-else:
-    build_dummy_node_image()
+    load_dummy_node_image_swarm()
+    copy_tmp_images_swarm()
 
 print("Launching...")
+
+if build_only:
+    print("Aborting launch due to build only...")
+    exit(1)
 
 pool = Pool(processes=os.cpu_count())
 pool.map(launch_dummy, dummy_infos)

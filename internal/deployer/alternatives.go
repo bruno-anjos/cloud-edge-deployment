@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -15,6 +16,10 @@ import (
 	client "github.com/nm-morais/demmon-client/pkg"
 	"github.com/nm-morais/demmon-common/body_types"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	connectTimeout = 5 * time.Second
 )
 
 func setAlternativesHandler(_ http.ResponseWriter, r *http.Request) {
@@ -41,6 +46,10 @@ func updateAlternatives() {
 	}
 
 	demmonCli := client.New(demmonCliConf)
+	err := demmonCli.ConnectTimeout(connectTimeout)
+	if err != nil {
+		log.Panic(err)
+	}
 
 	res, err, _, updateChan := demmonCli.SubscribeNodeUpdates()
 	if err != nil {
