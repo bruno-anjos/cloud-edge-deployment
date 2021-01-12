@@ -5,6 +5,7 @@ import socket
 import subprocess
 import sys
 from multiprocessing import Pool
+from functools import partial
 
 import s2sphere
 from netaddr import IPNetwork
@@ -26,10 +27,21 @@ def exec_cmd_on_nodes(cmd):
         if node == host:
             run_cmd_with_try(cmd)
         else:
-            exec_cmd_on_node(cmd, node)
+            exec_cmd_on_node(node, cmd)
 
 
-def exec_cmd_on_node(cmd, node):
+def exec_cmd_on_nodes_parallel(cmd):
+    cmd_pool = Pool(processes=os.cpu_count())
+
+    other_nodes = [node for node in nodes if node != host]
+    cmd_pool.map(partial(exec_cmd_on_node, cmd=cmd), other_nodes)
+    run_cmd_with_try(cmd)
+
+    cmd_pool.close()
+    cmd_pool.terminate()
+
+
+def exec_cmd_on_node(node, cmd):
     path_var = os.environ["PATH"]
     remote_cmd = f"oarsh {node} -- 'PATH=\"{path_var}\" && {cmd}'"
     run_cmd_with_try(remote_cmd)
@@ -51,7 +63,7 @@ def del_everything():
 
 def del_everything_swarm():
     remove_cmd = f"bash {project_path}/scripts/delete_everything.sh"
-    exec_cmd_on_nodes(remove_cmd)
+    exec_cmd_on_nodes_parallel(remove_cmd)
 
 
 def create_network():
@@ -88,7 +100,7 @@ def launch_dummy(info):
     if not swarm or info[NODE] == host:
         run_cmd_with_try(launch_cmd)
     else:
-        exec_cmd_on_node(launch_cmd, info[NODE])
+        exec_cmd_on_node(info[NODE], launch_cmd)
 
 
 def start_services_in_dummy(info):
@@ -96,7 +108,7 @@ def start_services_in_dummy(info):
     if not swarm or info[NODE] == host:
         run_cmd_with_try(start_services_cmd)
     else:
-        exec_cmd_on_node(start_services_cmd, info[NODE])
+        exec_cmd_on_node(info[NODE], start_services_cmd)
 
 
 def build_dummy_infos(num, s2_locs):
@@ -195,7 +207,7 @@ def setup_anchors():
     for node in nodes:
         print(f"Setting up anchor at {node}")
         anchor_cmd = f"docker run -d --name=anchor-{node} --network swarm-network alpine sleep 30m"
-        exec_cmd_on_node(anchor_cmd, node)
+        exec_cmd_on_node(node, anchor_cmd)
         get_entrypoint_cmd = f"docker network inspect {network} | grep 'lb-{network}' -A 6"
         """
         Output is like:
@@ -256,7 +268,7 @@ def copy_tmp_images_swarm():
         if node == host:
             continue
         print(f"Copying /tmp images to {node}...")
-        cmd = f"scp -r /tmp/images b.anjos@{node}:/tmp/images"
+        cmd = f"rsync -r /tmp/images/ {node}:/tmp/images"
         run_cmd_with_try(cmd)
 
 
