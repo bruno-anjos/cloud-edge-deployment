@@ -1,12 +1,13 @@
 #!/bin/bash
 
+export BUILD_DIR="/tmp/build"
+
 if [[ -z "${CLOUD_EDGE_DEPLOYMENT}" ]]; then
   export CLOUD_EDGE_DEPLOYMENT="/home/b.anjos/go/src/github.com/bruno-anjos/cloud-edge-deployment"
 fi
 
-export BUILD_DIR=/tmp/build
-
-
+[ ! -d "$BUILD_DIR" ] && mkdir -p "$BUILD_DIR"
+[ ! -d /tmp/images ] && mkdir -p /tmp/images
 
 echo "Copying build to /tmp..."
 
@@ -15,7 +16,7 @@ cp -r $CLOUD_EDGE_DEPLOYMENT/build/* $BUILD_DIR/
 echo "Removing garbage from previous runs..."
 
 # Clear previous build directories and files
-rm -rf /tmp/images
+rm -f /tmp/images/*
 rm "$BUILD_DIR"/dummy_node/fallback.json
 rm -rf "$BUILD_DIR"/dummy_node/metrics
 rm -rf "$BUILD_DIR"/dummy_node/deployments
@@ -30,8 +31,6 @@ bash "$BUILD_DIR"/build_client.sh
 
 wait
 
-mkdir /tmp/images
-
 echo "Build service images..."
 
 bash "$BUILD_DIR"/dummy_node/build_images.sh
@@ -44,6 +43,8 @@ cp -r "$BUILD_DIR"/autonomic/metrics "$BUILD_DIR"/dummy_node/
 
 # Client dependencies
 cp -r "$CLOUD_EDGE_DEPLOYMENT"/deployments "$BUILD_DIR"/dummy_node/
+
+cp $CLOUD_EDGE_DEPLOYMENT/scripts/clean_dummy.sh "$BUILD_DIR"/dummy_node/clean_dummy.sh
 
 (
   echo "Build demmon binary..."
@@ -62,6 +63,6 @@ echo "Building final dummy node image..."
 docker build -t brunoanjos/dummy_node:latest "$BUILD_DIR/dummy_node"
 
 echo "Saving image to CLOUD_EDGE_DEPLOYMENT dir"
-docker save brunoanjos/dummy_node:latest > "$CLOUD_EDGE_DEPLOYMENT"/build/dummy_node/dummy_node.tar
+docker save brunoanjos/dummy_node:latest >"$CLOUD_EDGE_DEPLOYMENT"/build/dummy_node/dummy_node.tar
 
 rm -rf "$BUILD_DIR"/dummy_node/deployments

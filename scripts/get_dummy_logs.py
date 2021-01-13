@@ -9,7 +9,7 @@ from multiprocessing import Pool
 clients_config_file = f"{os.path.expanduser('~')}" \
                       f"/go/src/github.com/bruno-anjos/cloud-edge-deployment/deployments/clients_config.json"
 
-log_prefixes = ["archimedes", "autonomic", "deployer", "scheduler"]
+log_prefixes = ["archimedes", "autonomic", "deployer", "scheduler", "demmon"]
 
 
 def get_client_logs(logs_dir_name):
@@ -29,9 +29,9 @@ def get_client_logs(logs_dir_name):
             subprocess.run(cmd, stdout=client_log_fp)
 
 
-def get_specific_logs(logs_dir_name, dummy, logs_prefix):
+def get_specific_logs(logs_dir_name, dummy, cluster_node, logs_prefix):
     inside_docker_cmd = f"docker logs {logs_prefix}".split(" ")
-    docker_logs_cmd = f"docker exec {dummy}".split(" ")
+    docker_logs_cmd = f"oarsh {cluster_node} -- docker exec {dummy}".split(" ")
     docker_logs_cmd.extend(inside_docker_cmd)
     log_path = f"{logs_dir_name}/{dummy}/{logs_prefix}"
     print(log_path)
@@ -42,8 +42,9 @@ def get_specific_logs(logs_dir_name, dummy, logs_prefix):
 
 def get_dummy_logs(logs_dir_name, dummy):
     os.mkdir(f"{logs_dir_name}/{dummy}")
+    cluster_node = dummy_infos[dummy]["node"]
     for log_prefix in log_prefixes:
-        get_specific_logs(logs_dir_name, dummy, log_prefix)
+        get_specific_logs(logs_dir_name, dummy, cluster_node, log_prefix)
 
 
 if len(sys.argv) > 2:
@@ -66,6 +67,12 @@ if os.path.isdir(logs_dir) or os.path.isfile(logs_dir):
     exit(1)
 
 os.mkdir(logs_dir)
+
+with open(f"/tmp/dummy_infos.json", "r") as dummy_infos_fp:
+    infos = json.load(dummy_infos_fp)
+    dummy_infos = {}
+    for info in infos:
+        dummy_infos[info["name"]] = info
 
 pool = Pool(processes=os.cpu_count())
 processess = []

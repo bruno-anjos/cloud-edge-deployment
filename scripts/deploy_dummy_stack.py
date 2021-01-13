@@ -4,8 +4,8 @@ import os
 import socket
 import subprocess
 import sys
-from multiprocessing import Pool
 from functools import partial
+from multiprocessing import Pool
 
 import s2sphere
 from netaddr import IPNetwork
@@ -80,7 +80,7 @@ def setup_swarm():
 def build_dummy_node_image():
     print("Building dummy node image...")
     build_cmd = f"bash {project_path}/build/dummy_node/build_dummy_node.sh"
-    subprocess.run(build_cmd, shell=True)
+    run_cmd_with_try(build_cmd)
 
 
 NAME = "name"
@@ -94,7 +94,7 @@ def launch_dummy(info):
     launch_cmd = f'docker run -d --network={network} --privileged --ip {info[NODE_IP]} ' \
                  f'--name={info[NAME]} --hostname {info[NAME]} --env NODE_IP="{info[NODE_IP]}" --env ' \
                  f'NODE_ID="{info[NAME]}" --env NODE_NUM="{info[NUM]}" --env LOCATION="{info[LOCATION]}" ' \
-                 f'--env LANDMARKS="{os.environ["LANDMARKS"]}" --env CONFIG_FILE="config/banjos_config.txt" ' \
+                 f'--env LANDMARKS="{landmarks}" --env CONFIG_FILE="config/banjos_config.txt" ' \
                  f'--env LATENCY_MAP="config/inet100Latencies_x0.04.txt" --env IPS_MAP="config/banjos_ips_config.txt"' \
                  f' -v /tmp/images:/images brunoanjos/dummy_node:latest'
     if not swarm or info[NODE] == host:
@@ -206,7 +206,7 @@ def setup_anchors():
     entrypoints_ips = set()
     for node in nodes:
         print(f"Setting up anchor at {node}")
-        anchor_cmd = f"docker run -d --name=anchor-{node} --network swarm-network alpine sleep 30m"
+        anchor_cmd = f"docker run -d --name=anchor-{node} --network {network} alpine sleep 30m"
         exec_cmd_on_node(node, anchor_cmd)
         get_entrypoint_cmd = f"docker network inspect {network} | grep 'lb-{network}' -A 6"
         """
@@ -272,6 +272,22 @@ def copy_tmp_images_swarm():
         run_cmd_with_try(cmd)
 
 
+def clean_deployment(info):
+    clean_cmd = f"docker exec {info[NAME]} ./clean_dummy.sh"
+    if not swarm or info[NODE] == host:
+        run_cmd_with_try(clean_cmd)
+    else:
+        exec_cmd_on_node(info[NODE], clean_cmd)
+
+
+def setup_tc(info):
+    clean_cmd = f"docker exec {info[NAME]} ./setup_tc.sh"
+    if not swarm or info[NODE] == host:
+        run_cmd_with_try(clean_cmd)
+    else:
+        exec_cmd_on_node(info[NODE], clean_cmd)
+
+
 args = sys.argv[1:]
 if len(args) < 2:
     print("usage: deploy_dummy_stack.sh <num_nodes> <cidr> [--swarm] [--demmon] [--build-only]")
@@ -280,6 +296,7 @@ if len(args) < 2:
 swarm = False
 demmon = False
 build_only = False
+reuse = False
 num_nodes_str = ""
 cidr_provided = ""
 
@@ -290,6 +307,8 @@ for arg in args:
         demmon = True
     elif arg == "--build-only":
         build_only = True
+    elif arg == "--reuse":
+        reuse = True
     elif num_nodes_str == "":
         num_nodes_str = arg
     elif cidr_provided == "":
@@ -305,14 +324,29 @@ if swarm:
 
 print("Deleting...")
 
-if swarm:
-    network = "swarm-network"
-    os.environ["DOCKER_NET"] = network
-    del_everything_swarm()
+network = ""
+landmarks = ""
+
+dummy_infos = {}
+if reuse:
+    print("Cleaning dummy nodes...")
+    with open(f"/tmp/dummy_infos.json", "r") as dummy_infos_fp:
+        dummy_infos = json.load(dummy_infos_fp)
+        pool = Pool(processes=os.cpu_count())
+        pool.map(clean_deployment, dummy_infos)
+        pool.close()
+        pool.join()
 else:
-    network = "dummies-network"
-    os.environ["DOCKER_NET"] = network
-    del_everything()
+    print("Building from scratch...")
+    if swarm:
+        network = "swarm-network"
+        os.environ["DOCKER_NET"] = network
+        del_everything_swarm()
+    else:
+        network = "dummies-network"
+        os.environ["DOCKER_NET"] = network
+        del_everything()
+    print(f"Setting network as {network}")
 
 ips = [str(ip) for ip in IPNetwork(cidr_provided)]
 # Ignore first two IPs since they normally are the NetAddr and the Gateway, and ignore last one since normally it's the
@@ -321,37 +355,42 @@ ips = ips[2:-1]
 
 s2_locations = load_s2_locations()
 
-print("Setting up network and node configs...")
+print("Setting node configs...")
 
-if swarm:
-    setup_swarm()
-    entrypoints = setup_anchors()
-    dummy_infos = build_dummy_infos_swarm(num_nodes, s2_locations, entrypoints)
-else:
-    create_network()
-    dummy_infos = build_dummy_infos(num_nodes, s2_locations)
+if not reuse:
+    if swarm:
+        setup_swarm()
+        entrypoints = setup_anchors()
+        dummy_infos = build_dummy_infos_swarm(num_nodes, s2_locations, entrypoints)
+    else:
+        create_network()
+        dummy_infos = build_dummy_infos(num_nodes, s2_locations)
 
-print("Writing node IPs...")
-with open(f"{project_path}/build/deployer/node_ips.json", "w") as deployer_ips_fp, \
-        open(f"{project_path}/build/autonomic/node_ips.json", "w") as autonomic_ips_fp:
-    node_ips = {}
-    for dummy in dummy_infos:
-        node_ips[dummy[NAME]] = dummy[NODE_IP]
-    json.dump(node_ips, deployer_ips_fp)
-    json.dump(node_ips, autonomic_ips_fp)
+    print("Writing dummy infos...")
+    with open(f"/tmp/dummy_infos.json", "w") as dummy_infos_fp:
+        json.dump(dummy_infos, dummy_infos_fp)
 
-print("Writing fallback...")
-with open(f"{project_path}/build/deployer/fallback.json", "r+") as fallback_fp:
-    fallback = json.load(fallback_fp)
-    if "Addr" not in fallback:
-        for aux_node in dummy_infos:
-            if aux_node[NAME] == fallback["Id"]:
-                fallback["Addr"] = aux_node[NODE_IP]
-                break
-    fallback_fp.truncate(0)
-    fallback_fp.seek(0)
-    os.environ["LANDMARKS"] = fallback["Addr"]
-    json.dump(fallback, fallback_fp)
+    print("Writing node IPs...")
+    with open(f"{project_path}/build/deployer/node_ips.json", "w") as deployer_ips_fp, \
+            open(f"{project_path}/build/autonomic/node_ips.json", "w") as autonomic_ips_fp:
+        node_ips = {}
+        for dummy in dummy_infos:
+            node_ips[dummy[NAME]] = dummy[NODE_IP]
+        json.dump(node_ips, deployer_ips_fp)
+        json.dump(node_ips, autonomic_ips_fp)
+
+    print("Writing fallback...")
+    with open(f"{project_path}/build/deployer/fallback.json", "r+") as fallback_fp:
+        fallback = json.load(fallback_fp)
+        if "Addr" not in fallback:
+            for aux_node in dummy_infos:
+                if aux_node[NAME] == fallback["Id"]:
+                    fallback["Addr"] = aux_node[NODE_IP]
+                    break
+        fallback_fp.truncate(0)
+        fallback_fp.seek(0)
+        landmarks = fallback["Addr"]
+        json.dump(fallback, fallback_fp)
 
 update_dependencies(project_path)
 nm_morais_path = os.path.expanduser("~/go/src/github.com/nm-morais/")
@@ -364,7 +403,8 @@ if demmon:
     print("Generating demmon config...")
     generate_demmon_config(dummy_infos)
 
-build_dummy_node_image()
+if not reuse:
+    build_dummy_node_image()
 
 if swarm:
     load_dummy_node_image_swarm()
@@ -377,8 +417,10 @@ if build_only:
     exit(1)
 
 pool = Pool(processes=os.cpu_count())
-pool.map(launch_dummy, dummy_infos)
+if not reuse:
+    pool.map(launch_dummy, dummy_infos)
+    pool.map(setup_tc, dummy_infos)
 pool.map(start_services_in_dummy, dummy_infos)
 
 pool.close()
-pool.terminate()
+pool.join()

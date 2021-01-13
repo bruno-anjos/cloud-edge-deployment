@@ -16,11 +16,6 @@ while :; do
   fi
 done
 
-numNodes=$(cat /ips_map | wc -l)
-
-echo "Bootstraping TC, args: /latency_map /ips_map $NODE_NUM"
-sh setupTc.sh /latency_map /ips_map "$NODE_NUM" $numNodes
-
 HOSTNAME=$(hostname)
 
 chmod -R 777 /images
@@ -36,7 +31,7 @@ SERVICE_NAME="demmon"
 PORT="8090"
 docker run -d --cap-add=NET_ADMIN --env NODE_IP="$NODE_IP" --env NODE_ID="$NODE_ID" --env LOCATION="$LOCATION" \
   --network="bridge" -p $PORT:$PORT -p 1200:1200 -p 1300:1300/udp --name=$SERVICE_NAME --hostname "$HOSTNAME" \
-  "$DOCKER_IMAGE" "$NODE_NUM" "$@"
+  --env LANDMARKS="$LANDMARKS" "$DOCKER_IMAGE" "$NODE_NUM" "$@"
 
 SERVICE_NAME="archimedes"
 PORT="50000"

@@ -58,7 +58,9 @@ func updateAlternatives() {
 
 	addNodes(res.Children...)
 	addNodes(res.Siblings...)
-	addNodes(res.Parent)
+	if res.Parent != nil {
+		addNodes(res.Parent)
+	}
 
 	go getAlternativesPeriodically(updateChan)
 }

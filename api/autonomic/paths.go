@@ -50,6 +50,10 @@ func GetClosestNodePath() string {
 	return PrefixPath + ClosestNodePath
 }
 
+func GetGetIDPath() string {
+	return PrefixPath + GetIDPath
+}
+
 func GetMyLocationPath() string {
 	return PrefixPath + MyLocationPath
 }

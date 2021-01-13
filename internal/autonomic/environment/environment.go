@@ -150,15 +150,20 @@ func exportDefaults(demmonCli *client.DemmonClient, exp *exporter.Exporter, myse
 
 func exportLocationPeriodically(demmonCli *client.DemmonClient, myself *utils.Node, location s2.CellID) {
 	ticker := time.NewTicker(locationExportFrequency)
+	err := demmonCli.InstallBucket(MetricLocation, exportFrequencyInterestSet, defaultBucketSize)
+	if err != nil {
+		log.Panic(err)
+	}
+
 	for {
-		err := demmonCli.PushMetricBlob([]body_types.TimeseriesDTO{
+		err = demmonCli.PushMetricBlob([]body_types.TimeseriesDTO{
 			{
 				MeasurementName: MetricLocation,
 				TSTags:          map[string]string{nodeIDTag: myself.ID},
 				Values: []body_types.ObservableDTO{
 					{
 						TS:     time.Now(),
-						Fields: map[string]interface{}{"value": location},
+						Fields: map[string]interface{}{"value": location.ToToken()},
 					},
 				},
 			},
@@ -180,14 +185,14 @@ func (e *Environment) handleNodeUpdates(updateChan <-chan body_types.NodeUpdates
 		case body_types.NodeDown:
 			id, status := e.autoClient.GetID(addr)
 			if status != http.StatusOK {
-				log.Panic("got status %d while getting id for %s", nodeUpdate.Peer.IP)
+				log.Panicf("got status %d while getting id for %s", status, nodeUpdate.Peer.IP)
 			}
 
 			e.vicinity.Delete(id)
 		case body_types.NodeUp:
 			id, status := e.autoClient.GetID(addr)
 			if status != http.StatusOK {
-				log.Panic("got status %d while getting id for %s", nodeUpdate.Peer.IP)
+				log.Panicf("got status %d while getting id for %s", status, nodeUpdate.Peer.IP)
 			}
 
 			node := &utils.Node{

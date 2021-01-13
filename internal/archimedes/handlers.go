@@ -44,6 +44,10 @@ type (
 
 const (
 	maxHops = 2
+
+	daemonPort     = 8090
+	requestTimeout = 5 * time.Second
+	connectTimeout = 5 * time.Second
 )
 
 var (
@@ -64,7 +68,7 @@ var (
 
 	messagesSeen = sync.Map{}
 
-	demCli client.DemmonClient
+	demCli *client.DemmonClient
 )
 
 func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.ClientFactory) {
@@ -90,9 +94,21 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.
 
 	log.Infof("ARCHIMEDES ID: %s", archimedesID)
 
+	demCliConf := client.DemmonClientConf{
+		DemmonPort:     daemonPort,
+		DemmonHostAddr: myself.Addr,
+		RequestTimeout: requestTimeout,
+	}
+
+	demCli = client.New(demCliConf)
+	err := demCli.ConnectTimeout(connectTimeout)
+	if err != nil {
+		log.Panic(err)
+	}
+
 	msgChan, _, err := demCli.InstallBroadcastMessageHandler(1)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	go handleBroadcastMessages(msgChan)

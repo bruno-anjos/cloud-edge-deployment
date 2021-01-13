@@ -22,7 +22,7 @@ func NewAutonomicClient() *Client {
 }
 
 func (c *Client) GetID(addr string) (id string, status int) {
-	path := api.GetIDPath
+	path := api.GetGetIDPath()
 	req := internalUtils.BuildRequest(http.MethodGet, addr, path, nil)
 
 	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, &id)

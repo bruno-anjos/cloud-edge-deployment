@@ -10,8 +10,9 @@ archimedesLogs = "archimedes"
 autonomicLogs = "autonomic"
 deployerLogs = "deployer"
 schedulerLogs = "scheduler"
+demmonLogs = "demmon"
 
-logs = [archimedesLogs, autonomicLogs, deployerLogs, schedulerLogs]
+logs = [archimedesLogs, autonomicLogs, deployerLogs, schedulerLogs, demmonLogs]
 
 args = sys.argv
 args = args[1:]
