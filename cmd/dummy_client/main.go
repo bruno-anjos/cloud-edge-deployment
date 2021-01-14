@@ -53,14 +53,14 @@ func main() {
 
 	configBytes, err := ioutil.ReadFile(*configFilename)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	var conf config
 
 	err = json.Unmarshal(configBytes, &conf)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	if conf.Port == 0 {
@@ -107,7 +107,7 @@ func runClient(wg *sync.WaitGroup, clientNum int, deploymentURL url.URL, config 
 
 	r, err := http.NewRequestWithContext(context.Background(), defaultHttp.MethodGet, deploymentURL.String(), nil)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	ticker := time.NewTicker(time.Duration(config.RequestTimeout) * time.Second)

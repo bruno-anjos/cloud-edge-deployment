@@ -37,6 +37,7 @@ type Client interface {
 	HasDeployment(addr, deploymentID string) (has bool, status int)
 	PropagateLocationToHorizon(addr, deploymentID string, origin *utils.Node, location s2.CellID, TTL int8,
 		op deployer.PropagateOpType) (status int)
+	SetReady(addr string) (status int)
 }
 
 type ClientFactory interface {

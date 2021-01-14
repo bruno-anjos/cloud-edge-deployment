@@ -40,6 +40,11 @@ type (
 	redirectingToMeMapValue = *sync.Map
 
 	redirectionsMapValue = *redirectedConfig
+
+	tableMessageWithHost struct {
+		DiscoverMsg *api.DiscoverMsg
+		Host        *utils.Node
+	}
 )
 
 const (
@@ -48,10 +53,13 @@ const (
 	daemonPort     = 8090
 	requestTimeout = 5 * time.Second
 	connectTimeout = 5 * time.Second
+
+	broadcastTimeout = 10 * time.Second
 )
 
 var (
 	sTable              *deploymentsTable
+	remoteTable         *remoteDeploymentsTable
 	redirectServicesMap sync.Map
 	redirectingToMe     sync.Map
 	clientsManager      *clients.Manager
@@ -66,13 +74,13 @@ var (
 	autoFactory autonomic.ClientFactory
 	deplFactory deployer.ClientFactory
 
-	messagesSeen = sync.Map{}
-
 	demCli *client.DemmonClient
 )
 
 func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.ClientFactory) {
 	sTable = newDeploymentsTable()
+	remoteTable = newRemoteDeploymentsTable()
+
 	clientsManager = clients.NewManager()
 
 	myself = utils.NodeFromEnv()
@@ -106,44 +114,50 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.
 		log.Panic(err)
 	}
 
-	msgChan, _, err := demCli.InstallBroadcastMessageHandler(1)
+	msgChan, _, err := demCli.InstallBroadcastMessageHandler(api.DiscoverMessageID)
 	if err != nil {
 		log.Panic(err)
 	}
 
+	go broadcastPeriodically()
 	go handleBroadcastMessages(msgChan)
+}
+
+func broadcastPeriodically() {
+	ticker := time.NewTicker(broadcastTimeout)
+
+	for {
+		<-ticker.C
+
+		log.Debugf("broacasting message...")
+
+		discMsg := sTable.toChangedDiscoverMsg()
+		err := demCli.BroadcastMessage(body_types.Message{
+			ID:  api.DiscoverMessageID,
+			TTL: maxHops,
+			Content: tableMessageWithHost{
+				DiscoverMsg: discMsg,
+				Host:        myself,
+			},
+		})
+		if err != nil {
+			log.Panic(err)
+		}
+	}
 }
 
 func handleBroadcastMessages(msgChan <-chan body_types.Message) {
 	for msg := range msgChan {
 		switch msg.ID {
-		case api.AddRemoteDeploymentMessageID:
-			var addMsg api.AddRemoteDeploymentMsg
+		case api.DiscoverMessageID:
+			var tableMsg tableMessageWithHost
 
-			err := mapstructure.Decode(msg.Content, &addMsg)
+			err := mapstructure.Decode(msg.Content, &tableMsg)
 			if err != nil {
 				log.Panic(err)
 			}
 
-			addRemoteDeploymentHandler(&addMsg)
-		case api.AddRemoteInstanceMessageID:
-			var addMsg api.AddRemoteInstanceMsg
-
-			err := mapstructure.Decode(msg.Content, &addMsg)
-			if err != nil {
-				log.Panic(err)
-			}
-
-			addRemoteInstanceHandler(&addMsg)
-		case api.RemoveRemoteDeploymentMessageID:
-			var remMsg api.RemoveRemoteDeploymentMsg
-
-			err := mapstructure.Decode(msg.Content, &remMsg)
-			if err != nil {
-				log.Panic(err)
-			}
-
-			removeRemoteDeploymentHandler(&remMsg)
+			remoteTable.updateFromDiscoverMsg(tableMsg.Host, tableMsg.DiscoverMsg)
 		}
 	}
 }
@@ -177,32 +191,14 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newTableEntry := &api.DeploymentsTableEntryDTO{
-		Host:       reqBody.Host,
 		Deployment: deployment,
 		Instances:  map[string]*api.Instance{},
 		MaxHops:    maxHops,
-		Version:    0,
 	}
 
 	sTable.addDeployment(deploymentID, newTableEntry)
 
 	log.Debugf("added deployment %s", deploymentID)
-
-	err = demCli.BroadcastMessage(
-		body_types.Message{
-			ID:  api.AddRemoteDeploymentMessageID,
-			TTL: maxHops,
-			Content: api.AddRemoteDeploymentMsg{
-				MessageID:  uuid.New(),
-				Origin:     myself,
-				Deployment: deployment,
-			},
-		},
-	)
-
-	if err != nil {
-		log.Panic(err)
-	}
 
 	clientsManager.AddDeployment(deploymentID)
 }
@@ -221,21 +217,6 @@ func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	sTable.deleteDeployment(deploymentID)
 	redirectServicesMap.Delete(deploymentID)
-
-	err := demCli.BroadcastMessage(
-		body_types.Message{
-			ID:  api.RemoveRemoteDeploymentMessageID,
-			TTL: maxHops,
-			Content: api.RemoveRemoteDeploymentMsg{
-				MessageID:    uuid.New(),
-				Origin:       myself,
-				DeploymentID: deploymentID,
-			},
-		},
-	)
-	if err != nil {
-		log.Panic(err)
-	}
 
 	log.Debugf("deleted deployment %s", deploymentID)
 }
@@ -274,30 +255,15 @@ func registerDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	instance := &api.Instance{
 		ID:              instanceID,
 		DeploymentID:    deploymentID,
-		IP:              myself.Addr,
 		PortTranslation: instanceDTO.PortTranslation,
 		Initialized:     instanceDTO.Static,
 		Static:          instanceDTO.Static,
 		Local:           instanceDTO.Local,
 		Hops:            0,
+		Host:            myself,
 	}
 
 	sTable.addInstance(deploymentID, instanceID, instance)
-
-	err = demCli.BroadcastMessage(
-		body_types.Message{
-			ID:  api.AddRemoteInstanceMessageID,
-			TTL: maxHops,
-			Content: api.AddRemoteInstanceMsg{
-				MessageID: uuid.New(),
-				Origin:    myself,
-				Instance:  instance,
-			},
-		},
-	)
-	if err != nil {
-		log.Panic(err)
-	}
 
 	log.Debugf("added instance %s to deployment %s", instanceID, deploymentID)
 }
@@ -316,14 +282,14 @@ func deleteDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	instanceID := internalUtils.ExtractPathVar(r, instanceIDPathVar)
 
-	instance, ok := sTable.getDeploymentInstance(deploymentID, instanceID)
+	_, ok = sTable.getDeploymentInstance(deploymentID, instanceID)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 
 		return
 	}
 
-	sTable.deleteInstance(instance.DeploymentID, instanceID)
+	sTable.deleteInstance(instanceID)
 
 	log.Debugf("deleted instance %s from deployment %s", instanceID, deploymentID)
 }
@@ -754,7 +720,7 @@ func setExploringClientLocationHandler(_ http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	log.Debugf("set exploring location %v for deployment %s", reqBody, deploymentID)
@@ -769,7 +735,7 @@ func addDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	log.Debugf("will add node %s for deployment %s", reqBody.Node.ID, deploymentID)
@@ -802,75 +768,6 @@ func getClientCentroidsHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		internalUtils.SendJSONReplyOK(w, centroids)
 	}
-}
-
-func addRemoteInstanceHandler(addMsg *api.AddRemoteInstanceMsg) {
-	_, ok := messagesSeen.Load(addMsg.MessageID)
-	if ok {
-		log.Debugf("repeated message %s", addMsg.MessageID.String())
-		return
-	}
-
-	_, ok = sTable.getDeployment(addMsg.Instance.DeploymentID)
-	if !ok {
-		log.Debugf("deployment %s missing", addMsg.Instance.DeploymentID)
-		return
-	}
-
-	instance := *addMsg.Instance
-	instance.Hops++
-	instance.Local = false
-	instance.Static = true
-	instance.Initialized = true
-
-	ok = sTable.deploymentHasInstance(instance.DeploymentID, instance.ID)
-	if ok {
-		log.Debugf("already have instance %s for deployment %s", instance.ID,
-			instance.DeploymentID)
-		return
-	}
-
-	sTable.addInstance(instance.DeploymentID, instance.ID, &instance)
-}
-
-func addRemoteDeploymentHandler(addMsg *api.AddRemoteDeploymentMsg) {
-	_, ok := messagesSeen.Load(addMsg.MessageID)
-	if ok {
-		log.Debugf("repeated message %s", addMsg.MessageID.String())
-		return
-	}
-
-	_, ok = sTable.getDeployment(addMsg.Deployment.ID)
-	if ok {
-		log.Debugf("deployment %s already present", addMsg.Deployment.ID)
-		return
-	}
-
-	newTableEntry := &api.DeploymentsTableEntryDTO{
-		Host:       addMsg.Origin,
-		Deployment: addMsg.Deployment,
-		Instances:  map[string]*api.Instance{},
-		MaxHops:    maxHops,
-		Version:    0,
-	}
-
-	sTable.addDeployment(addMsg.Deployment.ID, newTableEntry)
-}
-
-func removeRemoteDeploymentHandler(remMsg *api.RemoveRemoteDeploymentMsg) {
-	_, ok := messagesSeen.Load(remMsg.MessageID)
-	if ok {
-		log.Debugf("repeated message %s", remMsg.MessageID.String())
-		return
-	}
-
-	_, ok = sTable.getDeployment(remMsg.DeploymentID)
-	if !ok {
-		log.Debugf("deployment %s is missing", remMsg.DeploymentID)
-		return
-	}
-
-	sTable.deleteDeploymentInstancesFrom(remMsg.DeploymentID, remMsg.Origin)
 }
 
 func resolveInstance(originalPort nat.Port, instance *api.Instance) (*api.ResolvedDTO, bool) {

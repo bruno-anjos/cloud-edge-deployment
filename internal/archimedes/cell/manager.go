@@ -215,7 +215,7 @@ func (cm *Manager) splitMaxedCell(deploymentID string, deploymentCells *collecti
 
 		activeCells, ok = cm.getActiveCellsForDeployment(deploymentID)
 		if !ok {
-			panic(fmt.Sprintf("should have active cells for deployment %s", deploymentID))
+			log.Panic(fmt.Sprintf("should have active cells for deployment %s", deploymentID))
 		}
 
 		for tempCellID, tempCell := range newCells {
@@ -340,7 +340,7 @@ func (cm *Manager) mergeFromTopCell(deploymentID string, deploymentCells *collec
 		for childID := range mergingCell.Children {
 			child, ok := deploymentCells.loadCell(childID)
 			if !ok {
-				panic(fmt.Sprintf("has child %s, but child is not in deploymentCells", childID))
+				log.Panic(fmt.Sprintf("has child %s, but child is not in deploymentCells", childID))
 			}
 
 			totalChildClients += child.getNumClientsNoLock()
@@ -349,14 +349,14 @@ func (cm *Manager) mergeFromTopCell(deploymentID string, deploymentCells *collec
 		if totalChildClients < minClientsToMerge {
 			activeCells, ok := cm.getActiveCellsForDeployment(deploymentID)
 			if !ok {
-				panic(fmt.Sprintf("should have active cells for deployment %s", deploymentID))
+				log.Panic(fmt.Sprintf("should have active cells for deployment %s", deploymentID))
 			}
 
 			var child *cell
 			for childID := range mergingCell.Children {
 				child, ok = deploymentCells.loadCell(childID)
 				if !ok {
-					panic(fmt.Sprintf("has child %s, but child is not in deploymentCells", childID))
+					log.Panic(fmt.Sprintf("has child %s, but child is not in deploymentCells", childID))
 				}
 
 				child.iterateLocationsNoLock(func(locId s2.CellID, amount int) bool {
@@ -391,7 +391,7 @@ func (cm *Manager) createEvaluateSet(topCell *cell, deploymentCells *collection)
 		for childID := range toExplore.Children {
 			child, ok := deploymentCells.loadCell(childID)
 			if !ok {
-				panic(fmt.Sprintf("should have cell %d", childID))
+				log.Panic(fmt.Sprintf("should have cell %d", childID))
 			}
 
 			if len(child.Children) > 0 {

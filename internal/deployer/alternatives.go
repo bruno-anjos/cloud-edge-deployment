@@ -29,7 +29,7 @@ func setAlternativesHandler(_ http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	nodeAlternativesLock.Lock()

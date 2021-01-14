@@ -35,6 +35,16 @@ echo "Build service images..."
 
 bash "$BUILD_DIR"/dummy_node/build_images.sh
 
+(
+  echo "Build demmon binary..."
+  cd "$DEMMON_DIR"
+  source config/swarmConfig.sh
+  GO111MODULE='on' bash "$DEMMON_DIR"/scripts/buildImage.sh
+  cp "$DEMMON_DIR"/"$LATENCY_MAP" $BUILD_DIR/dummy_node/latency_map
+  cp "$DEMMON_DIR"/"$IPS_MAP" $BUILD_DIR/dummy_node/ips_map
+  cp "$DEMMON_DIR"/scripts/setupTc.sh $BUILD_DIR/dummy_node/setupTc.sh
+)
+
 # Deployer dependencies
 cp "$BUILD_DIR"/deployer/fallback.json "$BUILD_DIR"/dummy_node/
 
@@ -46,18 +56,12 @@ cp -r "$CLOUD_EDGE_DEPLOYMENT"/deployments "$BUILD_DIR"/dummy_node/
 
 cp $CLOUD_EDGE_DEPLOYMENT/scripts/clean_dummy.sh "$BUILD_DIR"/dummy_node/clean_dummy.sh
 
-(
-  echo "Build demmon binary..."
-  cd "$DEMMON_DIR"
-  source config/swarmConfig.sh
-  GO111MODULE='on' bash "$DEMMON_DIR"/scripts/buildImage.sh
-  cp "$DEMMON_DIR"/"$LATENCY_MAP" $BUILD_DIR/dummy_node/latency_map
-  cp "$DEMMON_DIR"/"$IPS_MAP" $BUILD_DIR/dummy_node/ips_map
-  cp "$DEMMON_DIR"/scripts/setupTc.sh $BUILD_DIR/dummy_node/setupTc.sh
-)
-
 echo "Copying NOVAPokemon images to /tmp..."
 cp /home/b.anjos/go/src/github.com/NOVAPokemon/images/* /tmp/images/
+
+if [[ $1 == "--skip-final" ]]; then
+  exit 0
+fi
 
 echo "Building final dummy node image..."
 docker build -t brunoanjos/dummy_node:latest "$BUILD_DIR/dummy_node"

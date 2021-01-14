@@ -12,4 +12,3 @@ containers:
         value: "$instance"
 static: False
 depthFactor: 0
-instanceNameFmt: [ "$DEPLOYMENT_NAME", "-", "$REPLICA_NUM"]

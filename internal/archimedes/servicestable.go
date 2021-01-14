@@ -11,7 +11,6 @@ import (
 
 type (
 	deploymentsTableEntry struct {
-		Host       *utils.Node
 		Deployment *api.Deployment
 		Instances  *sync.Map
 		MaxHops    int
@@ -21,7 +20,6 @@ type (
 
 func newTempDeploymentTableEntry() *deploymentsTableEntry {
 	return &deploymentsTableEntry{
-		Host:       nil,
 		Deployment: nil,
 		Instances:  nil,
 		MaxHops:    0,
@@ -47,7 +45,6 @@ func (se *deploymentsTableEntry) toChangedDTO() *api.DeploymentsTableEntryDTO {
 	})
 
 	return &api.DeploymentsTableEntryDTO{
-		Host:       se.Host,
 		Deployment: se.Deployment,
 		Instances:  instances,
 		MaxHops:    se.MaxHops,
@@ -69,7 +66,6 @@ func (se *deploymentsTableEntry) toDTO() *api.DeploymentsTableEntryDTO {
 	})
 
 	return &api.DeploymentsTableEntryDTO{
-		Host:       se.Host,
 		Deployment: se.Deployment,
 		Instances:  instances,
 		MaxHops:    se.MaxHops,
@@ -78,10 +74,9 @@ func (se *deploymentsTableEntry) toDTO() *api.DeploymentsTableEntryDTO {
 
 type (
 	deploymentsTable struct {
-		addLock                 sync.Mutex
-		deploymentsMap          sync.Map
-		instancesMap            sync.Map
-		neighborsDeploymentsMap sync.Map
+		addLock        sync.Mutex
+		deploymentsMap sync.Map
+		instancesMap   sync.Map
 	}
 
 	typeDeploymentsTableMapKey   = string
@@ -93,10 +88,9 @@ type (
 
 func newDeploymentsTable() *deploymentsTable {
 	return &deploymentsTable{
-		addLock:                 sync.Mutex{},
-		deploymentsMap:          sync.Map{},
-		instancesMap:            sync.Map{},
-		neighborsDeploymentsMap: sync.Map{},
+		addLock:        sync.Mutex{},
+		deploymentsMap: sync.Map{},
+		instancesMap:   sync.Map{},
 	}
 }
 
@@ -125,7 +119,6 @@ func (st *deploymentsTable) addDeployment(deploymentID string, newEntry *api.Dep
 	st.deploymentsMap.Store(deploymentID, newTableEntry)
 	st.addLock.Unlock()
 
-	newTableEntry.Host = newEntry.Host
 	newTableEntry.Deployment = newEntry.Deployment
 
 	newInstancesMap := &sync.Map{}
@@ -140,7 +133,6 @@ func (st *deploymentsTable) addDeployment(deploymentID string, newEntry *api.Dep
 
 	deploymentsMap := &sync.Map{}
 	deploymentsMap.Store(deploymentID, struct{}{})
-	st.neighborsDeploymentsMap.Store(newEntry.Host, deploymentsMap)
 
 	added = true
 
@@ -220,7 +212,7 @@ func (st *deploymentsTable) getAllLocalDeploymentInstances(deploymentID string) 
 		instanceID := key.(string)
 		instance := value.(typeInstancesMapValue)
 
-		if instance.IP == myself.Addr {
+		if instance.Host.ID == myself.ID {
 			instances[instanceID] = instance
 		}
 
@@ -307,7 +299,7 @@ func (st *deploymentsTable) deleteDeployment(deploymentID string) {
 
 	entry.Instances.Range(func(key, _ interface{}) bool {
 		instanceID := key.(typeInstancesMapKey)
-		st.deleteInstance(deploymentID, instanceID)
+		st.deleteInstance(instanceID)
 
 		return true
 	})
@@ -328,7 +320,7 @@ func (st *deploymentsTable) deleteDeploymentInstancesFrom(deploymentID string, f
 	entry.Instances.Range(func(key, value interface{}) bool {
 		instanceID := key.(typeInstancesMapKey)
 		instance := value.(typeInstancesMapValue)
-		if instance.IP == from.Addr {
+		if instance.ID == from.ID {
 			entry.Instances.Delete(instanceID)
 		}
 
@@ -336,27 +328,30 @@ func (st *deploymentsTable) deleteDeploymentInstancesFrom(deploymentID string, f
 	})
 }
 
-func (st *deploymentsTable) deleteInstance(deploymentID, instanceID string) {
-	value, ok := st.instancesMap.Load(deploymentID)
+func (st *deploymentsTable) deleteInstance(instanceID string) {
+	value, ok := st.instancesMap.Load(instanceID)
 	if ok {
-		entry := value.(typeDeploymentsTableMapValue)
-		entry.EntryLock.RLock()
-		entry.Instances.Delete(instanceID)
+		instance := value.(typeInstancesMapValue)
+		value, ok = st.deploymentsMap.Load(instance.DeploymentID)
+		if ok {
+			entry := value.(typeDeploymentsTableMapValue)
+			entry.EntryLock.RLock()
 
-		numInstances := 0
+			numInstances := 0
 
-		entry.Instances.Range(func(key, value interface{}) bool {
-			numInstances++
+			entry.Instances.Range(func(key, value interface{}) bool {
+				numInstances++
 
-			return true
-		})
+				return true
+			})
 
-		if numInstances == 0 {
-			log.Debugf("no instances left, deleting deployment %s", deploymentID)
-			defer st.deleteDeployment(deploymentID)
+			if numInstances == 0 {
+				log.Debugf("no instances left, deleting deployment %s", instance.DeploymentID)
+				defer st.deleteDeployment(instance.DeploymentID)
+			}
+
+			entry.EntryLock.RUnlock()
 		}
-
-		entry.EntryLock.RUnlock()
 	}
 
 	st.instancesMap.Delete(instanceID)
@@ -370,6 +365,30 @@ func (st *deploymentsTable) toDiscoverMsg() *api.DiscoverMsg {
 		entry := value.(typeDeploymentsTableMapValue)
 
 		entryDTO := entry.toDTO()
+		entries[deploymentID] = entryDTO
+
+		return true
+	})
+
+	if len(entries) == 0 {
+		return nil
+	}
+
+	return &api.DiscoverMsg{
+		MessageID: uuid.New(),
+		Origin:    myself,
+		Entries:   entries,
+	}
+}
+
+func (st *deploymentsTable) toChangedDiscoverMsg() *api.DiscoverMsg {
+	entries := map[string]*api.DeploymentsTableEntryDTO{}
+
+	st.deploymentsMap.Range(func(key, value interface{}) bool {
+		deploymentID := key.(typeDeploymentsTableMapKey)
+		entry := value.(typeDeploymentsTableMapValue)
+
+		entryDTO := entry.toChangedDTO()
 		entries[deploymentID] = entryDTO
 
 		return true

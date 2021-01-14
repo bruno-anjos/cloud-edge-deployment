@@ -66,7 +66,7 @@ type idealLatency struct {
 func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
 	locationToken, ok := os.LookupEnv(utils.LocationEnvVarName)
 	if !ok {
-		panic("could not get location from environment")
+		log.Panic("could not get location from environment")
 	}
 
 	return &idealLatency{

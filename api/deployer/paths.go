@@ -29,6 +29,7 @@ const (
 
 	DeploymentInstanceAlivePath = "/deployments/%s/%s/alive"
 	DeploymentInstancePath      = "/deployments/%s/%s"
+	SetReadyPath                = "/set_ready"
 )
 
 func GetDeploymentsPath() string {
@@ -93,4 +94,8 @@ func GetHasDeploymentPath(deploymentID string) string {
 
 func GetPropagateLocationToHorizonPath(deploymentID string) string {
 	return PrefixPath + fmt.Sprintf(PropagateLocationToHorizon, deploymentID)
+}
+
+func GetSetReadyPath() string {
+	return PrefixPath + SetReadyPath
 }

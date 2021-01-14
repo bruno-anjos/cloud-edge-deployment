@@ -1,6 +1,7 @@
 package archimedes
 
 import (
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/go-connections/nat"
 )
 
@@ -12,7 +13,7 @@ type Deployment struct {
 type Instance struct {
 	ID              string
 	DeploymentID    string
-	IP              string
+	Host            *utils.Node
 	PortTranslation nat.PortMap
 	Initialized     bool
 	Static          bool

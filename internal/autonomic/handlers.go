@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strconv"
+	"time"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"
@@ -36,6 +38,13 @@ func InitServer(autoFactory autonomic.ClientFactory, archFactory archimedes.Clie
 	autonomicSystem = newSystem(autoFactory, archFactory, deplFactory, schedFactory)
 
 	log.SetLevel(log.InfoLevel)
+
+	go func() {
+		time.Sleep(10 * time.Second)
+		autonomicSystem.start()
+		deplClient := deplFactory.New()
+		deplClient.SetReady(deployment.Myself.Addr + ":" + strconv.Itoa(deployer.Port))
+	}()
 }
 
 func getIDHandler(w http.ResponseWriter, _ *http.Request) {
@@ -49,7 +58,7 @@ func addDeploymentHandler(_ http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&deploymentConfig)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	autonomicSystem.addDeployment(deploymentID, deploymentConfig.StrategyID, deploymentConfig.DepthFactor,
@@ -80,7 +89,7 @@ func addDeploymentChildHandler(_ http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	child := &reqBody
@@ -101,7 +110,7 @@ func setDeploymentParentHandler(_ http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	parent := &reqBody
@@ -123,7 +132,7 @@ func closestNodeToHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	closest := autonomicSystem.closestNodeTo(reqBody.Locations, reqBody.ToExclude)
@@ -151,7 +160,7 @@ func getLoadForDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Debugf("deployment %s has load %f", deploymentID, load)
+	log.Debugf("deployment %s has load %d", deploymentID, load)
 
 	utils.SendJSONReplyOK(w, load)
 }
@@ -186,7 +195,7 @@ func blacklistNodeHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&reqBody)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	value, ok := autonomicSystem.deployments.Load(deploymentID)

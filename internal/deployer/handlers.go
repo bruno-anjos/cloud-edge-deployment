@@ -46,9 +46,6 @@ const (
 	maxHopsToLookFor = 5
 
 	maxHopslocationHorizon = 3
-
-	daemonPort           = 8090
-	clientRequestTimeout = 5 * time.Second
 )
 
 const (
@@ -88,7 +85,9 @@ var (
 	deplFactory  deployer.ClientFactory
 	schedFactory scheduler.ClientFactory
 
-	nodeIP string
+	nodeIP     string
+	ready      chan interface{}
+	closeReady *sync.Once
 )
 
 func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimedes.ClientFactory,
@@ -125,7 +124,13 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 	fallback = loadFallbackHostname(fallbackFilename)
 	log.Debugf("loaded fallback %+v", fallback)
 
-	updateAlternatives()
+	ready = make(chan interface{})
+
+	go func() {
+		closeReady = &sync.Once{}
+		<-ready
+		updateAlternatives()
+	}()
 
 	locationToken, ok := os.LookupEnv(utils.LocationEnvVarName)
 	if !ok {
@@ -281,7 +286,7 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&registerBody)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	deploymentDTO := registerBody.DeploymentConfig
@@ -431,6 +436,16 @@ func hasDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentID := internalUtils.ExtractPathVar(r, deploymentIDPathVar)
 	if !hTable.hasDeployment(deploymentID) {
 		w.WriteHeader(http.StatusNotFound)
+	}
+}
+
+func setReadyHandler(_ http.ResponseWriter, _ *http.Request) {
+	select {
+	case <-ready:
+	default:
+		closeReady.Do(func() {
+			close(ready)
+		})
 	}
 }
 

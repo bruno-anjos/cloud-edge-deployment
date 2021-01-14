@@ -306,6 +306,20 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 			}
 		}
 
+		// Add container instance to deployer
+		status := deplClient.RegisterDeploymentInstance(servers.DeployerLocalHostPort, containerInstance.DeploymentName,
+			instanceID, containerInstance.Static, portBindings, true)
+		if status != http.StatusOK {
+			err = dockerClient.ContainerStop(context.Background(), contID, &stopContainerTimeoutVar)
+			if err != nil {
+				log.Error(err)
+			}
+
+			log.Panicf("got status code %d while adding instances to deployer", status)
+
+			return
+		}
+
 		// Spin container up
 		err = dockerClient.ContainerStart(context.Background(), cont.ID, types.ContainerStartOptions{})
 		if err != nil {
@@ -318,21 +332,6 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 		instanceToContainer.Store(instanceID, cont.ID)
 
 		log.Debugf("container %s started for instance %s", cont.ID, instanceID)
-	}
-
-	// Add container instance to deployer
-	status := deplClient.RegisterDeploymentInstance(servers.DeployerLocalHostPort, containerInstance.DeploymentName,
-		instanceID,
-		containerInstance.Static, portBindings, true)
-	if status != http.StatusOK {
-		err := dockerClient.ContainerStop(context.Background(), contID, &stopContainerTimeoutVar)
-		if err != nil {
-			log.Error(err)
-		}
-
-		log.Panicf("got status code %d while adding instances to deployer", status)
-
-		return
 	}
 }
 

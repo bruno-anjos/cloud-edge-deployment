@@ -31,7 +31,7 @@ SERVICE_NAME="demmon"
 PORT="8090"
 docker run -d --cap-add=NET_ADMIN --env NODE_IP="$NODE_IP" --env NODE_ID="$NODE_ID" --env LOCATION="$LOCATION" \
   --network="bridge" -p $PORT:$PORT -p 1200:1200 -p 1300:1300/udp --name=$SERVICE_NAME --hostname "$HOSTNAME" \
-  --env LANDMARKS="$LANDMARKS" "$DOCKER_IMAGE" "$NODE_NUM" "$@"
+  --env LANDMARKS="$LANDMARKS" --env WAIT_FOR_START="$WAIT_FOR_START" "$DOCKER_IMAGE" "$NODE_NUM" "$@"
 
 SERVICE_NAME="archimedes"
 PORT="50000"

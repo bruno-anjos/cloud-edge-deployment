@@ -75,7 +75,7 @@ func addDeployment(deploymentID, filename string) {
 
 	err = yaml.Unmarshal(fileBytes, &deploymentYAML)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	status := deployerClient.RegisterDeployment(servers.DeployerLocalHostPort, deploymentID, deploymentYAML.Static,

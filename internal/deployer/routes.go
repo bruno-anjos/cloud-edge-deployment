@@ -27,6 +27,7 @@ const (
 	getFallbackIDName              = "GET_FALLBACK"
 	hasDeploymentName              = "HAS_DEPLOYMENT"
 	propagateLocationToHorizonName = "PROPAGATE_LOCATION_TO_HORIZON"
+	setReadyName                   = "IS_READY"
 
 	// scheduler
 	heartbeatDeploymentInstanceName         = "HEARTBEAT_DEPLOYMENT_INSTANCE"
@@ -68,9 +69,17 @@ var (
 	deploymentInstanceRoute = fmt.Sprintf(deployer.DeploymentInstancePath, _deploymentIDPathVarFormatted,
 		_instanceIDPathVarFormatted)
 	parentAliveRoute = fmt.Sprintf(deployer.ParentAlivePath, _deployerIDPathVarFormatted)
+	setReadyRoute    = deployer.SetReadyPath
 )
 
 var Routes = []servers.Route{
+
+	{
+		Name:        setReadyName,
+		Method:      http.MethodPost,
+		Pattern:     setReadyRoute,
+		HandlerFunc: setReadyHandler,
+	},
 
 	{
 		Name:        propagateLocationToHorizonName,

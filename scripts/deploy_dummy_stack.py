@@ -80,6 +80,8 @@ def setup_swarm():
 def build_dummy_node_image():
     print("Building dummy node image...")
     build_cmd = f"bash {project_path}/build/dummy_node/build_dummy_node.sh"
+    if reuse:
+        build_cmd += " --skip-final"
     run_cmd_with_try(build_cmd)
 
 
@@ -96,7 +98,7 @@ def launch_dummy(info):
                  f'NODE_ID="{info[NAME]}" --env NODE_NUM="{info[NUM]}" --env LOCATION="{info[LOCATION]}" ' \
                  f'--env LANDMARKS="{landmarks}" --env CONFIG_FILE="config/banjos_config.txt" ' \
                  f'--env LATENCY_MAP="config/inet100Latencies_x0.04.txt" --env IPS_MAP="config/banjos_ips_config.txt"' \
-                 f' -v /tmp/images:/images brunoanjos/dummy_node:latest'
+                 f' --env WAIT_FOR_START="true" -v /tmp/images:/images brunoanjos/dummy_node:latest'
     if not swarm or info[NODE] == host:
         run_cmd_with_try(launch_cmd)
     else:
@@ -379,18 +381,19 @@ if not reuse:
         json.dump(node_ips, deployer_ips_fp)
         json.dump(node_ips, autonomic_ips_fp)
 
-    print("Writing fallback...")
-    with open(f"{project_path}/build/deployer/fallback.json", "r+") as fallback_fp:
-        fallback = json.load(fallback_fp)
-        if "Addr" not in fallback:
-            for aux_node in dummy_infos:
-                if aux_node[NAME] == fallback["Id"]:
-                    fallback["Addr"] = aux_node[NODE_IP]
-                    break
-        fallback_fp.truncate(0)
-        fallback_fp.seek(0)
-        landmarks = fallback["Addr"]
-        json.dump(fallback, fallback_fp)
+print("Writing fallback...")
+with open(f"{project_path}/build/deployer/fallback.json", "r+") as fallback_fp:
+    fallback = json.load(fallback_fp)
+    if "Addr" not in fallback:
+        for aux_node in dummy_infos:
+            if aux_node[NAME] == fallback["Id"]:
+                fallback["Addr"] = aux_node[NODE_IP]
+                break
+    fallback_fp.truncate(0)
+    fallback_fp.seek(0)
+    landmarks = fallback["Addr"]
+    print(f"Wrote fallback: {fallback}")
+    json.dump(fallback, fallback_fp)
 
 update_dependencies(project_path)
 nm_morais_path = os.path.expanduser("~/go/src/github.com/nm-morais/")
@@ -403,11 +406,11 @@ if demmon:
     print("Generating demmon config...")
     generate_demmon_config(dummy_infos)
 
-if not reuse:
-    build_dummy_node_image()
+build_dummy_node_image()
 
 if swarm:
-    load_dummy_node_image_swarm()
+    if not reuse:
+        load_dummy_node_image_swarm()
     copy_tmp_images_swarm()
 
 print("Launching...")

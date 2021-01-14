@@ -20,7 +20,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/actions"
-	client "github.com/nm-morais/demmon-client/pkg"
 )
 
 type (
@@ -42,8 +41,6 @@ type (
 		autoFactory  autonomic.ClientFactory
 		deplFactory  deployer.ClientFactory
 		schedFactory scheduler.ClientFactory
-
-		demmonCli *client.DemmonClient
 	}
 )
 
@@ -90,7 +87,7 @@ func (a *system) addDeployment(deploymentID, strategyID string, depthFactor floa
 	s, err := deployment.New(deploymentID, strategyID, a.suspected, depthFactor, a.env, a.autoFactory, a.archFactory,
 		a.deplFactory, a.schedFactory)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	if exploringTTL != deployerAPI.NotExploringTTL {
@@ -293,4 +290,13 @@ func (a *system) setExploreSuccess(deploymentID, childID string) bool {
 	}
 
 	return value.(deploymentsMapValue).SetExploreSuccess(childID)
+}
+
+func (a *system) start() {
+	err := a.env.DemmonCli.StartBabel()
+	if err != nil {
+		log.Panic(err)
+	}
+
+	a.env.Start()
 }

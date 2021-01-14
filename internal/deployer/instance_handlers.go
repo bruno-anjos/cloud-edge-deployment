@@ -34,6 +34,8 @@ func registerDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Debugf("registering instance %s for deployment %s", instanceID, deploymentID)
+
 	if !instanceDTO.Static {
 		initChan := make(chan struct{})
 		initChansMap.Store(instanceID, initChan)

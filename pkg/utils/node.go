@@ -2,6 +2,8 @@ package utils
 
 import (
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Node struct {
@@ -12,12 +14,12 @@ type Node struct {
 func NodeFromEnv() *Node {
 	nodeID, exists := os.LookupEnv(NodeIDEnvVarName)
 	if !exists {
-		panic("no NODE_ID set in environment")
+		log.Panic("no NODE_ID set in environment")
 	}
 
 	nodeIP, exists := os.LookupEnv(NodeIPEnvVarName)
 	if !exists {
-		panic("no NODE_IP set in environment")
+		log.Panic("no NODE_IP set in environment")
 	}
 
 	return NewNode(nodeID, nodeIP)

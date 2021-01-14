@@ -25,8 +25,8 @@ docker run -v /tmp/services:/services debian:latest sh -c "rm -rf /services/*"
 
 bash "$NOVAPOKEMON"/scripts/build_client.sh
 
-fallback=$(python3 -c 'import json; import os; dir = os.getenv("CLOUD_EDGE_DEPLOYMENT"); '\
-'fp = open(f"{dir}/build/deployer/fallback.json", "r"); fallback = json.load(fp); print(fallback["Addr"]); fp.close()')
+fallback=$(python3 -c 'import json; import os; '\
+'fp = open(f"/tmp/build/deployer/fallback.json", "r"); fallback = json.load(fp); print(fallback["Addr"]); fp.close()')
 
 docker run -d --env NUM_CLIENTS="$num_clients" --env REGION="$region" \
 	--env FALLBACK_URL="$fallback" --env-file "$CLOUD_EDGE_DEPLOYMENT"/scripts/client-env.list \

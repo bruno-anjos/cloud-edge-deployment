@@ -22,11 +22,9 @@ type InstanceDTO struct {
 }
 
 type DeploymentsTableEntryDTO struct {
-	Host       *utils.Node
 	Deployment *Deployment
 	Instances  map[string]*Instance
 	MaxHops    int
-	Version    int
 }
 
 type DiscoverMsg struct {
@@ -36,28 +34,8 @@ type DiscoverMsg struct {
 }
 
 const (
-	AddRemoteDeploymentMessageID = iota
-	AddRemoteInstanceMessageID
-	RemoveRemoteDeploymentMessageID
+	DiscoverMessageID = iota
 )
-
-type AddRemoteDeploymentMsg struct {
-	MessageID  uuid.UUID
-	Origin     *utils.Node
-	Deployment *Deployment
-}
-
-type AddRemoteInstanceMsg struct {
-	MessageID uuid.UUID
-	Origin    *utils.Node
-	Instance  *Instance
-}
-
-type RemoveRemoteDeploymentMsg struct {
-	MessageID    uuid.UUID
-	Origin       *utils.Node
-	DeploymentID string
-}
 
 type ToResolveDTO struct {
 	Host string

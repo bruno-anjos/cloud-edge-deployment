@@ -93,18 +93,7 @@ func NewEnvironment(myself *utils.Node, location s2.CellID, autoClient autonomic
 		log.Panic(err)
 	}
 
-	exportDefaults(demmonCli, exp, myself, location)
-
-	res, err, _, updateChan := demmonCli.SubscribeNodeUpdates()
-	if err != nil {
-		log.Panic(err)
-	}
-
-	log.Debugf("Starting view: %+v", res)
-
-	installNeighborLocationQuery(demmonCli)
-
-	env := &Environment{
+	return &Environment{
 		exporter:     exp,
 		interestSets: sync.Map{},
 		vicinity:     sync.Map{},
@@ -113,10 +102,6 @@ func NewEnvironment(myself *utils.Node, location s2.CellID, autoClient autonomic
 		location:     location,
 		DemmonCli:    demmonCli,
 	}
-
-	go env.handleNodeUpdates(updateChan)
-
-	return env
 }
 
 func installNeighborLocationQuery(demmonCli *client.DemmonClient) {
@@ -145,7 +130,7 @@ func installNeighborLocationQuery(demmonCli *client.DemmonClient) {
 
 func exportDefaults(demmonCli *client.DemmonClient, exp *exporter.Exporter, myself *utils.Node, location s2.CellID) {
 	go exportLocationPeriodically(demmonCli, myself, location)
-	go exp.ExportLoop(context.TODO(), exportMetricsFrequency)
+	go exp.ExportLoop(context.Background(), exportMetricsFrequency)
 }
 
 func exportLocationPeriodically(demmonCli *client.DemmonClient, myself *utils.Node, location s2.CellID) {
@@ -309,6 +294,21 @@ func (e *Environment) IsInVicinity(nodeID string) bool {
 	return ok
 }
 
+func (e *Environment) Start() {
+	exportDefaults(e.DemmonCli, e.exporter, e.myself, e.location)
+
+	res, err, _, updateChan := e.DemmonCli.SubscribeNodeUpdates()
+	if err != nil {
+		log.Panic(err)
+	}
+
+	log.Debugf("Starting view: %+v", res)
+
+	installNeighborLocationQuery(e.DemmonCli)
+
+	go e.handleNodeUpdates(updateChan)
+}
+
 func getDeploymentIDMetricString(deploymentID, metricID string) string {
 	return fmt.Sprintf("%s-%s", deploymentID, metricID)
 }
@@ -316,8 +316,8 @@ func getDeploymentIDMetricString(deploymentID, metricID string) string {
 const (
 	DeploymentTag = "Deployment"
 
-	locationWithHostQuery  = `SelectLast(%s, {"Host": "%s"})`
-	LocationQuery          = `SelectLast(%s)`
+	locationWithHostQuery  = `SelectLast("%s", {"Host": "%s"})`
+	LocationQuery          = `SelectLast("%s", "*")`
 	loadPerDeploymentQuery = `Avg(Select("%s", {"Host": "%s", "Deployment": "%s"}), "value")`
 )
 
@@ -337,8 +337,13 @@ func GetLoad(demmonCli *client.DemmonClient, deploymentID string, host *utils.No
 
 	timeseries, err := demmonCli.Query(query, queryTimeout)
 	if err != nil {
-		log.Panic(err)
+		log.Warn(err)
+		return 0
 	}
 
-	return int(timeseries[0].Values[0].Fields["avg_value"].(float64))
+	if len(timeseries) > 0 && len(timeseries[0].Values) > 0 {
+		return int(timeseries[0].Values[0].Fields["avg_value"].(float64))
+	}
+
+	return 0
 }

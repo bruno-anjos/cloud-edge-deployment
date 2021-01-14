@@ -286,3 +286,12 @@ func (c *Client) PropagateLocationToHorizon(addr, deploymentID string, origin *u
 
 	return
 }
+
+func (c *Client) SetReady(addr string) (status int) {
+	path := api.GetSetReadyPath()
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, nil)
+
+	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, nil)
+
+	return
+}

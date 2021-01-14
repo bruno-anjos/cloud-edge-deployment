@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import json
 import os
+import socket
 import subprocess
 import sys
 
@@ -8,6 +9,8 @@ repoDir = "/home/b.anjos/go/src/github.com/bruno-anjos/cloud-edge-deployment"
 cdToDir = f"cd {repoDir}"
 runServiceFormat = "go run cmd/deployer-cli/main.go add static %s deployments/%s.yaml"
 exportVars = "export GO111MODULE=on"
+
+host = socket.gethostname().strip()
 
 dummy = False
 if "--dummy" in sys.argv:
@@ -22,11 +25,14 @@ def deploy_service_in_node(s, node):
         print(f"ssh returned {e}")
 
 
-def deploy_dummy(s_name, yaml, node):
+def deploy_dummy(s_name, yaml, node, cluster_node):
     try:
-        subprocess.run(
-            ["docker", "exec", node, "/deployer-cli", "add", s_name, f"/deployments/{yaml}"],
-            check=True)
+        cmd = f"docker exec {node} /deployer-cli add {s_name} /deployments/{yaml}"
+        if cluster_node == host:
+            subprocess.run(cmd, shell=True, check=True)
+        else:
+            remote_cmd = f"oarsh {cluster_node} -- '{cmd}'"
+            subprocess.run(remote_cmd, shell=True, check=True)
     except subprocess.CalledProcessError as e:
         print(f"docker exec returned {e}")
 
@@ -41,7 +47,9 @@ yaml_config_property = "deployment_yaml"
 project_path = os.environ["CLOUD_EDGE_DEPLOYMENT"]
 fallback_path = os.path.expanduser(f"{project_path}/build/deployer/fallback.json")
 client_config_path = os.path.expanduser(f"{project_path}/deployments/clients_config.json")
-with open(fallback_path, 'r') as fallback_fp, open(client_config_path, 'r') as client_config_fp:
+with open(fallback_path, 'r') as fallback_fp, open(client_config_path, 'r') as client_config_fp, \
+        open("/tmp/dummy_infos.json", 'r') as dummy_infos_fp:
+    dummy_infos = json.load(dummy_infos_fp)
     startNode = json.load(fallback_fp)["Id"]
     services = json.load(client_config_fp)
     print(f"Start Node: {startNode}")
@@ -51,6 +59,9 @@ with open(fallback_path, 'r') as fallback_fp, open(client_config_path, 'r') as c
             yaml_path = service[yaml_config_property]
         print(f"deploying {service_name} in {startNode}")
         if dummy:
-            deploy_dummy(service_name, yaml_path, startNode)
+            for info in dummy_infos:
+                if info["name"] == startNode:
+                    cluster_node = info["node"]
+            deploy_dummy(service_name, yaml_path, startNode, cluster_node)
         else:
             deploy_service_in_node(service_name, startNode)

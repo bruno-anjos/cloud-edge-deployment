@@ -11,6 +11,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/golang/geo/s2"
+	"github.com/nm-morais/demmon-common/exporters"
 	exporter "github.com/nm-morais/demmon-exporter"
 	log "github.com/sirupsen/logrus"
 )
@@ -29,7 +30,7 @@ type (
 	numReqsLastMinuteMapValue = *batchValue
 
 	gaugesMapKey   = string
-	gaugesMapValue = *exporter.Gauge
+	gaugesMapValue = exporters.Gauge
 
 	Manager struct {
 		numReqsLastMinute sync.Map
@@ -72,7 +73,7 @@ func NewManager() *Manager {
 		log.Panic(err)
 	}
 
-	go exp.ExportLoop(context.TODO(), metricsExportFrequency)
+	go exp.ExportLoop(context.Background(), metricsExportFrequency)
 
 	r := &Manager{
 		numReqsLastMinute: sync.Map{},
@@ -119,8 +120,11 @@ func (r *Manager) AddDeployment(deploymentID string) {
 	}
 	r.currBatch.LoadOrStore(deploymentID, newBatch)
 
-	r.gauges.LoadOrStore(deploymentID, r.exporter.NewGauge(environment.MetricLoad,
-		loadSamples).With(environment.DeploymentTag, deploymentID))
+	gauge := r.exporter.NewGauge(environment.MetricLoad,
+		loadSamples).With(environment.DeploymentTag, deploymentID)
+	r.gauges.LoadOrStore(deploymentID, gauge)
+
+	log.Debugf("registered gauge for %s", deploymentID)
 }
 
 func (r *Manager) UpdateNumRequests(deploymentID string, location s2.CellID) {

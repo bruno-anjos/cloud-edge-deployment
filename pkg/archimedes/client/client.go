@@ -20,7 +20,7 @@ import (
 type Client struct {
 	utils.GenericClient
 	addr     string
-	addrLock *sync.Mutex
+	addrLock *sync.RWMutex
 }
 
 func NewArchimedesClient(addr string) *Client {
@@ -28,7 +28,7 @@ func NewArchimedesClient(addr string) *Client {
 	archClient := &Client{
 		GenericClient: newClient,
 		addr:          addr,
-		addrLock:      &sync.Mutex{},
+		addrLock:      &sync.RWMutex{},
 	}
 
 	newClient.Client.CheckRedirect = archClient.handleRedirect
@@ -137,7 +137,11 @@ func (c *Client) Resolve(host string, port nat.Port, deploymentID string, cLocat
 	}
 
 	path := api.GetResolvePath()
-	req := internalUtils.BuildRequest(http.MethodPost, c.addr, path, reqBody)
+	c.addrLock.RLock()
+	addr := c.addr
+	c.addrLock.RUnlock()
+	log.Infof("resolving %s:%s using archimedes at %s", host, port.Port(), addr)
+	req := internalUtils.BuildRequest(http.MethodPost, addr, path, reqBody)
 
 	var resp api.ResolveResponseBody
 	status, timedOut = internalUtils.DoRequest(c.GetHTTPClient(), req, &resp)

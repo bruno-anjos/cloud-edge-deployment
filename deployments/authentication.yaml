@@ -12,4 +12,3 @@ containers:
         value: "trainers:8009"
 static: False
 depthFactor: 1
-instanceNameFmt: [ "$DEPLOYMENT_NAME", "-", "$REPLICA_NUM" ]
