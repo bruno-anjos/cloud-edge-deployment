@@ -383,6 +383,8 @@ func (t *hierarchyTable) removeDeployment(deploymentID string) {
 		}
 	}
 
+	log.Debugf("removing deployment %s", deploymentID)
+
 	t.hierarchyEntries.Delete(deploymentID)
 }
 

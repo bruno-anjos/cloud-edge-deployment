@@ -16,6 +16,7 @@ host = socket.gethostname().strip()
 
 
 def run_cmd_with_try(cmd):
+    print(f"Running | {cmd} | LOCAL")
     cp = subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL)
     if cp.stderr is not None:
         raise Exception(cp.stderr)
@@ -93,12 +94,13 @@ NUM = "num"
 
 
 def launch_dummy(info):
+    env_variables = f'--env NODE_IP="{info[NODE_IP]}" --env NODE_ID="{info[NAME]}" --env NODE_NUM="{info[NUM]}" ' \
+                    f'--env LOCATION="{info[LOCATION]}" --env LANDMARKS="{landmarks}" ' \
+                    f'--env CONFIG_FILE="config/banjos_config.txt" --env WAIT_FOR_START="true"'
+    volumes = f'-v /tmp/images:/images -v /lib/modules:/lib/modules'
     launch_cmd = f'docker run -d --network={network} --privileged --ip {info[NODE_IP]} ' \
-                 f'--name={info[NAME]} --hostname {info[NAME]} --env NODE_IP="{info[NODE_IP]}" --env ' \
-                 f'NODE_ID="{info[NAME]}" --env NODE_NUM="{info[NUM]}" --env LOCATION="{info[LOCATION]}" ' \
-                 f'--env LANDMARKS="{landmarks}" --env CONFIG_FILE="config/banjos_config.txt" ' \
-                 f'--env LATENCY_MAP="config/inet100Latencies_x0.04.txt" --env IPS_MAP="config/banjos_ips_config.txt"' \
-                 f' --env WAIT_FOR_START="true" -v /tmp/images:/images brunoanjos/dummy_node:latest'
+                 f'--name={info[NAME]} --hostname {info[NAME]} {env_variables} {volumes} ' \
+                 f'--cap-add=ALL brunoanjos/dummy_node:latest'
     if not swarm or info[NODE] == host:
         run_cmd_with_try(launch_cmd)
     else:
@@ -187,8 +189,8 @@ def update_dependencies(build_path):
 
 def load_s2_locations():
     print("Loading s2 locations...")
-    with open(f"{project_path}/scripts/visualizer/locations.json", 'r') as locations_fp:
-        locations = json.load(locations_fp)["nodes"]
+
+    locations = scenario["locations"]
 
     s2_locs = {}
     for dummy_name, location in locations.items():
@@ -239,7 +241,10 @@ def setup_anchors():
     return entrypoints_ips
 
 
-def generate_demmon_config(infos):
+def generate_demmon_config(infos, map_name):
+    latency_filename = f"{project_path}/latency_maps/{map_name}/lat.txt"
+    subprocess.run(f"cp {latency_filename} {os.environ['DEMMON_DIR']}/config/latency_map.txt".split(" "))
+
     config_filename = "config/banjos_config.txt"
     ips_filename = "config/banjos_ips_config.txt"
 
@@ -283,26 +288,39 @@ def clean_deployment(info):
 
 
 def setup_tc(info):
-    clean_cmd = f"docker exec {info[NAME]} ./setup_tc.sh"
+    clean_cmd = f"docker exec {info[NAME]} ./setup_tc.sh {bandwidth_limit}"
     if not swarm or info[NODE] == host:
         run_cmd_with_try(clean_cmd)
     else:
         exec_cmd_on_node(info[NODE], clean_cmd)
 
 
+def load_scenario():
+    with open(f"{os.path.expanduser('~/ced-scenarios')}/{scenario_filename}.json") as scenario_fp:
+        return json.load(scenario_fp)
+
+
 args = sys.argv[1:]
-if len(args) < 2:
-    print("usage: deploy_dummy_stack.sh <num_nodes> <cidr> [--swarm] [--demmon] [--build-only]")
+if len(args) < 3:
+    print("usage: deploy_dummy_stack.py <scenario> <cidr> <bandwith_limit_in_mbits>[--swarm] [--demmon] [--build-only]")
     exit(1)
 
 swarm = False
 demmon = False
 build_only = False
 reuse = False
-num_nodes_str = ""
+scenario_filename = ""
 cidr_provided = ""
+fallback_id = ""
+map_name = ""
+bandwidth_limit = ""
 
-for arg in args:
+skip = False
+
+for i, arg in enumerate(args):
+    if skip:
+        skip = False
+        continue
     if arg == "--swarm":
         swarm = True
     elif arg == "--demmon":
@@ -311,15 +329,26 @@ for arg in args:
         build_only = True
     elif arg == "--reuse":
         reuse = True
-    elif num_nodes_str == "":
-        num_nodes_str = arg
+    elif arg == "--fallback":
+        fallback_id = args[i + 1]
+        skip = True
+        print(f"Fallback: {fallback_id}")
+    elif arg == "--mapname":
+        map_name = args[i + 1]
+        skip = True
+        print(f"Map name: {map_name}")
+    elif scenario_filename == "":
+        scenario_filename = arg
     elif cidr_provided == "":
         cidr_provided = arg
+    elif bandwidth_limit == "":
+        bandwidth_limit = arg
     else:
         print(f"unrecognized option {arg}")
         exit(1)
 
-num_nodes = int(num_nodes_str)
+scenario = load_scenario()
+num_nodes = len(scenario["locations"])
 
 if swarm:
     print("Running in swarm mode")
@@ -382,15 +411,15 @@ if not reuse:
         json.dump(node_ips, autonomic_ips_fp)
 
 print("Writing fallback...")
-with open(f"{project_path}/build/deployer/fallback.json", "r+") as fallback_fp:
-    fallback = json.load(fallback_fp)
-    if "Addr" not in fallback:
-        for aux_node in dummy_infos:
-            if aux_node[NAME] == fallback["Id"]:
-                fallback["Addr"] = aux_node[NODE_IP]
-                break
-    fallback_fp.truncate(0)
-    fallback_fp.seek(0)
+with open(f"{project_path}/build/deployer/fallback.json", "w") as fallback_fp:
+    if fallback_id == "":
+        fallback_id = scenario["fallback"]
+    fallback = {"Id": fallback_id}
+    for aux_node in dummy_infos:
+        if aux_node[NAME] == fallback_id:
+            print(f"Fallback IP: {aux_node[NODE_IP]}")
+            fallback["Addr"] = aux_node[NODE_IP]
+            break
     landmarks = fallback["Addr"]
     print(f"Wrote fallback: {fallback}")
     json.dump(fallback, fallback_fp)
@@ -404,7 +433,7 @@ print("Building images...")
 
 if demmon:
     print("Generating demmon config...")
-    generate_demmon_config(dummy_infos)
+    generate_demmon_config(dummy_infos, map_name)
 
 build_dummy_node_image()
 

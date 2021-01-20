@@ -353,9 +353,10 @@ func stopContainerAsync(instanceID, contID, url, removePath string) {
 		log.Panic(err)
 	}
 
+	log.Debugf("Removing %s", contID)
+
 	err = dockerClient.ContainerRemove(context.Background(), contID, types.ContainerRemoveOptions{
 		RemoveVolumes: true,
-		RemoveLinks:   true,
 		Force:         true,
 	})
 	if err != nil {

@@ -31,16 +31,21 @@ func newRemoteDeploymentsTable() *remoteDeploymentsTable {
 }
 
 func (r *remoteDeploymentsTable) updateFromDiscoverMsg(host *utils.Node, discMsg *api.DiscoverMsg) {
-	outdatedInstances := map[string]interface{}{}
-	r.nodeInstances.Range(func(key, value interface{}) bool {
-		instanceID := key.(typeNodeInstanceKey)
-		outdatedInstances[instanceID] = nil
-		return true
-	})
-
 	nodeInstancesMap := &sync.Map{}
 
-	value, ok := r.nodeInstances.LoadOrStore(host.ID, nodeInstancesMap)
+	outdatedInstances := map[string]interface{}{}
+	value, ok := r.nodeInstances.Load(host.ID)
+	if ok {
+		nodeInstancesMap = value.(typeNodeInstanceValue)
+		nodeInstancesMap.Range(func(key, value interface{}) bool {
+			instanceID := key.(typeNodeInstanceKey)
+			outdatedInstances[instanceID] = nil
+
+			return true
+		})
+	}
+
+	value, ok = r.nodeInstances.LoadOrStore(host.ID, nodeInstancesMap)
 	if ok {
 		nodeInstancesMap = value.(typeNodeInstanceValue)
 	}
@@ -53,7 +58,7 @@ func (r *remoteDeploymentsTable) updateFromDiscoverMsg(host *utils.Node, discMsg
 		if !added {
 			for instanceID, instance := range entry.Instances {
 				r.addInstance(deploymentID, instanceID, instance)
-				log.Debugf("added instance %s from %s", instanceID, host.ID)
+				log.Debugf("added instance %s from %s: %+v", instanceID, host.ID, instance)
 
 				delete(outdatedInstances, instanceID)
 				nodeInstancesMap.Store(instanceID, instance)

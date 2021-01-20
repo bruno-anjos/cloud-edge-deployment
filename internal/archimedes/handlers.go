@@ -55,6 +55,8 @@ const (
 	connectTimeout = 5 * time.Second
 
 	broadcastTimeout = 10 * time.Second
+
+	retryTimeout = 2 * time.Second
 )
 
 var (
@@ -75,6 +77,8 @@ var (
 	deplFactory deployer.ClientFactory
 
 	demCli *client.DemmonClient
+
+	fallback *utils.Node
 )
 
 func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.ClientFactory) {
@@ -97,6 +101,19 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.
 
 	redirectTargets = &nodesPerDeployment{}
 	exploringNodes = &explorersPerDeployment{}
+
+	deplClient := deplFactory.New()
+
+	for {
+		var status int
+
+		fallback, status = deplClient.GetFallback(servers.DeployerLocalHostPort)
+		if status == http.StatusOK {
+			break
+		}
+
+		time.Sleep(retryTimeout)
+	}
 
 	archimedesID = uuid.New().String()
 
@@ -129,9 +146,13 @@ func broadcastPeriodically() {
 	for {
 		<-ticker.C
 
-		log.Debugf("broacasting message...")
-
 		discMsg := sTable.toChangedDiscoverMsg()
+		if discMsg == nil {
+			continue
+		}
+
+		log.Debugf("broadcasting %+v", discMsg)
+
 		err := demCli.BroadcastMessage(body_types.Message{
 			ID:  api.DiscoverMessageID,
 			TTL: maxHops,
@@ -447,18 +468,8 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	deplClient := deplFactory.New()
-
 	resolved, found := resolveLocally(reqBody.ToResolve, reqLogger)
 	if !found {
-		fallback, status := deplClient.GetFallback(servers.DeployerLocalHostPort)
-		if status != http.StatusOK {
-			reqLogger.Errorf("got status %+v while asking for fallback from deployer", fallback)
-			w.WriteHeader(http.StatusInternalServerError)
-
-			return
-		}
-
 		if fallback.ID == myself.ID {
 			internalUtils.SendJSONReplyStatus(w, http.StatusNotFound, nil)
 
@@ -554,31 +565,78 @@ func handleRedirection(hostToResolve string, redirectConfig redirectionsMapValue
 func resolveLocally(toResolve *api.ToResolveDTO, reqLogger *log.Entry) (resolved *api.ResolvedDTO, found bool) {
 	found = false
 
-	deployment, sOk := sTable.getDeployment(toResolve.Host)
-	if !sOk {
-		instance, iOk := sTable.getInstance(toResolve.Host)
-		if !iOk {
-			reqLogger.Debugf("no deployment or instance for: %s", toResolve.Host)
+	var (
+		deployment *api.Deployment
+		instance   *api.Instance
+		ok         bool
+		remote     = false
+	)
 
+	hostUnresolved := toResolve.Host
+
+	deployment, ok = sTable.getDeployment(hostUnresolved)
+	if !ok {
+		// In case it doesn't have a deployment with this name LOCALLY search LOCALLY for an instance with the given
+		// name
+
+		instance, ok = sTable.getInstance(hostUnresolved)
+		if ok {
+			resolved, found = resolveInstance(toResolve.Port, instance)
 			return
 		}
 
-		resolved, found = resolveInstance(toResolve.Port, instance)
+		reqLogger.Debugf("no LOCAL deployment or instance for: %s", hostUnresolved)
 
-		return
+		// In case it doesn't have neither deployment or an instance with this name LOCALLY search REMOTELY
+		deployment, ok = remoteTable.getDeployment(hostUnresolved)
+		if !ok {
+			// In case it doesn't have a local deployment or instance nor a remote deployment with this name
+			// search for a remote instance
+
+			instance, ok = remoteTable.getInstance(hostUnresolved)
+			if !ok {
+				// This name is nowhere to be found return empty results
+
+				reqLogger.Debugf("no REMOTE deployment or instance for: %s", hostUnresolved)
+				return
+			}
+
+			resolved, found = resolveInstance(toResolve.Port, instance)
+			return
+		}
+
+		remote = true
 	}
 
-	instances := sTable.getAllLocalDeploymentInstances(deployment.ID)
-	if len(instances) == 0 {
-		reqLogger.Debugf("no local instances for deployment %s", deployment.ID)
+	var randInstance *api.Instance
 
-		instances = sTable.getAllDeploymentInstances(deployment.ID)
-
-		if len(instances) == 0 {
-			reqLogger.Debugf("no instances for deployment %s", deployment.ID)
-
+	if !remote {
+		randInstance = resolveDeploymentToInstance(deployment, reqLogger, sTable)
+		if randInstance == nil {
 			return
 		}
+	} else {
+		randInstance = resolveDeploymentToInstance(deployment, reqLogger, remoteTable)
+		if randInstance == nil {
+			return
+		}
+	}
+
+	resolved, found = resolveInstance(toResolve.Port, randInstance)
+	if found {
+		reqLogger.Debugf("resolved %s:%s to %s:%s", toResolve.Host, toResolve.Port.Port(), resolved.Host,
+			resolved.Port)
+	}
+
+	return resolved, found
+}
+
+func resolveDeploymentToInstance(deployment *api.Deployment, reqLogger *log.Entry,
+	resolver deploymentToInstanceResolver) *api.Instance {
+	instances := resolver.getAllDeploymentInstances(deployment.ID)
+	if len(instances) == 0 {
+		reqLogger.Debugf("no instances for deployment %s", deployment.ID)
+		return nil
 	}
 
 	var randInstance *api.Instance
@@ -593,13 +651,7 @@ func resolveLocally(toResolve *api.ToResolveDTO, reqLogger *log.Entry) (resolved
 		}
 	}
 
-	resolved, found = resolveInstance(toResolve.Port, randInstance)
-	if found {
-		reqLogger.Debugf("resolved %s:%s to %s:%s", toResolve.Host, toResolve.Port.Port(), resolved.Host,
-			resolved.Port)
-	}
-
-	return resolved, found
+	return randInstance
 }
 
 func redirectServiceHandler(w http.ResponseWriter, r *http.Request) {
@@ -777,7 +829,7 @@ func resolveInstance(originalPort nat.Port, instance *api.Instance) (*api.Resolv
 	}
 
 	return &api.ResolvedDTO{
-		Host: myself.Addr,
+		Host: instance.Host.Addr,
 		Port: portNatResolved[0].HostPort,
 	}, true
 }

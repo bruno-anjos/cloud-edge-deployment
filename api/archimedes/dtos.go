@@ -3,7 +3,6 @@ package archimedes
 import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/docker/go-connections/nat"
-	"github.com/google/uuid"
 )
 
 type ResolvedDTO struct {
@@ -28,7 +27,7 @@ type DeploymentsTableEntryDTO struct {
 }
 
 type DiscoverMsg struct {
-	MessageID uuid.UUID
+	MessageID string
 	Origin    *utils.Node
 	Entries   map[string]*DeploymentsTableEntryDTO
 }

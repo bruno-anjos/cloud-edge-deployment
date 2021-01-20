@@ -1,13 +1,16 @@
 package actions
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 )
@@ -141,7 +144,14 @@ func (m *MultipleExtendDeploymentAction) getSetNodeAsExploringCallback() func(no
 }
 
 func (m *MultipleExtendDeploymentAction) Execute(_ string, client utils.GenericClient) {
-	log.Debugf("executing %s to %+v", m.ActionID, m.getTargets())
+	targets := m.getTargets()
+
+	var sb strings.Builder
+	for _, target := range targets {
+		sb.WriteString(fmt.Sprintf("%+v", target))
+	}
+
+	log.Debugf("executing %s to %v", m.ActionID, sb.String())
 
 	deployerClient := client.(deployer.Client)
 	locations := m.getLocations()
@@ -151,9 +161,8 @@ func (m *MultipleExtendDeploymentAction) Execute(_ string, client utils.GenericC
 
 	for _, target := range m.getTargets() {
 		addr := target.Addr + ":" + strconv.Itoa(deployer.Port)
-		targetClient := m.deplFactory.New()
 
-		has, _ := targetClient.HasDeployment(addr, m.getDeploymentID())
+		has, _ := deployerClient.HasDeployment(addr, m.getDeploymentID())
 		if has {
 			log.Debugf("%s already has deployment %s", target, m.getDeploymentID())
 
@@ -166,8 +175,8 @@ func (m *MultipleExtendDeploymentAction) Execute(_ string, client utils.GenericC
 			ToExclude: toExclude,
 		}
 
-		status := deployerClient.ExtendDeploymentTo(addr, m.getDeploymentID(), target, targetsExploring[target.ID],
-			config)
+		status := deployerClient.ExtendDeploymentTo(servers.DeployerLocalHostPort, m.getDeploymentID(), target,
+			targetsExploring[target.ID], config)
 		if status != http.StatusOK {
 			log.Errorf("got status code %d while extending deployment", status)
 

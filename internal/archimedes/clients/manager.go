@@ -38,7 +38,7 @@ type (
 		exploringCells    sync.Map
 		gauges            sync.Map
 		cellManager       *cell.Manager
-		exporter          *exporter.Exporter
+		gauge             *exporter.Gauge
 	}
 )
 
@@ -73,16 +73,16 @@ func NewManager() *Manager {
 		log.Panic(err)
 	}
 
-	go exp.ExportLoop(context.Background(), metricsExportFrequency)
-
 	r := &Manager{
 		numReqsLastMinute: sync.Map{},
 		currBatch:         sync.Map{},
 		exploringCells:    sync.Map{},
 		gauges:            sync.Map{},
 		cellManager:       cell.NewManager(),
-		exporter:          exp,
+		gauge:             exp.NewGauge(environment.MetricLoad, loadSamples),
 	}
+
+	go exp.ExportLoop(context.Background(), metricsExportFrequency)
 
 	go r.exportLoadsPeriodically()
 	go r.manageLoadBatch()
@@ -120,8 +120,7 @@ func (r *Manager) AddDeployment(deploymentID string) {
 	}
 	r.currBatch.LoadOrStore(deploymentID, newBatch)
 
-	gauge := r.exporter.NewGauge(environment.MetricLoad,
-		loadSamples).With(environment.DeploymentTag, deploymentID)
+	gauge := r.gauge.With(environment.DeploymentTag, deploymentID)
 	r.gauges.LoadOrStore(deploymentID, gauge)
 
 	log.Debugf("registered gauge for %s", deploymentID)

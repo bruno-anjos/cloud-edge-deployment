@@ -4,12 +4,15 @@ import (
 	"sync"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
-	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
 type (
+	deploymentToInstanceResolver interface {
+		getAllDeploymentInstances(deploymentID string) map[string]*api.Instance
+	}
+
 	deploymentsTableEntry struct {
 		Deployment *api.Deployment
 		Instances  *sync.Map
@@ -196,32 +199,6 @@ func (st *deploymentsTable) getAllDeploymentInstances(deploymentID string) map[s
 	return instances
 }
 
-func (st *deploymentsTable) getAllLocalDeploymentInstances(deploymentID string) map[string]*api.Instance {
-	instances := map[string]*api.Instance{}
-
-	value, ok := st.deploymentsMap.Load(deploymentID)
-	if !ok {
-		return instances
-	}
-
-	entry := value.(typeDeploymentsTableMapValue)
-	entry.EntryLock.RLock()
-	defer entry.EntryLock.RUnlock()
-
-	entry.Instances.Range(func(key, value interface{}) bool {
-		instanceID := key.(string)
-		instance := value.(typeInstancesMapValue)
-
-		if instance.Host.ID == myself.ID {
-			instances[instanceID] = instance
-		}
-
-		return true
-	})
-
-	return instances
-}
-
 func (st *deploymentsTable) addInstance(deploymentID, instanceID string, instance *api.Instance) (added bool) {
 	value, ok := st.deploymentsMap.Load(deploymentID)
 	if !ok {
@@ -307,27 +284,6 @@ func (st *deploymentsTable) deleteDeployment(deploymentID string) {
 	st.deploymentsMap.Delete(deploymentID)
 }
 
-func (st *deploymentsTable) deleteDeploymentInstancesFrom(deploymentID string, from *utils.Node) {
-	value, ok := st.deploymentsMap.Load(deploymentID)
-	if !ok {
-		return
-	}
-
-	entry := value.(typeDeploymentsTableMapValue)
-	entry.EntryLock.Lock()
-	defer entry.EntryLock.Unlock()
-
-	entry.Instances.Range(func(key, value interface{}) bool {
-		instanceID := key.(typeInstancesMapKey)
-		instance := value.(typeInstancesMapValue)
-		if instance.ID == from.ID {
-			entry.Instances.Delete(instanceID)
-		}
-
-		return true
-	})
-}
-
 func (st *deploymentsTable) deleteInstance(instanceID string) {
 	value, ok := st.instancesMap.Load(instanceID)
 	if ok {
@@ -375,7 +331,7 @@ func (st *deploymentsTable) toDiscoverMsg() *api.DiscoverMsg {
 	}
 
 	return &api.DiscoverMsg{
-		MessageID: uuid.New(),
+		MessageID: uuid.New().String(),
 		Origin:    myself,
 		Entries:   entries,
 	}
@@ -399,7 +355,7 @@ func (st *deploymentsTable) toChangedDiscoverMsg() *api.DiscoverMsg {
 	}
 
 	return &api.DiscoverMsg{
-		MessageID: uuid.New(),
+		MessageID: uuid.New().String(),
 		Origin:    myself,
 		Entries:   entries,
 	}

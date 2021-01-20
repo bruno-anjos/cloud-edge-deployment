@@ -6,8 +6,12 @@ if [[ -z "${BUILD_DIR}" ]]; then
 fi
 
 
-echo "Building client binary..."
+echo "Building deployer client binary..."
 env CGO_ENABLED=0 go build -o "$BUILD_DIR/dummy_node/deployer-cli" \
 	"${CLOUD_EDGE_DEPLOYMENT}/cmd/deployer-cli/main.go"
 
-echo "Done building client binary!"
+echo "Building archimedes client binary..."
+env CGO_ENABLED=0 go build -o "$BUILD_DIR/dummy_node/archimedes-cli" \
+	"${CLOUD_EDGE_DEPLOYMENT}/cmd/archimedes-cli/main.go"
+
+echo "Done building client binaries!"

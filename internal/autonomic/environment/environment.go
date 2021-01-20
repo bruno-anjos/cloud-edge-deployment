@@ -49,7 +49,7 @@ const (
 	customInterestSetQueryTimeout = 3 * time.Second
 	exportFrequencyInterestSet    = 1 * time.Second
 
-	locationExportFrequency = 10 * time.Minute
+	locationExportFrequency = 10 * time.Second
 
 	dialBackoff = 3 * time.Second
 	dialTimeout = 5 * time.Second
@@ -116,7 +116,7 @@ func installNeighborLocationQuery(demmonCli *client.DemmonClient) {
 			OutputBucketOpts: body_types.BucketOptions{
 				Name: MetricLocationInVicinity,
 				Granularity: body_types.Granularity{
-					Granularity: exportFrequencyInterestSet,
+					Granularity: locationExportFrequency / 2,
 					Count:       defaultBucketSize,
 				},
 			},
@@ -129,16 +129,26 @@ func installNeighborLocationQuery(demmonCli *client.DemmonClient) {
 }
 
 func exportDefaults(demmonCli *client.DemmonClient, exp *exporter.Exporter, myself *utils.Node, location s2.CellID) {
-	go exportLocationPeriodically(demmonCli, myself, location)
-	go exp.ExportLoop(context.Background(), exportMetricsFrequency)
+	installedChan := make(chan interface{})
+
+	go exportLocationPeriodically(demmonCli, myself, location, installedChan)
+	go startExporting(exp, installedChan)
 }
 
-func exportLocationPeriodically(demmonCli *client.DemmonClient, myself *utils.Node, location s2.CellID) {
+func startExporting(exp *exporter.Exporter, installedChan <-chan interface{}) {
+	<-installedChan
+	exp.ExportLoop(context.Background(), exportMetricsFrequency)
+}
+
+func exportLocationPeriodically(demmonCli *client.DemmonClient, myself *utils.Node, location s2.CellID,
+	installedChan chan<- interface{}) {
 	ticker := time.NewTicker(locationExportFrequency)
-	err := demmonCli.InstallBucket(MetricLocation, exportFrequencyInterestSet, defaultBucketSize)
+	err := demmonCli.InstallBucket(MetricLocation, locationExportFrequency, defaultBucketSize)
 	if err != nil {
 		log.Panic(err)
 	}
+
+	close(installedChan)
 
 	for {
 		err = demmonCli.PushMetricBlob([]body_types.TimeseriesDTO{
@@ -156,6 +166,8 @@ func exportLocationPeriodically(demmonCli *client.DemmonClient, myself *utils.No
 		if err != nil {
 			log.Panic(err)
 		}
+
+		log.Debugf("exported location %s", location.ToToken())
 
 		<-ticker.C
 	}
@@ -285,6 +297,8 @@ func (e *Environment) GetLocationInVicinity() map[string]s2.CellID {
 		hostID := ts.TSTags[nodeIDTag]
 		locations[hostID] = s2.CellIDFromToken(ts.Values[0].Fields["value"].(string))
 	}
+
+	log.Debugf("Got locations in vicinity: %+v, %+v", locations, timeseries)
 
 	return locations
 }
