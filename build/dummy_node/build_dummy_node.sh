@@ -36,9 +36,11 @@ echo "Build service images..."
 bash "$BUILD_DIR"/dummy_node/build_images.sh
 
 (
+  export DOCKER_IMAGE="brunoanjos/demmon:latest"
+  export LATENCY_MAP="config/latency_map.txt"
+  export IPS_MAP="config/banjos_ips_config.txt"
   echo "Build demmon binary..."
   cd "$DEMMON_DIR"
-  source config/swarmConfig.sh
   GO111MODULE='on' bash "$DEMMON_DIR"/scripts/buildImage.sh
   cp "$DEMMON_DIR"/"$LATENCY_MAP" $BUILD_DIR/dummy_node/latency_map
   cp "$DEMMON_DIR"/"$IPS_MAP" $BUILD_DIR/dummy_node/ips_map

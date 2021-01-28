@@ -24,7 +24,7 @@ type (
 )
 
 const (
-	initInstanceTimeout = 60 * time.Second
+	initInstanceTimeout = 5 * time.Minute
 )
 
 var (

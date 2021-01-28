@@ -35,7 +35,7 @@ type (
 
 const (
 	minCellLevel = 8
-	maxCellLevel = 16
+	maxCellLevel = 18
 
 	maxClientsToSplit = 300
 	minClientsToMerge = 200
@@ -74,6 +74,8 @@ func (cm *Manager) GetDeploymentCentroids(deploymentID string) (centroids []s2.C
 }
 
 func (cm *Manager) AddClientToDownmostCell(deploymentID string, clientCellID s2.CellID) {
+	log.Debugf("%s adding cell %s", deploymentID, clientCellID.ToToken())
+
 	deployment := cm.getDeploymentCells(deploymentID)
 	topCellID, topCell := cm.getTopCell(deploymentID, deployment, clientCellID)
 
@@ -81,7 +83,7 @@ func (cm *Manager) AddClientToDownmostCell(deploymentID string, clientCellID s2.
 	numClients := downmost.addClientAndReturnCurrent(clientCellID)
 	deployment.cells.RUnlock()
 
-	if numClients > maxCellLevel {
+	if numClients > maxClientsToSplit {
 		_, loaded := cm.splittedCells.LoadOrStore(downmostID, nil)
 		if !loaded {
 			go cm.splitMaxedCell(deploymentID, deployment.cells, downmostID, downmost)
@@ -267,12 +269,18 @@ func (cm *Manager) getTopCell(deploymentID string, deploymentCells cellsByDeploy
 		var loaded bool
 		topCell, loaded = deploymentCells.topCells.loadOrStoreCell(cellID, c)
 
-		// loadOrStore to sync map, so if it doens't load this thread is the one that created the cell
+		// loadOrStore to sync map, so if it doesn't load, this thread is the one that created the cell
 		if !loaded {
 			// add the cell to activeCells
-			value := &sync.Map{}
-			value.Store(cellID, c)
-			cm.activeCells.Store(deploymentID, value)
+			cells := &sync.Map{}
+			cells.Store(cellID, c)
+
+			var value interface{}
+
+			value, loaded = cm.activeCells.LoadOrStore(deploymentID, cells)
+			if loaded {
+				value.(*sync.Map).Store(cellID, c)
+			}
 		}
 	}
 

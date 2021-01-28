@@ -1,4 +1,4 @@
-replicas: 2
+replicas: 1
 deploymentName: battles
 containers:
   - image: docker.io/brunoanjos/battles:latest

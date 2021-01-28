@@ -10,7 +10,7 @@ set -e
 while :; do
   if ! docker info >/dev/null 2>&1; then
     echo "Docker does not seem to be running, run it first and retry"
-    sleep 2s
+    sleep 5s
   else
     break
   fi

@@ -201,7 +201,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 	for _, centroid := range centroids {
 		centroidCell := s2.CellFromCellID(centroid)
 		myDists[centroid] = servers.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(centroidCell))
-		log.Debugf("mydist from %s to %s, %f", i.myLocation.ToToken(), centroid.ToToken(), myDists[centroid])
+		log.Debugf("my dist from %s to %s, %f", i.myLocation.ToToken(), centroid.ToToken(), myDists[centroid])
 
 		centroidCells[centroid] = centroidCell
 	}
@@ -214,13 +214,13 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 		_, okC := i.deployment.Children.Load(nodeID)
 		_, okS := i.deployment.Suspected.Load(nodeID)
 
-		if okC || okS || nodeID == Myself.ID {
+		location, okL := locations[node.ID]
+
+		if okC || okS || nodeID == Myself.ID || !okL {
 			log.Debugf("ignoring %s", nodeID)
 
 			continue
 		}
-
-		location := locations[node.ID]
 
 		// create node map for centroids and respective distances
 		if i.deployment.Parent != nil && nodeID == i.deployment.Parent.ID {
@@ -241,9 +241,16 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 				nodeCentroidsMap = info[nodeID].(sortingCriteriaType)
 			}
 
+			var percentage float64
+			if delta == 0 {
+				percentage = delta / myDists[centroidID]
+			} else {
+				percentage = 0
+			}
+
 			nodeCentroidsMap[centroidID] = &nodeWithDistance{
 				NodeID:             nodeID,
-				DistancePercentage: delta / myDists[centroidID],
+				DistancePercentage: percentage,
 			}
 
 			log.Debugf("distance from %s(%s) to %s, %f", nodeID, location.ToToken(), centroidID.ToToken(), delta)

@@ -71,7 +71,7 @@ func addNodes(peers ...*body_types.Peer) {
 
 		id, status := autonomicClient.GetID(addr)
 		if status != http.StatusOK {
-			log.Error("got status %d while getting location for %s", addr)
+			log.Errorf("got status %d while getting location for %s", status, addr)
 		}
 
 		onNodeUp(id, peer.IP.String())
@@ -83,7 +83,7 @@ func getAlternativesPeriodically(updateChan <-chan body_types.NodeUpdates) {
 		addr := nodeUpdate.Peer.IP.String() + ":" + strconv.Itoa(autonomic.Port)
 		id, status := autonomicClient.GetID(addr)
 		if status != http.StatusOK {
-			log.Error("got status %d while getting location for %s", addr)
+			log.Errorf("got status %d while getting location for %s", status, addr)
 		}
 
 		switch nodeUpdate.Type {

@@ -125,7 +125,6 @@ def graph_combined_deployments(graph, node_tables, deployment_colors, loads):
                 continue
             for deployment_id, entry in auxTable.items():
                 for child_id in entry[children_field_id].keys():
-                    print(f"edge from {node} to {child_id} for {deployment_id}")
                     add_if_missing(graph, node_tables[child_id], child_id)
                     graph.add_edge(node, child_id, deployment_id=deployment_id, relation=attr_child)
 
@@ -161,33 +160,52 @@ def graph_combined_deployments(graph, node_tables, deployment_colors, loads):
         for node in graph.vs["name"]:
             loc = get_location(node)
             layout.append((loc["lng"], loc["lat"]))
+
         visual_style["layout"] = layout
         visual_style["bbox"] = (4000, 4000)
         visual_style["margin"] = 200
-        print("plotting combined")
-        plot(graph, f"/home/b.anjos/deployer_pngs/combined_plot.png", **visual_style, autocurve=True)
+        print(f"Plotting combined graph with {len(graph.vs)} nodes and {len(graph.es)} edges")
+        target_path = "/home/b.anjos/deployer_pngs/combined_plot.png"
+        tmp_path = "/tmp/combined_plot.png"
+
+        plot(graph, tmp_path, **visual_style, autocurve=True)
+        subprocess.run(["cp", tmp_path, target_path])
     except Exception as e:
         logging.exception(e)
+
+
+def get_load_for_given_node(node_table, node, aux_pool):
+    processes = {}
+    loads = []
+
+    for deployment_id in node_table.keys():
+        processes[deployment_id] = aux_pool.apply_async(get_load, (deployment_id, node))
+
+    for deployment_id, p in processes.items():
+        load = p.get()
+        load_string = f"{deployment_id}: {load}"
+        loads.append(load_string)
+
+    return loads
 
 
 def graph_deployer():
     print("creating graph for deployers")
 
     node_tables = get_all_hierarchy_tables()
-    loads = {}
 
+    print("Got all hierarchy tables!")
+
+    loads = {}
     for node in node_tables:
-        loads[node] = []
-        for deployment_id in node_tables[node].keys():
-            load = get_load(deployment_id, node)
-            load_string = f"{deployment_id}: {load}"
-            loads[node].append(load_string)
+        aux_loads = get_load_for_given_node(node_tables[node], node, pool)
+        loads[node] = aux_loads
 
     # add all connections
     deployment_colors = {}
     i = 0
 
-    graphs = {}
+    # graphs = {}
     combined_graph = Graph(directed=True)
 
     deployments = set()
@@ -196,7 +214,7 @@ def graph_deployer():
             if deployment_id == "dead":
                 continue
             deployments.add(deployment_id)
-            graphs[deployment_id] = Graph(directed=True)
+            # graphs[deployment_id] = Graph(directed=True)
             if deployment_id not in deployment_colors:
                 color = colors[i % len(colors)]
                 deployment_colors[deployment_id] = color
@@ -207,8 +225,9 @@ def graph_deployer():
     #     deployer_processes[deployment_id] = pool.apply_async(graph_deployment, (
     #         deployment_id, graphs[deployment_id], node_tables, deployment_colors[deployment_id], loads))
 
-    combined = pool.apply_async(graph_combined_deployments,
-                                (combined_graph, node_tables, deployment_colors, loads))
+    print("Graphing combined deployments in async pool...")
+
+    graph_combined_deployments(combined_graph, node_tables, deployment_colors, loads)
 
     # resulting_trees = {}
     # for deployment_id, dp in deployer_processes.items():
@@ -217,8 +236,6 @@ def graph_deployer():
     #         print(f"error with {deployment_id}: {res}")
     #         return
     #     resulting_trees[deployment_id] = res
-
-    combined.wait()
 
     # with open(f"/home/b.anjos/results/results.json", "w") as results_fp:
     #     print("writing results.json")
@@ -359,8 +376,13 @@ def remove_visualizer_entrypoint():
     subprocess.run(cmd, shell=True)
 
 
+print("Removing old entrypoint...")
 remove_visualizer_entrypoint()
+print("Done!")
+
+print("Setting up entrypoint...")
 setup_visualizer_entrypoint()
+print("Done!")
 
 pool = Pool(processes=os.cpu_count())
 while True:

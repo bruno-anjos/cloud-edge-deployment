@@ -4,6 +4,7 @@ import os
 import socket
 import subprocess
 import sys
+import time
 from functools import partial
 from multiprocessing import Pool
 
@@ -450,9 +451,20 @@ if build_only:
 
 pool = Pool(processes=os.cpu_count())
 if not reuse:
+    start = time.time()
     pool.map(launch_dummy, dummy_infos)
+    done = time.time()
+    print(f"Took {done-start} seconds to launch dummies")
+
+    start = time.time()
     pool.map(setup_tc, dummy_infos)
+    done = time.time()
+    print(f"Took {done-start} seconds to setup tc")
+
+start = time.time()
 pool.map(start_services_in_dummy, dummy_infos)
+done = time.time()
+print(f"Took {done-start} seconds to start services")
 
 pool.close()
 pool.join()

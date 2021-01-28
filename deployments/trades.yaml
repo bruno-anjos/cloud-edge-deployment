@@ -1,4 +1,4 @@
-replicas: 2
+replicas: 1
 deploymentName: trades
 containers:
   - image: docker.io/brunoanjos/trades:latest

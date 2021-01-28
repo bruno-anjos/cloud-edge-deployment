@@ -410,10 +410,13 @@ func checkChildren(parent *utils.Node, children ...*utils.Node) bool {
 func deleteDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	deploymentID := internalUtils.ExtractPathVar(r, deploymentIDPathVar)
 
+	log.Debugf("handling request to delete deployment %s", deploymentID)
+
 	success, status := deleteDeployment(deploymentID)
 	if !success {
-		w.WriteHeader(status)
+		log.Warnf("failed to delete %s with status %d", deploymentID, status)
 
+		w.WriteHeader(status)
 		return
 	}
 }
@@ -651,9 +654,13 @@ func deleteDeployment(deploymentID string) (success bool, parentStatus int) {
 		}
 
 		pTable.decreaseParentCount(parent.ID)
+		log.Debugf("decreased parent count for parent %s", parent.ID)
 	}
 
 	hTable.removeDeployment(deploymentID)
+	log.Debugf("removed deployment %s from hierarchy table", deploymentID)
+
+	log.Debugf("deleted deployment %s", deploymentID)
 
 	return
 }

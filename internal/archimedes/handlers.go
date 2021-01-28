@@ -818,6 +818,12 @@ func getClientCentroidsHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		internalUtils.SendJSONReplyStatus(w, http.StatusNotFound, nil)
 	} else {
+		centroidTokens := make([]string, len(centroids))
+		for i, centroid := range centroids {
+			centroidTokens[i] = centroid.ToToken()
+		}
+
+		log.Debugf("%s centroids: %+v", deploymentID, centroidTokens)
 		internalUtils.SendJSONReplyOK(w, centroids)
 	}
 }
@@ -858,7 +864,7 @@ func checkForClosestNodeRedirection(deploymentID string, clientLocation s2.CellI
 	log.Debugf("best node in vicinity to redirect client from %+v to is %s", clientLocation, redirectTo)
 
 	if redirectTo.ID != myself.ID {
-		log.Debugf("will redirect client at %d to %s", clientLocation, redirectTo)
+		log.Debugf("will redirect client at %s to %s", clientLocation.ToToken(), redirectTo)
 
 		// TODO this can be change by a load and delete probably
 		has := exploringNodes.checkAndDelete(deploymentID, redirectTo.ID)

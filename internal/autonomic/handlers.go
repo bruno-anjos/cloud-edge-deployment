@@ -83,7 +83,6 @@ func getAllDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
 
 func addDeploymentChildHandler(_ http.ResponseWriter, r *http.Request) {
 	deploymentID := utils.ExtractPathVar(r, deploymentIDPathVar)
-	// TODO missing child in body
 
 	reqBody := api.AddDeploymentChildRequestBody{}
 
@@ -93,6 +92,8 @@ func addDeploymentChildHandler(_ http.ResponseWriter, r *http.Request) {
 	}
 
 	child := &reqBody
+	log.Debugf("got request for adding child %s", child.ID)
+
 	autonomicSystem.addDeploymentChild(deploymentID, child)
 }
 

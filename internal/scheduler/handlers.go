@@ -35,6 +35,7 @@ type (
 const (
 	retryTimeout         = 2 * time.Second
 	stopContainerTimeout = 10 * time.Second
+	retryPortBinding     = 2 * time.Second
 
 	envVarFormatString   = "%s=%s"
 	portBindingFmtString = "%s->%s"
@@ -54,6 +55,7 @@ var (
 	stopContainerTimeoutVar = stopContainerTimeout
 
 	getPortLock = sync.Mutex{}
+	usedPorts   = map[string]interface{}{}
 )
 
 func InitServer(deplFactory deployer.ClientFactory) {
@@ -364,6 +366,8 @@ func stopContainerAsync(instanceID, contID, url, removePath string) {
 	}
 
 	log.Debugf("deleted instance %s corresponding to container %s", instanceID, contID)
+
+	// ideally we should remove the used ports in here to free up, but this shouldn't be a problem in the short term
 }
 
 func deleteAllInstances() {
@@ -408,64 +412,78 @@ func deleteAllInstances() {
 
 func getFreePort(protocol string) string {
 	getPortLock.Lock()
-	defer getPortLock.Unlock()
 
-	switch protocol {
-	case servers.TCP:
-		addr, err := net.ResolveTCPAddr(servers.TCP, "0.0.0.0:0")
-		if err != nil {
-			panic(err)
-		}
+	var (
+		port        string
+		releaseFunc func()
+	)
 
-		l, err := net.ListenTCP(servers.TCP, addr)
-		if err != nil {
-			panic(err)
-		}
-
-		defer func() {
-			err = l.Close()
+	for {
+		switch protocol {
+		case servers.TCP:
+			addr, err := net.ResolveTCPAddr(servers.TCP, "0.0.0.0:0")
 			if err != nil {
 				panic(err)
 			}
-		}()
 
-		natPort, err := nat.NewPort(servers.TCP, strconv.Itoa(l.Addr().(*net.TCPAddr).Port))
-		if err != nil {
-			panic(err)
-		}
-
-		port := natPort.Port()
-
-		return port
-	case servers.UDP:
-		addr, err := net.ResolveUDPAddr(servers.UDP, "0.0.0.0:0")
-		if err != nil {
-			panic(err)
-		}
-
-		l, err := net.ListenUDP(servers.UDP, addr)
-		if err != nil {
-			panic(err)
-		}
-
-		defer func() {
-			err = l.Close()
+			l, err := net.ListenTCP(servers.TCP, addr)
 			if err != nil {
 				panic(err)
 			}
-		}()
 
-		natPort, err := nat.NewPort(servers.UDP, strconv.Itoa(l.LocalAddr().(*net.UDPAddr).Port))
-		if err != nil {
-			panic(err)
+			releaseFunc = func() {
+				err = l.Close()
+				if err != nil {
+					panic(err)
+				}
+			}
+
+			natPort, err := nat.NewPort(servers.TCP, strconv.Itoa(l.Addr().(*net.TCPAddr).Port))
+			if err != nil {
+				panic(err)
+			}
+
+			port = natPort.Port()
+		case servers.UDP:
+			addr, err := net.ResolveUDPAddr(servers.UDP, "0.0.0.0:0")
+			if err != nil {
+				panic(err)
+			}
+
+			l, err := net.ListenUDP(servers.UDP, addr)
+			if err != nil {
+				panic(err)
+			}
+
+			releaseFunc = func() {
+				err = l.Close()
+				if err != nil {
+					panic(err)
+				}
+			}
+
+			natPort, err := nat.NewPort(servers.UDP, strconv.Itoa(l.LocalAddr().(*net.UDPAddr).Port))
+			if err != nil {
+				panic(err)
+			}
+
+			port = natPort.Port()
+		default:
+			panic(errors.Errorf("invalid port protocol: %s", protocol))
 		}
 
-		port := natPort.Port()
+		if _, ok := usedPorts[port]; !ok {
+			usedPorts[port] = nil
+			break
+		}
 
-		return port
-	default:
-		panic(errors.Errorf("invalid port protocol: %s", protocol))
+		<-time.After(retryPortBinding)
 	}
+
+	releaseFunc()
+	getPortLock.Unlock()
+
+	return port
 }
 
 func generatePortBindings(containerPorts nat.PortSet) (portMap nat.PortMap) {
