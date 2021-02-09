@@ -1,7 +1,6 @@
 package archimedes
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/url"
 	"os"
@@ -9,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/clients"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
@@ -21,6 +22,7 @@ import (
 	"github.com/golang/geo/s2"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
+	demmonAPI "github.com/bruno-anjos/cloud-edge-deployment/api/demmon"
 	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
@@ -126,12 +128,14 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.
 	}
 
 	demCli = client.New(demCliConf)
-	err := demCli.ConnectTimeout(connectTimeout)
+	err, errChan := demCli.ConnectTimeout(connectTimeout)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	msgChan, _, err := demCli.InstallBroadcastMessageHandler(api.DiscoverMessageID)
+	go internalUtils.PanicOnErrFromChan(errChan)
+
+	msgChan, _, err := demCli.InstallBroadcastMessageHandler(demmonAPI.DiscoverMessageID)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -154,7 +158,7 @@ func broadcastPeriodically() {
 		log.Debugf("broadcasting %+v", discMsg)
 
 		err := demCli.BroadcastMessage(body_types.Message{
-			ID:  api.DiscoverMessageID,
+			ID:  demmonAPI.DiscoverMessageID,
 			TTL: maxHops,
 			Content: tableMessageWithHost{
 				DiscoverMsg: discMsg,
@@ -170,7 +174,7 @@ func broadcastPeriodically() {
 func handleBroadcastMessages(msgChan <-chan body_types.Message) {
 	for msg := range msgChan {
 		switch msg.ID {
-		case api.DiscoverMessageID:
+		case demmonAPI.DiscoverMessageID:
 			var tableMsg tableMessageWithHost
 
 			err := mapstructure.Decode(msg.Content, &tableMsg)

@@ -61,12 +61,15 @@ type idealLatency struct {
 	myLocation        s2.CellID
 	centroidsExtended map[s2.CellID]interface{}
 	depthFactor       float64
+	deplLogger        *log.Entry
 }
 
 func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
+	deplLogger := log.WithField("DEPL", deployment.DeploymentID)
+
 	locationToken, ok := os.LookupEnv(utils.LocationEnvVarName)
 	if !ok {
-		log.Panic("could not get location from environment")
+		deplLogger.Panic("could not get location from environment")
 	}
 
 	return &idealLatency{
@@ -74,6 +77,7 @@ func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
 		myLocation:        s2.CellIDFromToken(locationToken),
 		centroidsExtended: map[s2.CellID]interface{}{},
 		depthFactor:       deployment.DepthFactor,
+		deplLogger:        deplLogger,
 	}
 }
 
@@ -85,7 +89,7 @@ func (i *idealLatency) Optimize(optDomain domain) (isAlreadyMax bool, optRange r
 	// check if processing time is the main reason for latency
 	// processingTimeTooHigh := i.checkProcessingTime()
 	// if processingTimeTooHigh {
-	//	return
+	//     return
 	// }
 
 	archClient := i.deployment.archFactory.New(servers.ArchimedesLocalHostPort)
@@ -94,19 +98,25 @@ func (i *idealLatency) Optimize(optDomain domain) (isAlreadyMax bool, optRange r
 	if status == http.StatusNotFound {
 		return
 	} else if status != http.StatusOK {
-		log.Errorf("got status code %d while attempting to get client centroids for deployment %s", status,
+		i.deplLogger.Errorf("got status code %d while attempting to get client centroids for deployment %s", status,
 			i.deployment.DeploymentID)
 
 		return
 	}
 
-	candidateIds, sortingCriteria, ok := i.GenerateDomain(centroids)
+	candidates, sortingCriteria, ok := i.GenerateDomain(centroids)
 	if !ok {
 		return
 	}
 
-	log.Debugf("%s generated domain %+v", idealLatencyGoalID, candidateIds)
-	filtered := i.Filter(candidateIds, optDomain)
+	candidateIds := make([]string, len(candidates))
+
+	for idx, candidate := range candidates {
+		candidateIds[idx] = candidate.ID
+	}
+
+	i.deplLogger.Debugf("%s generated domain %+v", idealLatencyGoalID, candidateIds)
+	filtered := i.Filter(candidates, optDomain)
 
 	nodeMinDistances := map[string]interface{}{}
 
@@ -121,12 +131,30 @@ func (i *idealLatency) Optimize(optDomain domain) (isAlreadyMax bool, optRange r
 		nodeMinDistances[node.ID] = minPercentage
 	}
 
-	log.Debugf("%s filtered result %+v", idealLatencyGoalID, filtered)
+	filteredIds := make([]string, len(filtered))
+	for idx, filter := range filtered {
+		filteredIds[idx] = filter.ID
+	}
+
+	i.deplLogger.Debugf("%s filtered result %+v", idealLatencyGoalID, filteredIds)
+
 	ordered := i.Order(filtered, nodeMinDistances)
-	log.Debugf("%s ordered result %+v", idealLatencyGoalID, ordered)
+	orderedIds := make([]string, len(ordered))
+
+	for idx, order := range ordered {
+		orderedIds[idx] = order.ID
+	}
+
+	i.deplLogger.Debugf("%s ordered result %+v", idealLatencyGoalID, orderedIds)
 
 	optRange, isAlreadyMax = i.Cutoff(ordered, nodeMinDistances)
-	log.Debugf("%s cutoff result (%t) %+v", idealLatencyGoalID, isAlreadyMax, optRange)
+
+	optRangeIds := make([]string, len(optRange))
+	for idx, rangeNode := range optRange {
+		optRangeIds[idx] = rangeNode.ID
+	}
+
+	i.deplLogger.Debugf("%s cutoff result (%t) %+v", idealLatencyGoalID, isAlreadyMax, optRangeIds)
 
 	if len(optRange) == 0 {
 		return
@@ -181,7 +209,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 	value, ok := i.deployment.Exploring.Load(Myself.ID)
 	if ok {
 		exploringTTL := value.(exploringMapValue)
-		log.Debugf("my exploringTTL is %d(%d)", exploringTTL, maxExploringTTL)
+		i.deplLogger.Debugf("my exploringTTL is %d(%d)", exploringTTL, maxExploringTTL)
 
 		if exploringTTL+1 == maxExploringTTL {
 			return nil, nil, true
@@ -201,12 +229,13 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 	for _, centroid := range centroids {
 		centroidCell := s2.CellFromCellID(centroid)
 		myDists[centroid] = servers.ChordAngleToKM(s2.CellFromCellID(i.myLocation).DistanceToCell(centroidCell))
-		log.Debugf("my dist from %s to %s, %f", i.myLocation.ToToken(), centroid.ToToken(), myDists[centroid])
+		i.deplLogger.Debugf("my dist from %s to %s, %f", i.myLocation.ToToken(), centroid.ToToken(),
+			myDists[centroid])
 
 		centroidCells[centroid] = centroidCell
 	}
 
-	log.Debugf("nodes in vicinity: %+v", vicinity)
+	i.deplLogger.Debugf("nodes in vicinity: %+v", vicinity)
 
 	info = map[string]interface{}{}
 
@@ -217,7 +246,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 		location, okL := locations[node.ID]
 
 		if okC || okS || nodeID == Myself.ID || !okL {
-			log.Debugf("ignoring %s", nodeID)
+			i.deplLogger.Debugf("ignoring %s", nodeID)
 
 			continue
 		}
@@ -242,7 +271,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 			}
 
 			var percentage float64
-			if delta == 0 {
+			if delta != 0 {
 				percentage = delta / myDists[centroidID]
 			} else {
 				percentage = 0
@@ -253,7 +282,8 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 				DistancePercentage: percentage,
 			}
 
-			log.Debugf("distance from %s(%s) to %s, %f", nodeID, location.ToToken(), centroidID.ToToken(), delta)
+			i.deplLogger.Debugf("distance from %s(%s) to %s, %f", nodeID, location.ToToken(), centroidID.ToToken(),
+				delta)
 		}
 	}
 
@@ -283,14 +313,14 @@ func (i *idealLatency) Cutoff(candidates domain, candidatesCriteria map[string]i
 
 	for _, candidate := range candidates {
 		percentage := candidatesCriteria[candidate.ID].(float64)
-		log.Debugf("candidate %s distance percentage (me) %f", candidate, percentage)
+		i.deplLogger.Debugf("candidate %s distance percentage (me) %f", candidate, percentage)
 
 		if percentage < maximumDistancePercentage {
 			addr := candidate.Addr + ":" + strconv.Itoa(deployer.Port)
 
 			has, _ := candidateClient.HasDeployment(addr, i.deployment.DeploymentID)
 			if has {
-				log.Debugf("candidate %s already has deployment %s", candidate, i.deployment.DeploymentID)
+				i.deplLogger.Debugf("candidate %s already has deployment %s", candidate, i.deployment.DeploymentID)
 
 				continue
 			}
@@ -307,7 +337,7 @@ func (i *idealLatency) Cutoff(candidates domain, candidatesCriteria map[string]i
 }
 
 func (i *idealLatency) GenerateAction(targets result, args ...interface{}) actions.Action {
-	log.Debugf("generating action %s", (args[ilActionTypeArgIndex]).(string))
+	i.deplLogger.Debugf("generating action %s", (args[ilActionTypeArgIndex]).(string))
 
 	if args[ilActionTypeArgIndex].(string) == actions.MultipleExtendDeploymentID {
 		return i.generateMultipleExtendAction(targets, args...)
@@ -367,7 +397,7 @@ func (i *idealLatency) generateMultipleExtendAction(targets result, args ...inte
 
 	_, imExplored := i.deployment.Exploring.Load(Myself.ID)
 
-	log.Debugf("im being explored %t", imExplored)
+	i.deplLogger.Debugf("im being explored %t", imExplored)
 
 	for node, cells := range nodeCells {
 		targetsExploring[node] = 0
@@ -428,7 +458,7 @@ func (i *idealLatency) calcFurthestChildDistance(avgLocation s2.CellID) (furthes
 			furthestChild = childID
 		}
 
-		log.Debugf("child %s", childID)
+		i.deplLogger.Debugf("child %s", childID)
 
 		return true
 	})
@@ -450,7 +480,7 @@ func (i *idealLatency) GetID() string {
 //
 // 	value, ok := i.deployment.Environment.GetMetric(processintTimeMetric)
 // 	if !ok {
-// 		log.Debugf("no value for metric %s", processintTimeMetric)
+// 		i.deplLogger.Debugf("no value for metric %s", processintTimeMetric)
 //
 // 		return false
 // 	}
@@ -460,7 +490,7 @@ func (i *idealLatency) GetID() string {
 //
 // 	value, ok = i.deployment.Environment.GetMetric(clientLatencyMetric)
 // 	if !ok {
-// 		log.Debugf("no value for metric %s", clientLatencyMetric)
+// 		i.deplLogger.Debugf("no value for metric %s", clientLatencyMetric)
 //
 // 		return false
 // 	}
@@ -469,7 +499,7 @@ func (i *idealLatency) GetID() string {
 //
 // 	processingTimePart := float32(processingTime) / float32(latency)
 // 	if processingTimePart > processingThreshold {
-// 		log.Debugf("most of the client latency is due to processing time (%f)", processingTimePart)
+// 		i.deplLogger.Debugf("most of the client latency is due to processing time (%f)", processingTimePart)
 //
 // 		return true
 // 	}
@@ -512,10 +542,10 @@ func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
 
 	heterogeneityFactor := float64(numChildren) + 2. - (heterogeneity * float64(numChildren)) //nolint:gomnd
 	branchingFactor := childrenFactor * distanceFactor * heterogeneityFactor * i.depthFactor
-	log.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
+	i.deplLogger.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
 
 	validBranch := branchingFactor > branchingCutoff
-	log.Debugf("should branch: %t", validBranch)
+	i.deplLogger.Debugf("should branch: %t", validBranch)
 
 	return validBranch
 }
@@ -529,7 +559,7 @@ func (i *idealLatency) filterBlacklisted(original result) (result, bool) {
 		}
 	}
 
-	log.Debugf("after filtering blacklisted: %+v", newRange)
+	i.deplLogger.Debugf("after filtering blacklisted: %+v", newRange)
 
 	return newRange, len(newRange) == 0
 }

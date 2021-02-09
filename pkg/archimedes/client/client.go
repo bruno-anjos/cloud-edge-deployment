@@ -2,11 +2,12 @@ package client
 
 import (
 	"bytes"
-	"encoding/json"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"sync"
+
+	"github.com/goccy/go-json"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"

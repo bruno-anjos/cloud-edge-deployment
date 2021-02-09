@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	archimedesHTTPClient "github.com/bruno-anjos/archimedesHTTPClient"
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"

@@ -1,7 +1,6 @@
 package deployer
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	archimedesAPI "github.com/bruno-anjos/cloud-edge-deployment/api/archimedes"
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"

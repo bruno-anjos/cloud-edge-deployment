@@ -10,3 +10,5 @@ docker system prune -f
 docker network rm $DOCKER_NET
 
 rm -rf /tmp/images/*
+rm -rf /tmp/bandwidth_stats/*
+rm -f ~/bandwidth_stats/*

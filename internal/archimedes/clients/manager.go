@@ -10,6 +10,7 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/cell"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/golang/geo/s2"
 	"github.com/nm-morais/demmon-common/exporters"
 	exporter "github.com/nm-morais/demmon-exporter"
@@ -68,10 +69,12 @@ func NewManager() *Manager {
 		RequestTimeout:  3 * time.Second,
 	}
 
-	exp, err := exporter.New(exporterConf, deployment.Myself.Addr, archimedesService, nil)
+	exp, err, errChan := exporter.New(exporterConf, deployment.Myself.Addr, archimedesService, nil)
 	if err != nil {
 		log.Panic(err)
 	}
+
+	go utils.PanicOnErrFromChan(errChan)
 
 	r := &Manager{
 		numReqsLastMinute: sync.Map{},

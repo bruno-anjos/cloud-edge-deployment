@@ -32,10 +32,6 @@ type DiscoverMsg struct {
 	Entries   map[string]*DeploymentsTableEntryDTO
 }
 
-const (
-	DiscoverMessageID = iota
-)
-
 type ToResolveDTO struct {
 	Host string
 	Port nat.Port

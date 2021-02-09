@@ -2,9 +2,9 @@
 
 import json
 import os
+import socket
 import subprocess
 import sys
-import socket
 from multiprocessing import Pool
 
 archimedesLogs = "archimedes"
@@ -134,8 +134,8 @@ for idx, log_per_node in enumerate(logs_per_node):
     if flag_all or not success:
         print(to_log)
     if not success:
-        with open(f"{logs_errors_path}/{node}_{log}", "w") as error_fp:
-            error_fp.write(output)
+        with open(f"{logs_errors_path}/{node}_{log}.txt", "w") as error_fp:
+            error_fp.write(output + "\n")
 
 for idx, node in enumerate(nodes):
     other_logs_per_node = other_results[idx]
@@ -144,5 +144,5 @@ for idx, node in enumerate(nodes):
         if flag_all or not success:
             print(to_log)
         if not success:
-            with open(f"{logs_errors_path}/{node}_{container}", "w") as error_fp:
-                error_fp.write(output)
+            with open(f"{logs_errors_path}/{node}_{container}.txt", "w") as error_fp:
+                error_fp.write(output + "\n")

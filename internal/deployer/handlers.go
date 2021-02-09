@@ -1,13 +1,14 @@
 package deployer
 
 import (
-	"encoding/json"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
@@ -565,9 +566,12 @@ func deploymentYAMLToDeployment(deploymentYAML *api.DeploymentYAML, static bool)
 	return &d
 }
 
-func addNode(nodeDeployerID, addr string) {
+func addNode(nodeDeployerID, addr string) (success bool) {
+	success = false
+
 	if nodeDeployerID == "" {
-		log.Panic("error while adding node up")
+		log.Warn("error while adding node up")
+		return
 	}
 
 	if nodeDeployerID == myself.ID {
@@ -582,24 +586,36 @@ func addNode(nodeDeployerID, addr string) {
 	}
 
 	log.Debugf("added node %s", nodeDeployerID)
+	success = true
 
 	neighbor := utils.NewNode(nodeDeployerID, addr)
 
 	myAlternatives.Store(nodeDeployerID, neighbor)
+
+	return
 }
 
-func removeNode(nodeID string) {
-	if nodeID == "" {
-		log.Panic("error while removing node")
-	}
+func removeNode(nodeAddr string) {
+	myAlternatives.Range(func(key, value interface{}) bool {
+		node := value.(*utils.Node)
 
-	myAlternatives.Delete(nodeID)
+		if node.Addr == nodeAddr {
+			myAlternatives.Delete(node.ID)
+			return false
+		}
+
+		return true
+	})
 }
 
 // Function simulation lower API
 // Node up is only triggered for nodes that appeared one hop away.
 func onNodeUp(id, addr string) {
-	addNode(id, addr)
+	success := addNode(id, addr)
+	if !success {
+		return
+	}
+
 	sendAlternatives()
 
 	if !timer.Stop() {
@@ -609,8 +625,8 @@ func onNodeUp(id, addr string) {
 	timer.Reset(sendAlternativesTimeout)
 }
 
-func onNodeDown(id string) {
-	removeNode(id)
+func onNodeDown(addr string) {
+	removeNode(addr)
 	sendAlternatives()
 
 	if !timer.Stop() {

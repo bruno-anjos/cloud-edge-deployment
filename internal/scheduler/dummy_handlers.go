@@ -1,8 +1,9 @@
 package scheduler
 
 import (
-	"encoding/json"
 	"net/http"
+
+	"github.com/goccy/go-json"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/scheduler"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"

@@ -13,20 +13,9 @@ log_prefixes = ["archimedes", "autonomic", "deployer", "scheduler", "demmon"]
 
 
 def get_client_logs(logs_dir_name):
-    client_logs_dir = f"{logs_dir_name}/client_logs"
-    os.mkdir(client_logs_dir)
-
-    with open(clients_config_file) as clients_config_fp:
-        client_configs = json.load(clients_config_fp)
-
-    clients = []
-    for client_config in client_configs:
-        clients.extend([f"{client_config}_{num}" for num in range(len(client_configs[client_config]))])
-
-    for client in clients:
-        with open(f"{client_logs_dir}⁄{client}", "r") as client_log_fp:
-            cmd = f"docker logs {client}".split(" ")
-            subprocess.run(cmd, stdout=client_log_fp)
+    clients_dir_path = f"{logs_dir_name}/clients/"
+    os.mkdir(clients_dir_path)
+    subprocess.run(["cp", "/tmp/client_logs/*", clients_dir_path])
 
 
 def get_specific_logs(logs_dir_name, dummy, cluster_node, logs_prefix):
@@ -47,15 +36,16 @@ def get_dummy_logs(logs_dir_name, dummy):
         get_specific_logs(logs_dir_name, dummy, cluster_node, log_prefix)
 
 
-if len(sys.argv) > 2:
-    print("ERROR: usage: python3 get_dummy_logs.py DIR_TO_WRITE_LOGS_FOLDER")
+args = sys.argv[1:]
+if len(args) > 1:
+    print("ERROR: usage: python3 get_logs.py DIR_TO_WRITE_LOGS_FOLDER")
     exit(1)
 
 date = datetime.now()
 timestamp = date.strftime("%m-%d-%H-%M")
 
-if len(sys.argv) == 2:
-    logs_dir = sys.argv[1]
+if len(args) == 1:
+    logs_dir = args[0]
 else:
     logs_dir = f'{os.path.expanduser("~")}/dummy_logs_{timestamp}'
 
@@ -79,6 +69,8 @@ processess = []
 
 for node in nodes:
     processess.append(pool.apply_async(get_dummy_logs, (logs_dir, node)))
+
+get_client_logs(logs_dir)
 
 for p in processess:
     p.wait()

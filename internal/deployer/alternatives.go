@@ -1,10 +1,11 @@
 package deployer
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -46,10 +47,12 @@ func updateAlternatives() {
 	}
 
 	demmonCli := client.New(demmonCliConf)
-	err := demmonCli.ConnectTimeout(connectTimeout)
+	err, errChan := demmonCli.ConnectTimeout(connectTimeout)
 	if err != nil {
 		log.Panic(err)
 	}
+
+	go internalUtils.PanicOnErrFromChan(errChan)
 
 	res, err, _, updateChan := demmonCli.SubscribeNodeUpdates()
 	if err != nil {
@@ -80,19 +83,20 @@ func addNodes(peers ...*body_types.Peer) {
 
 func getAlternativesPeriodically(updateChan <-chan body_types.NodeUpdates) {
 	for nodeUpdate := range updateChan {
-		addr := nodeUpdate.Peer.IP.String() + ":" + strconv.Itoa(autonomic.Port)
-		id, status := autonomicClient.GetID(addr)
-		if status != http.StatusOK {
-			log.Errorf("got status %d while getting location for %s", status, addr)
-		}
-
 		switch nodeUpdate.Type {
 		case body_types.NodeUp:
+			addr := nodeUpdate.Peer.IP.String() + ":" + strconv.Itoa(autonomic.Port)
+
+			id, status := autonomicClient.GetID(addr)
+			if status != http.StatusOK {
+				log.Errorf("got status %d while getting id for %s", status, addr)
+			}
+
 			log.Debugf("Alternative Up: %s -> %s", id, nodeUpdate.Peer.IP.String())
 			onNodeUp(id, nodeUpdate.Peer.IP.String())
 		case body_types.NodeDown:
-			log.Debugf("Alternative Down: %s -> %s", id, nodeUpdate.Peer.IP.String())
-			onNodeDown(id)
+			log.Debugf("Alternative Down: -> %s", nodeUpdate.Peer.IP.String())
+			onNodeDown(nodeUpdate.Peer.IP.String())
 		}
 	}
 }

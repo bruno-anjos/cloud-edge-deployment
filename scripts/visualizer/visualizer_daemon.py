@@ -1,13 +1,11 @@
 #!/usr/bin/python3
 import json
-import logging
 import os
 import subprocess
 import sys
 import time
 from multiprocessing import Pool
 
-from igraph import Graph, plot
 from tabulate import tabulate
 
 
@@ -104,76 +102,6 @@ def add_if_missing(graph, table, node):
         graph.add_vertex(node, color="black", service=False)
 
 
-def graph_combined_deployments(graph, node_tables, deployment_colors, loads):
-    try:
-        for node, table in node_tables.items():
-            if "dead" in table:
-                graph.add_vertex(node, color="black", service=False)
-            else:
-                graph.add_vertex(node, color="red", service=False)
-
-        services = [file_name for file_name in os.listdir(services_path)]
-        for service in services:
-            with open(f"{services_path}/{service}") as service_fp:
-                service_loc = json.load(service_fp)
-                graph.add_vertex(service, color="yellow", service=True)
-                if service not in locations["services"]:
-                    locations["services"][service] = service_loc
-
-        for node, auxTable in node_tables.items():
-            if not auxTable or "dead" in auxTable:
-                continue
-            for deployment_id, entry in auxTable.items():
-                for child_id in entry[children_field_id].keys():
-                    add_if_missing(graph, node_tables[child_id], child_id)
-                    graph.add_edge(node, child_id, deployment_id=deployment_id, relation=attr_child)
-
-        visual_style = {}
-        labels = []
-        colors = []
-
-        for vertex in graph.vs:
-            if not vertex["service"]:
-                label = vertex["name"]
-                if vertex["name"] in loads:
-                    label = label + f"\n{', '.join(loads[label])}"
-            else:
-                label = ""
-
-            labels.append(label)
-            colors.append(vertex["color"])
-
-        graph.vs["label"] = labels
-        visual_style["vertex_size"] = 10
-        visual_style["vertex_color"] = colors
-        visual_style["vertex_label"] = graph.vs["label"]
-        visual_style["vertex_label_dist"] = 2
-        visual_style["vertex_label_size"] = 10
-        visual_style["vertex_shape"] = ["triangle-up" if service else "circle" for service in
-                                        graph.vs["service"]]
-        if len(graph.es) > 0:
-            visual_style["edge_color"] = [deployment_colors[deployment_id]
-                                          for deployment_id in graph.es['deployment_id']]
-            visual_style["edge_width"] = 3
-
-        layout = []
-        for node in graph.vs["name"]:
-            loc = get_location(node)
-            layout.append((loc["lng"], loc["lat"]))
-
-        visual_style["layout"] = layout
-        visual_style["bbox"] = (4000, 4000)
-        visual_style["margin"] = 200
-        print(f"Plotting combined graph with {len(graph.vs)} nodes and {len(graph.es)} edges")
-        target_path = "/home/b.anjos/deployer_pngs/combined_plot.png"
-        tmp_path = "/tmp/combined_plot.png"
-
-        plot(graph, tmp_path, **visual_style, autocurve=True)
-        subprocess.run(["cp", tmp_path, target_path])
-    except Exception as e:
-        logging.exception(e)
-
-
 def get_load_for_given_node(node_table, node, aux_pool):
     processes = {}
     loads = []
@@ -189,7 +117,7 @@ def get_load_for_given_node(node_table, node, aux_pool):
     return loads
 
 
-def graph_deployer():
+def graph_deployer(target_path):
     print("creating graph for deployers")
 
     node_tables = get_all_hierarchy_tables()
@@ -206,7 +134,6 @@ def graph_deployer():
     i = 0
 
     # graphs = {}
-    combined_graph = Graph(directed=True)
 
     deployments = set()
     for node in node_tables:
@@ -220,14 +147,34 @@ def graph_deployer():
                 deployment_colors[deployment_id] = color
                 i += 1
 
+    aux_locations = {"nodes": {}, "services": {}}
+
+    services = [file_name for file_name in os.listdir(services_path)]
+    for service in services:
+        with open(f"{services_path}/{service}") as service_fp:
+            service_loc = json.load(service_fp)
+            if service not in aux_locations["services"]:
+                aux_locations["services"][service] = service_loc
+
+    for node in node_tables:
+        loc = get_location(node)
+        aux_locations["nodes"][node] = loc
+
+    graph_json = {
+        "node_tables": node_tables,
+        "colors": deployment_colors,
+        "loads": loads,
+        "services": services,
+        "locations": aux_locations
+    }
+
+    with open(target_path, 'w') as graph_json_fp:
+        json.dump(graph_json, graph_json_fp)
+
     # deployer_processes = {}
     # for deployment_id in deployments:
     #     deployer_processes[deployment_id] = pool.apply_async(graph_deployment, (
     #         deployment_id, graphs[deployment_id], node_tables, deployment_colors[deployment_id], loads))
-
-    print("Graphing combined deployments in async pool...")
-
-    graph_combined_deployments(combined_graph, node_tables, deployment_colors, loads)
 
     # resulting_trees = {}
     # for deployment_id, dp in deployer_processes.items():
@@ -249,16 +196,14 @@ def graph_deployer():
     #     for file in onlyfiles:
     #         os.remove(file)
 
-    print("finished creating graphs")
-    sys.stdout.flush()
-    sys.stderr.flush()
+    print(f"saved graph.json to {target_path}")
 
 
 def get_location(name):
     if name in locations["services"]:
-        return transform_loc_to_range(locations["services"][name])
+        return locations["services"][name]
     elif name in locations["nodes"]:
-        return transform_loc_to_range(locations["nodes"][name])
+        return locations["nodes"][name]
     else:
         print(f"{name} has no location in {locations}")
 
@@ -306,11 +251,6 @@ def graph_archimedes():
     print("wrote archimedes latex file")
 
 
-def transform_loc_to_range(loc):
-    new_loc = {"lat": 4000 - (((loc["lat"] + 90) * 4000) / 180), "lng": (((loc["lng"] + 180) * 4000) / 360)}
-    return new_loc
-
-
 def setup_visualizer_entrypoint():
     cmd = f'docker run -itd --entrypoint /bin/sh --network="swarm-network" --rm --name="vis_entry" alpine/httpie'
     subprocess.run(cmd, shell=True)
@@ -323,12 +263,13 @@ services_path = "/tmp/services"
 
 args = sys.argv[1:]
 
-if len(args) < 1:
-    print("usage: python3 visualizer_daemon.py scenario_filename")
+if len(args) != 2:
+    print("usage: python3 visualizer_daemon.py <scenario_filename> <time_between_snapshots>")
 
 scenario_filename = args[0]
+time_between = args[1]
 
-with open(f"{os.path.expanduser('~/ced-scenarios')}/{scenario_filename}.json", 'r') as scenario_fp:
+with open(f"{os.path.expanduser('~/ced-scenarios')}/{scenario_filename}", 'r') as scenario_fp:
     scenario = json.load(scenario_fp)
 
 nodes = scenario["locations"].keys()
@@ -384,9 +325,23 @@ print("Setting up entrypoint...")
 setup_visualizer_entrypoint()
 print("Done!")
 
+time_between_in_seconds = int(time_between[:-1])
+
+time_suffix = time_between[-1]
+if time_suffix == "m" or time_suffix == "M":
+    time_between_in_seconds = time_between_in_seconds * 60
+elif time_suffix == "h" or time_suffix == "H":
+    time_between_in_seconds = time_between_in_seconds * 60 * 60
+
 pool = Pool(processes=os.cpu_count())
 while True:
-    graph_deployer()
-    graph_archimedes()
+    start = time.time()
+    timestamp = int(start)
+    path = f"{os.path.expanduser('~/snapshots')}/{timestamp}"
+    print(f"saving snapshot to {path}")
+    graph_deployer(path)
+    time_took = time.time() - start
 
-    time.sleep(5)
+    remaining_time = time_between_in_seconds - time_took
+    if remaining_time > 0:
+        time.sleep(remaining_time)

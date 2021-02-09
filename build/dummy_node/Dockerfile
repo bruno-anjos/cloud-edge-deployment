@@ -1,4 +1,15 @@
+FROM alpine:latest AS builder
+
+RUN apk add make git ncurses-terminfo-base ncurses-libs autoconf automake g++
+RUN git clone https://github.com/vgropp/bwm-ng.git
+WORKDIR bwm-ng
+RUN ./autogen.sh && make && make install
+
+
 FROM docker:19.03-dind
+
+COPY --from=builder /usr/local/bin/bwm-ng /usr/local/bin/
+RUN echo "@edge http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && apk add iproute2-tc@edge
 
 COPY deploy_services.sh /
 
@@ -23,7 +34,5 @@ COPY ips_map /ips_map
 COPY clean_dummy.sh /clean_dummy.sh
 COPY setup_tc.sh /setup_tc.sh
 RUN chmod +x /clean_dummy.sh /setup_tc.sh /setupTc.sh
-
-RUN echo "@edge http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && apk add iproute2-tc@edge
 
 ENTRYPOINT ["dockerd-entrypoint.sh"]

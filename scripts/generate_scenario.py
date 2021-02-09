@@ -59,9 +59,11 @@ def gen_scenario():
         locations, mid_node = generate_locations()
     else:
         locations, mid_node = load_locations()
+
     scenario = {
         "locations": locations,
-        "fallback": mid_node
+        "fallback": mid_node,
+        "duration": duration
     }
 
     scen_path = f"{os.path.expanduser('~/ced-scenarios')}/{output_filename}.json"
@@ -75,29 +77,35 @@ def gen_scenario():
 args = sys.argv[1:]
 
 if len(args) < 2:
-    print("usage: python3 generate_scenario.py <number_of_nodes> <output_file> [--mapname]")
+    print("usage: python3 generate_scenario.py <number_of_nodes> <output_file> [--duration 10m] [--mapname map2] "
+          "[--fallback node10]")
     exit(1)
 
 number_nodes_string = ""
 output_filename = ""
 map_name = ""
 fallback_id = ""
+duration = ""
+
 skip = False
 
 for i, arg in enumerate(args):
     if skip:
         skip = False
         continue
-    if number_nodes_string == "":
-        number_nodes_string = arg
-    elif output_filename == "":
-        output_filename = arg
-    elif arg == "--mapname":
+    if arg == "--mapname":
         map_name = args[i + 1]
         skip = True
     elif arg == "--fallback":
         fallback_id = args[i + 1]
         skip = True
+    elif arg == "--duration":
+        duration = args[i + 1]
+        skip = True
+    elif number_nodes_string == "":
+        number_nodes_string = arg
+    elif output_filename == "":
+        output_filename = arg
     else:
         print(f"Unrecognized option {arg}")
         exit(1)

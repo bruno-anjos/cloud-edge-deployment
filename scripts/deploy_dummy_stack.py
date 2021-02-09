@@ -95,12 +95,16 @@ NUM = "num"
 
 
 def launch_dummy(info):
+    quotas_opts = ""
+    if quotas is not None:
+        quotas_opts = f"--memory={quotas[MEM_QUOTA_KEY]} --cpus={quotas[CPU_QUOTA_KEY]}"
+
     env_variables = f'--env NODE_IP="{info[NODE_IP]}" --env NODE_ID="{info[NAME]}" --env NODE_NUM="{info[NUM]}" ' \
                     f'--env LOCATION="{info[LOCATION]}" --env LANDMARKS="{landmarks}" ' \
                     f'--env CONFIG_FILE="config/banjos_config.txt" --env WAIT_FOR_START="true"'
-    volumes = f'-v /tmp/images:/images -v /lib/modules:/lib/modules'
+    volumes = f'-v /tmp/images:/images -v /lib/modules:/lib/modules -v /tmp/bandwidth_stats:/bandwidth_stats'
     launch_cmd = f'docker run -d --network={network} --privileged --ip {info[NODE_IP]} ' \
-                 f'--name={info[NAME]} --hostname {info[NAME]} {env_variables} {volumes} ' \
+                 f'--name={info[NAME]} --hostname {info[NAME]} {env_variables} {volumes} {quotas_opts} ' \
                  f'--cap-add=ALL brunoanjos/dummy_node:latest'
     if not swarm or info[NODE] == host:
         run_cmd_with_try(launch_cmd)
@@ -109,7 +113,7 @@ def launch_dummy(info):
 
 
 def start_services_in_dummy(info):
-    start_services_cmd = f"docker exec {info[NAME]} ./deploy_services.sh"
+    start_services_cmd = f"docker exec {info[NAME]} ./deploy_services.sh {default_timeout} {measurement_counts}"
     if not swarm or info[NODE] == host:
         run_cmd_with_try(start_services_cmd)
     else:
@@ -202,8 +206,6 @@ def load_s2_locations():
             )
         ).to_token()
 
-    print(s2_locs)
-
     return s2_locs
 
 
@@ -280,6 +282,12 @@ def copy_tmp_images_swarm():
         run_cmd_with_try(cmd)
 
 
+def setup_bandwidth_dir():
+    for node in nodes:
+        print(f"Creating bandwidth stats dir in node {node}")
+        exec_cmd_on_node(node, "mkdir /tmp/bandwidth_stats")
+
+
 def clean_deployment(info):
     clean_cmd = f"docker exec {info[NAME]} ./clean_dummy.sh"
     if not swarm or info[NODE] == host:
@@ -297,13 +305,14 @@ def setup_tc(info):
 
 
 def load_scenario():
-    with open(f"{os.path.expanduser('~/ced-scenarios')}/{scenario_filename}.json") as scenario_fp:
+    with open(f"{os.path.expanduser('~/ced-scenarios')}/{scenario_filename}") as scenario_fp:
         return json.load(scenario_fp)
 
 
 args = sys.argv[1:]
 if len(args) < 3:
-    print("usage: deploy_dummy_stack.py <scenario> <cidr> <bandwith_limit_in_mbits>[--swarm] [--demmon] [--build-only]")
+    print("usage: deploy_dummy_stack.py <scenario> <cidr> <bandwith_limit_in_mbits> [--swarm] [--demmon] ["
+          "--build-only]")
     exit(1)
 
 swarm = False
@@ -315,6 +324,7 @@ cidr_provided = ""
 fallback_id = ""
 map_name = ""
 bandwidth_limit = ""
+quotas_filename = ""
 
 skip = False
 
@@ -338,6 +348,10 @@ for i, arg in enumerate(args):
         map_name = args[i + 1]
         skip = True
         print(f"Map name: {map_name}")
+    elif arg == "--quotas":
+        quotas_filename = args[i + 1]
+        skip = True
+        print(f"Quotas filename: {quotas_filename}")
     elif scenario_filename == "":
         scenario_filename = arg
     elif cidr_provided == "":
@@ -430,6 +444,8 @@ nm_morais_path = os.path.expanduser("~/go/src/github.com/nm-morais/")
 for file in os.listdir(nm_morais_path):
     update_dependencies(nm_morais_path + file)
 
+setup_bandwidth_dir()
+
 print("Building images...")
 
 if demmon:
@@ -449,22 +465,58 @@ if build_only:
     print("Aborting launch due to build only...")
     exit(1)
 
+MEM_QUOTA_KEY = "max_mem"
+CPU_QUOTA_KEY = "max_cpu"
+
+quotas = None
+if quotas_filename != "" and reuse:
+    print(f"[WARNING] Quotas can only be set when launching the stack from scratch. Ignoring quotas...")
+elif quotas_filename != "":
+    with open(quotas_filename, 'r') as quotas_fp:
+        quotas = json.load(quotas_fp)
+        if MEM_QUOTA_KEY in quotas:
+            print(f"{MEM_QUOTA_KEY} set to {quotas[MEM_QUOTA_KEY]}")
+        if CPU_QUOTA_KEY in quotas:
+            print(f"{CPU_QUOTA_KEY} set to {quotas[CPU_QUOTA_KEY]}")
+
+# timeout between samples of bandwidth
+default_timeout = 1000
+
+duration = scenario["duration"]
+
+unit = duration[-1]
+multiplier = 1
+
+if unit == "s" or unit == "S":
+    multiplier = 1
+elif unit == "m" or unit == "M":
+    multiplier = 60
+elif unit == "h" or unit == "H":
+    multiplier = 60 * 60
+
+duration_value = int(duration[:-1])
+
+# total number of samples
+measurement_counts = duration_value * multiplier
+
 pool = Pool(processes=os.cpu_count())
 if not reuse:
     start = time.time()
     pool.map(launch_dummy, dummy_infos)
     done = time.time()
-    print(f"Took {done-start} seconds to launch dummies")
+    print(f"Took {done - start} seconds to launch dummies")
 
     start = time.time()
     pool.map(setup_tc, dummy_infos)
     done = time.time()
-    print(f"Took {done-start} seconds to setup tc")
+    print(f"Took {done - start} seconds to setup tc")
+
+print(f"Taking {measurement_counts} samples, {default_timeout}ms apart")
 
 start = time.time()
 pool.map(start_services_in_dummy, dummy_infos)
 done = time.time()
-print(f"Took {done-start} seconds to start services")
+print(f"Took {done - start} seconds to start services")
 
 pool.close()
 pool.join()

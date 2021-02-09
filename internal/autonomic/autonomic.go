@@ -160,6 +160,8 @@ func (a *system) removeDeploymentChild(deploymentID, childID string) {
 	s := value.(deploymentsMapValue)
 	s.AddSuspectedChild(childID)
 	s.RemoveChild(childID)
+
+	log.Debugf("removed deployment %s child %s successfully", deploymentID, childID)
 }
 
 func (a *system) setDeploymentParent(deploymentID string, parent *utils.Node) {
@@ -240,6 +242,8 @@ func (a *system) handleDeployment(deployment *deployment.Deployment, exit <-chan
 
 	timer := time.NewTimer(autonomicUtils.DefaultGoalCycleTimeout)
 
+	deploymentLogger := log.WithField("DEPL", deployment.DeploymentID)
+
 	for {
 		select {
 		case <-exit:
@@ -247,19 +251,19 @@ func (a *system) handleDeployment(deployment *deployment.Deployment, exit <-chan
 		case <-timer.C:
 		}
 
-		log.Debugf("evaluating deployment %s", deployment.DeploymentID)
+		deploymentLogger.Debugf("evaluating deployment %s", deployment.DeploymentID)
 
 		action := deployment.GenerateAction()
 		if action != nil {
-			log.Debugf("generated action of type %s for deployment %s", action.GetActionID(), deployment.DeploymentID)
-			a.performAction(action)
+			deploymentLogger.Debugf("generated action of type %s for deployment %s", action.GetActionID(), deployment.DeploymentID)
+			a.performAction(action, deploymentLogger)
 		}
 
 		timer.Reset(autonomicUtils.DefaultGoalCycleTimeout)
 	}
 }
 
-func (a *system) performAction(action actions.Action) {
+func (a *system) performAction(action actions.Action, logger *log.Entry) {
 	switch assertedAction := action.(type) {
 	case *actions.RedirectAction:
 		assertedAction.Execute(servers.ArchimedesLocalHostPort, a.archimedesClient)
@@ -270,7 +274,7 @@ func (a *system) performAction(action actions.Action) {
 	case *actions.RemoveDeploymentAction:
 		assertedAction.Execute(servers.DeployerLocalHostPort, a.deployerClient)
 	default:
-		log.Errorf("could not execute action of type %s", action.GetActionID())
+		logger.Errorf("could not execute action of type %s", action.GetActionID())
 	}
 }
 

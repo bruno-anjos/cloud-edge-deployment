@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	blacklistDuration = 30 * time.Minute
+	blacklistDuration = 5 * time.Minute
 )
 
 type (
@@ -101,6 +101,8 @@ func (a *Deployment) RemoveChild(childID string) {
 	if ok {
 		a.BlacklistNodes(Myself.ID, []string{childID}, map[string]struct{}{Myself.ID: {}})
 	}
+
+	log.Debugf("removed child %s", childID)
 }
 
 func (a *Deployment) AddSuspectedChild(childID string) {
@@ -164,11 +166,14 @@ func (a *Deployment) BlacklistNodes(origin string, nodes []string, nodesVisited 
 		if !hasVisitedParent {
 			addr := a.Parent.Addr + ":" + strconv.Itoa(autonomic.Port)
 			if origin != a.Parent.ID {
+				log.Debugf("telling parent %s to blacklist %+v for deployment %s", a.Parent.ID, nodes,
+					a.DeploymentID)
 				autoClient.BlacklistNodes(addr, a.DeploymentID, Myself.ID, nodes, nodesVisited)
 			}
 		}
 	}
 
+	log.Debugf("telling children to blacklist %+v for deployment %s", nodes, a.DeploymentID)
 	a.Children.Range(func(key, value interface{}) bool {
 		childID := key.(string)
 		if childID == origin {
@@ -182,7 +187,8 @@ func (a *Deployment) BlacklistNodes(origin string, nodes []string, nodesVisited 
 		log.Debugf("telling %s to blacklist %+v for %s", childID, nodes, a.DeploymentID)
 		nodeWithLoc := value.(*nodeWithLocation)
 		addr := nodeWithLoc.Node.Addr + ":" + strconv.Itoa(autonomic.Port)
-		autoClient.BlacklistNodes(addr, a.DeploymentID, Myself.ID, nodes, nodesVisited)
+
+		go autoClient.BlacklistNodes(addr, a.DeploymentID, Myself.ID, nodes, nodesVisited)
 
 		return true
 	})

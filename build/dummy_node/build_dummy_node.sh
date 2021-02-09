@@ -8,6 +8,7 @@ fi
 
 [ ! -d "$BUILD_DIR" ] && mkdir -p "$BUILD_DIR"
 [ ! -d /tmp/images ] && mkdir -p /tmp/images
+[ ! -d /tmp/bandwidth_stats ] && mkdir -p /tmp/bandwidth_stats
 
 echo "Copying build to /tmp..."
 
@@ -17,7 +18,7 @@ echo "Removing garbage from previous runs..."
 
 # Clear previous build directories and files
 rm -f /tmp/images/*
-rm "$BUILD_DIR"/dummy_node/fallback.json
+[ -e "$BUILD_DIR"/dummy_node/fallback.json ] && rm "$BUILD_DIR"/dummy_node/fallback.json
 rm -rf "$BUILD_DIR"/dummy_node/metrics
 rm -rf "$BUILD_DIR"/dummy_node/deployments
 rm -rf "$BUILD_DIR"/dummy_node/images
