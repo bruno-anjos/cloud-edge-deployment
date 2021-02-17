@@ -1,6 +1,7 @@
 package archimedes
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"os"
@@ -8,8 +9,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/goccy/go-json"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/clients"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
@@ -361,11 +360,16 @@ func getDeploymentInstanceHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getInstanceHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("handling get instance")
+
 	instanceID := internalUtils.ExtractPathVar(r, instanceIDPathVar)
+
+	log.Debugf("attempting to get instance %s", instanceID)
 
 	instance, ok := sTable.getInstance(instanceID)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
+		internalUtils.SendJSONReplyStatus(w, http.StatusNotFound, nil)
 
 		return
 	}

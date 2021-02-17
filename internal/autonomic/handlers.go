@@ -1,12 +1,11 @@
 package autonomic
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
-
-	"github.com/goccy/go-json"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/autonomic"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"

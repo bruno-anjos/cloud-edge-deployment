@@ -1,14 +1,15 @@
 package deployer
 
 import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/goccy/go-json"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"
@@ -88,7 +89,9 @@ var (
 
 	nodeIP     string
 	ready      chan interface{}
-	closeReady *sync.Once
+	closeReady sync.Once
+
+	startRecording sync.Once
 )
 
 func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimedes.ClientFactory,
@@ -128,7 +131,7 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 	ready = make(chan interface{})
 
 	go func() {
-		closeReady = &sync.Once{}
+		closeReady = sync.Once{}
 		<-ready
 		updateAlternatives()
 	}()
@@ -152,6 +155,83 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 	go sendHeartbeatsPeriodically()
 	go sendAlternativesPeriodically()
 	go checkParentHeartbeatsPeriodically()
+}
+
+func processTimeString(timeString string) time.Duration {
+	timeValue, err := strconv.Atoi(timeString[0 : len(timeString)-1])
+	if err != nil {
+		log.Panic(err)
+	}
+
+	timeSuffix := timeString[len(timeString)-1]
+
+	var duration time.Duration
+
+	switch timeSuffix {
+	case 's', 'S':
+		duration = time.Second
+	case 'm', 'M':
+		duration = time.Minute
+	case 'h', 'H':
+		duration = time.Hour
+	default:
+		log.Panicf("invalid time suffix %c", timeSuffix)
+	}
+
+	return time.Duration(timeValue) * duration
+}
+
+func record(totalDurationString, timeoutString string) {
+	totalDuration := processTimeString(totalDurationString)
+	timeout := processTimeString(timeoutString)
+
+	numCycles := int(totalDuration / timeout)
+
+	err := os.Mkdir(fmt.Sprintf("%s/%s", tableDirPath, myself.ID), os.ModePerm)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	for i := 0; i < numCycles; i++ {
+		recordHierarchyTable(i + 1)
+		time.Sleep(timeout)
+	}
+}
+
+const tableDirPath = "/tables"
+
+func recordHierarchyTable(count int) {
+	toSave := hTable.toDTO()
+
+	jsonString, err := json.Marshal(toSave)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	filePath := fmt.Sprintf("%s/%s/%d.json", tableDirPath, myself.ID, count)
+
+	err = ioutil.WriteFile(filePath, jsonString, os.ModePerm)
+	if err != nil {
+		log.Panic(err)
+	}
+}
+
+func startRecordingHandler(_ http.ResponseWriter, r *http.Request) {
+	var reqBody struct {
+		Duration string
+		Timeout  string
+	}
+
+	log.Debugf("Starting recording...")
+
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	startRecording.Do(func() {
+		go record(reqBody.Duration, reqBody.Timeout)
+	})
 }
 
 func propagateLocationToHorizonHandler(_ http.ResponseWriter, r *http.Request) {
@@ -259,6 +339,7 @@ func getDeploymentYAML(deploymentDTO *api.DeploymentDTO) *api.DeploymentYAML {
 
 	err := yaml.Unmarshal(deploymentDTO.DeploymentYAMLBytes, &deploymentYAML)
 	if err != nil {
+		log.Debug(deploymentDTO.DeploymentYAMLBytes)
 		panic(err)
 	}
 

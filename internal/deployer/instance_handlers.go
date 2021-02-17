@@ -1,10 +1,9 @@
 package deployer
 
 import (
+	"encoding/json"
 	"net/http"
 	"sync"
-
-	"github.com/goccy/go-json"
 
 	"github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/servers"

@@ -1,9 +1,8 @@
 package utils
 
 import (
+	"encoding/json"
 	"net/http"
-
-	"github.com/goccy/go-json"
 )
 
 func SendJSONReplyOK(w http.ResponseWriter, replyContent interface{}) {

@@ -1,4 +1,4 @@
-replicas: 2
+replicas: 1
 deploymentName: trainers
 containers:
   - image: docker.io/brunoanjos/trainers:latest

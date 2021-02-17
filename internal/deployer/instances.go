@@ -103,7 +103,9 @@ func removeInstance(deploymentID, instanceID string, existed bool) {
 	}
 
 	instance, status := archimedesClient.GetInstance(servers.ArchimedesLocalHostPort, instanceID)
-	if status != http.StatusOK {
+	if status == http.StatusNotFound {
+		log.Warnf("got status %d while trying to get instance %s, assuming it was removed", status, instanceID)
+	} else if status != http.StatusOK {
 		log.Panicf("status %d while getting instance %s", status, instanceID)
 	}
 
@@ -116,8 +118,9 @@ func removeInstance(deploymentID, instanceID string, existed bool) {
 		outport = ports[0].HostPort
 	}
 
-	status = schedulerClient.StopInstance(servers.SchedulerLocalHostPort, instanceID, fmt.Sprintf("%s:%s", nodeIP,
-		outport), deploymentYAML.RemovePath)
+	status = schedulerClient.StopInstance(servers.SchedulerLocalHostPort, instanceID,
+		fmt.Sprintf("%s:%s", nodeIP,
+			outport), deploymentYAML.RemovePath)
 	if status != http.StatusOK {
 		log.Errorf("while trying to remove instance %s after timeout, scheduler returned status %d",
 			instanceID, status)

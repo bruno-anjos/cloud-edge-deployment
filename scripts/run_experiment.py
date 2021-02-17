@@ -7,29 +7,34 @@ import time
 from datetime import datetime
 
 project_path = os.getenv("CLOUD_EDGE_DEPLOYMENT")
+scenarios_path = os.path.expanduser('~/ced-scenarios/')
 
 
-def run_with_log(cmd):
+def run_with_log_and_exit(cmd):
     print(f"RUNNING | {cmd}")
-    subprocess.run(cmd)
+    ret = subprocess.run(cmd)
+    if ret.returncode != 0:
+        exit(ret.returncode)
 
 
-def launch_visualizer_thread(scenario, time_between_snapshots):
+def launch_visualizer_thread(scenario, time_between_snapshots, target_dir, duration):
     path = f"{project_path}/scripts/visualizer/visualizer_daemon.py"
-    cmd = ["python3", path, scenario, time_between_snapshots]
+    cmd = ["python3", path, scenario, time_between_snapshots, f"--output_dir={target_dir}", duration]
 
     print("Launching visualizer thread...")
 
-    run_with_log(cmd)
+    run_with_log_and_exit(cmd)
+
+    return 0
 
 
 def save_stats(target_dir):
-    path = f"{project_path}/scripts/get_stats.py {target_dir}"
-    cmd = ["python3", path]
+    path = f"{project_path}/scripts/get_stats.py"
+    cmd = ["python3", path, target_dir]
 
     print("Saving stats...")
 
-    run_with_log(cmd)
+    run_with_log_and_exit(cmd)
 
 
 def save_logs(target_dir):
@@ -38,7 +43,7 @@ def save_logs(target_dir):
 
     print("Saving logs...")
 
-    run_with_log(cmd)
+    run_with_log_and_exit(cmd)
 
 
 def deploy_stack(scenario, deploy_opts):
@@ -48,7 +53,7 @@ def deploy_stack(scenario, deploy_opts):
 
     print("Deploying stack...")
 
-    run_with_log(cmd)
+    run_with_log_and_exit(cmd)
 
 
 def deploy_novapokemon(nova_poke_opts):
@@ -58,16 +63,25 @@ def deploy_novapokemon(nova_poke_opts):
 
     print("Deploying novapokemon...")
 
-    run_with_log(cmd)
+    run_with_log_and_exit(cmd)
 
 
-def deploy_clients(scenario):
+def start_recording(aux_duration, timeout):
+    path = f"{project_path}/scripts/start_recording.py"
+    cmd = ["python3", path, aux_duration, timeout]
+
+    print("Starting bandwidth recordings...")
+
+    run_with_log_and_exit(cmd)
+
+
+def deploy_clients(scenario, fallback):
     path = f"{project_path}/scripts/deploy_novapokemon_clients.py"
-    cmd = ["python3", path, scenario]
+    cmd = ["python3", path, scenario, fallback]
 
     print("Deploying clients...")
 
-    run_with_log(cmd)
+    run_with_log_and_exit(cmd)
 
 
 def process_time_string(time_string):
@@ -82,13 +96,10 @@ def process_time_string(time_string):
     return time_in_seconds
 
 
-args = sys.argv[1:]
-if len(args) != 1:
-    print("usage: python3 run_exeperiment.py <experiment.json>")
-    exit(1)
+def save_dummy_infos(save_dir):
+    cmd = ['cp', '/tmp/dummy_infos.json', save_dir]
+    subprocess.run(cmd)
 
-with open(args[0], 'r') as experiment_fp:
-    experiment = json.load(experiment_fp)
 
 SCENARIO = "scenario"
 CLIENTS_SCENARIO = "clients_scenario"
@@ -99,36 +110,59 @@ DURATION = "duration"
 DEPLOY_OPTS = "deploy_opts"
 NOVA_POKE_CMD = "novapokemon_cmd"
 
-deploy_stack(experiment[SCENARIO], experiment[DEPLOY_OPTS])
 
-after_stack_time = process_time_string(experiment[TIME_AFTER_STACK])
-print(f"Sleeping {after_stack_time} after deploying stack...")
-time.sleep(after_stack_time)
+def main():
+    args = sys.argv[1:]
+    if len(args) != 1:
+        print("usage: python3 run_exeperiment.py <experiment.json>")
+        exit(1)
 
-deploy_novapokemon(experiment[NOVA_POKE_CMD])
+    with open(args[0], 'r') as experiment_fp:
+        experiment = json.load(experiment_fp)
 
-after_deploy_time = process_time_string(experiment[TIME_AFTER_DEPLOY])
-print(f"Sleeping {after_deploy_time} after deploying novapokemon...")
-time.sleep(after_deploy_time)
+    deploy_stack(experiment[SCENARIO], experiment[DEPLOY_OPTS])
 
-deploy_clients(experiment[CLIENTS_SCENARIO])
+    after_stack_time = process_time_string(experiment[TIME_AFTER_STACK])
+    print(f"Sleeping {after_stack_time} after deploying stack...")
+    time.sleep(after_stack_time)
 
-date = datetime.now()
-timestamp = date.strftime("%m-%d-%H-%M")
-target_path = os.path.expanduser(f'~/experiment_{timestamp}')
-os.mkdir(target_path)
+    deploy_novapokemon(experiment[NOVA_POKE_CMD])
+    start_recording(experiment[DURATION], experiment[TIME_BETW_SNAP])
 
-vs = threading.Thread(target=launch_visualizer_thread, args=(experiment[SCENARIO], experiment[TIME_BETW_SNAP]),
-                      daemon=True)
-vs.start()
+    after_deploy_time = process_time_string(experiment[TIME_AFTER_DEPLOY])
+    print(f"Sleeping {after_deploy_time} after deploying novapokemon...")
+    time.sleep(after_deploy_time)
 
-duration = experiment[DURATION]
-duration_in_seconds = process_time_string(duration)
+    with open(f'{scenarios_path}/{experiment[SCENARIO]}', 'r') as scenario_fp:
+        stack_scenario = json.load(scenario_fp)
+        fallback = stack_scenario['fallback']
 
-time.sleep(duration_in_seconds)
+    cli_thread = threading.Thread(target=deploy_clients, daemon=True, args=(experiment[CLIENTS_SCENARIO], fallback))
+    cli_thread.start()
 
-save_stats(target_path)
+    date = datetime.now()
+    timestamp = date.strftime("%m-%d-%H-%M")
+    target_path = os.path.expanduser(f'~/experiment_{timestamp}/')
+    os.mkdir(target_path)
 
-save_logs(target_path)
+    save_dummy_infos(target_path)
 
-vs.join()
+    duration = experiment[DURATION]
+    duration_in_seconds = process_time_string(duration)
+
+    vs = threading.Thread(target=launch_visualizer_thread, daemon=True,
+                          args=(experiment[SCENARIO], experiment[TIME_BETW_SNAP], target_path, duration))
+    vs.start()
+
+    time.sleep(duration_in_seconds)
+
+    save_stats(target_path)
+
+    save_logs(target_path)
+
+    cli_thread.join()
+    vs.join()
+
+
+if __name__ == '__main__':
+    main()

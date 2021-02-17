@@ -1,4 +1,4 @@
-replicas: 2
+replicas: 1
 deploymentName: authentication
 containers:
   - image: docker.io/brunoanjos/authentication:latest

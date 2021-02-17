@@ -285,7 +285,7 @@ func (e *Environment) GetLocationInVicinity() map[string]s2.CellID {
 		locations[hostID] = s2.CellIDFromToken(ts.Values[0].Fields["value"].(string))
 	}
 
-	log.Debugf("Got locations in vicinity: %+v, %+v", locations, timeseries)
+	log.Debugf("Got locations in vicinity: %+v", locations)
 
 	return locations
 }

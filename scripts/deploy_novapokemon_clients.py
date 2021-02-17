@@ -6,21 +6,32 @@ import time
 from multiprocessing import Pool
 
 project_path = os.getenv("CLOUD_EDGE_DEPLOYMENT")
-script_path = f"{project_path}/scripts/deploy_novapokemon_clients.sh"
 
 NUM = "number_of_clients"
 REGION = "region"
 DURATION = "duration"
 WAIT_TIME = "wait_time"
 
-NUM_ARGS = 1
+NUM_ARGS = 2
 
 
-def deploy_clients(wait_time, num, region, logs_dir, network, duration):
+def deploy_clients(wait_time, num, region, logs_dir, network, duration, fallback):
     time.sleep(wait_time)
 
-    cmd = ["bash", script_path, str(num), region, logs_dir, network, duration]
-    subprocess.run(cmd)
+    if os.path.exists(logs_dir):
+        clean_clients_logs(logs_dir)
+    else:
+        os.mkdir(logs_dir)
+
+    env = f'--env NUM_CLIENTS={num} --env REGION={region} --env CLIENTS_TIMEOUT={duration} ' \
+          f'--env FALLBACK_URL={fallback} --env-file {project_path}/scripts/client-env.list'
+    volumes = f'-v {logs_dir}:/logs -v /tmp/services:/services'
+    cmd = f'docker run -d {env} --network "{network}" {volumes} brunoanjos/client:latest'
+
+    res = subprocess.run(cmd)
+    if res.returncode != 0:
+        print(res)
+        exit(1)
 
 
 def process_time_string(time_string):
@@ -35,16 +46,35 @@ def process_time_string(time_string):
     return time_in_seconds
 
 
+def clean_clients_logs(logs_dir):
+    cmd = f'docker run -v {logs_dir}:/logs debian:latest sh -c "rm -rf /logs/*"'
+    res = subprocess.run(cmd, shell=True)
+    if res.returncode != 0:
+        print(res)
+        exit(1)
+
+
+def clean_services():
+    cmd = 'docker run -v /tmp/services:/services debian:latest sh -c "rm -rf /services/*"'
+    res = subprocess.run(cmd, shell=True)
+    if res.returncode != 0:
+        print(res)
+        exit(1)
+
+
 def main():
     pool = Pool(processes=os.cpu_count())
 
     args = sys.argv[1:]
     if len(args) != NUM_ARGS:
-        print("usage: python3 scripts/deploy_novapokemon_clients.py <clients_scenario.json>")
+        print("usage: python3 scripts/deploy_novapokemon_clients.py <clients_scenario.json> <fallback>")
         exit(1)
 
     clients_scenarios = f"{os.path.expanduser('~')}/ced-client-scenarios/"
     path = f"{clients_scenarios}/{args[0]}"
+    fallback = args[1]
+
+    clean_services()
 
     with open(path, 'r') as clients_scenario_fp:
         clients_scenario = json.load(clients_scenario_fp)
@@ -59,7 +89,7 @@ def main():
 
             print(f"Launching {clients_id}")
             async_waits.append(pool.apply_async(deploy_clients, (
-                int(wait_time), num, region, f"/tmp/client_logs/{clients_id}", "swarm-network", duration)))
+                int(wait_time), num, region, f"/tmp/client_logs/{clients_id}", "swarm-network", duration, fallback)))
 
     for w in async_waits:
         w.get()

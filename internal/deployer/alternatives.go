@@ -1,11 +1,10 @@
 package deployer
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
-
-	"github.com/goccy/go-json"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
 	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
@@ -59,13 +58,13 @@ func updateAlternatives() {
 		log.Panic(err)
 	}
 
+	go getAlternativesPeriodically(updateChan)
+
 	addNodes(res.Children...)
 	addNodes(res.Siblings...)
 	if res.Parent != nil {
 		addNodes(res.Parent)
 	}
-
-	go getAlternativesPeriodically(updateChan)
 }
 
 func addNodes(peers ...*body_types.Peer) {

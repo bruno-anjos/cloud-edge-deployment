@@ -19,7 +19,6 @@ echo "Removing garbage from previous runs..."
 # Clear previous build directories and files
 rm -f /tmp/images/*
 [ -e "$BUILD_DIR"/dummy_node/fallback.json ] && rm "$BUILD_DIR"/dummy_node/fallback.json
-rm -rf "$BUILD_DIR"/dummy_node/metrics
 rm -rf "$BUILD_DIR"/dummy_node/deployments
 rm -rf "$BUILD_DIR"/dummy_node/images
 
@@ -48,11 +47,14 @@ bash "$BUILD_DIR"/dummy_node/build_images.sh
   cp "$DEMMON_DIR"/scripts/setupTc.sh $BUILD_DIR/dummy_node/setupTc.sh
 )
 
+exit_code=$?
+
+if [ "$exit_code" -ne 0 ]; then
+  exit $exit_code
+fi
+
 # Deployer dependencies
 cp "$BUILD_DIR"/deployer/fallback.json "$BUILD_DIR"/dummy_node/
-
-# Autonomic dependencies
-cp -r "$BUILD_DIR"/autonomic/metrics "$BUILD_DIR"/dummy_node/
 
 # Client dependencies
 cp -r "$CLOUD_EDGE_DEPLOYMENT"/deployments "$BUILD_DIR"/dummy_node/

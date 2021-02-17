@@ -1,7 +1,6 @@
 import json
 import os
-import subprocess
-import time
+import sys
 
 from graph_tool.all import *
 
@@ -14,7 +13,7 @@ archimedes_png_local_path = "/Users/banjos/Desktop/archimedes_tables/archimedes_
 results_tree_filename = "dicluster:/home/b.anjos/results/results.json"
 results_tree_local_path = "/Users/banjos/Desktop/deployer_pngs/results.json"
 graph_json_local_path = "/Users/banjos/Desktop/deployer_pngs/graph.json"
-image_local_path = "/Users/banjos/Desktop/deployer_pngs/deployers.png"
+image_local_path = os.path.expanduser("~/Desktop/deployer_pngs/")
 
 wait = 5
 
@@ -54,146 +53,129 @@ def transform_loc_to_range(loc):
     return new_loc
 
 
-def graph_combined_deployments():
-    graph = Graph(directed=True)
+def graph_combined_deployments(filename, multi):
+    if multi:
+        files = [file for file in os.listdir(filename) if "graph" in file]
+    else:
+        files = [filename]
 
-    with open(graph_json_local_path, 'r') as graph_fp:
-        graph_json = json.load(graph_fp)
+    print(files)
 
-    node_tables = graph_json["node_tables"]
+    for file in files:
+        graph = Graph(directed=True)
 
-    node_to_vertices = {}
+        with open(f"{filename}/{file}", 'r') as graph_fp:
+            graph_json = json.load(graph_fp)
 
-    vprop_text = graph.new_vertex_property("string")
-    vprop_color = graph.new_vertex_property("vector<double>")
-    vprop_fill_color = graph.new_vertex_property("vector<double>")
-    vprop_shape = graph.new_vertex_property("string")
+        node_tables = graph_json["node_tables"]
 
-    eprop_color = graph.new_edge_property("vector<double>")
+        node_to_vertices = {}
 
-    for node, table in node_tables.items():
-        v = graph.add_vertex()
+        vprop_text = graph.new_vertex_property("string")
+        vprop_color = graph.new_vertex_property("vector<double>")
+        vprop_fill_color = graph.new_vertex_property("vector<double>")
+        vprop_shape = graph.new_vertex_property("string")
 
-        node_to_vertices[node] = v
-        vprop_text[v] = node
-        vprop_shape[v] = "circle"
-        if "dead" in table:
-            vprop_color[v] = [0., 0., 0., 1.]
-            vprop_fill_color[v] = [0., 0., 0., 1.]
-        else:
+        eprop_color = graph.new_edge_property("vector<double>")
+
+        for node, table in node_tables.items():
+            v = graph.add_vertex()
+
+            node_to_vertices[node] = v
+            vprop_text[v] = node
+            vprop_shape[v] = "circle"
+            if "dead" in table:
+                vprop_color[v] = [0., 0., 0., 1.]
+                vprop_fill_color[v] = [0., 0., 0., 1.]
+            else:
+                vprop_color[v] = [0., 0., 0., 0.25]
+                vprop_fill_color[v] = [1., 0., 0., 0.5]
+
+        services_to_v = {}
+        services = graph_json["services"]
+        for service in services:
+            v = graph.add_vertex()
             vprop_color[v] = [0., 0., 0., 0.25]
-            vprop_fill_color[v] = [1., 0., 0., 0.5]
+            vprop_fill_color[v] = [1., 1., 0., 1.]
+            vprop_shape[v] = "triangle"
+            services_to_v[service] = v
 
-    services_to_v = {}
-    services = graph_json["services"]
-    for service in services:
-        v = graph.add_vertex()
-        vprop_color[v] = [0., 0., 0., 0.25]
-        vprop_fill_color[v] = [1., 1., 0., 1.]
-        vprop_shape[v] = "triangle"
-        services_to_v[service] = v
+        deployment_colors = {}
+        i = 0
 
-    deployment_colors = {}
-    i = 0
+        for node, auxTable in node_tables.items():
+            if not auxTable or "dead" in auxTable:
+                continue
+            for deployment_id, entry in auxTable.items():
+                for child_id in entry["Children"].keys():
+                    add_if_missing(graph, node_to_vertices, vprop_text, vprop_color, vprop_fill_color, node_tables[
+                        child_id], child_id)
+                    s, t = node_to_vertices[node], node_to_vertices[child_id]
 
-    for node, auxTable in node_tables.items():
-        if not auxTable or "dead" in auxTable:
-            continue
-        for deployment_id, entry in auxTable.items():
-            for child_id in entry["Children"].keys():
-                add_if_missing(graph, node_to_vertices, vprop_text, vprop_color, vprop_fill_color, node_tables[
-                    child_id], child_id)
-                s, t = node_to_vertices[node], node_to_vertices[child_id]
+                    aux_e = graph.add_edge(s, t)
+                    if deployment_id not in deployment_colors:
+                        color = colors[i % len(colors)]
+                        deployment_colors[deployment_id] = color
+                        i += 1
 
-                aux_e = graph.add_edge(s, t)
-                if deployment_id not in deployment_colors:
-                    color = colors[i % len(colors)]
-                    deployment_colors[deployment_id] = color
-                    i += 1
+                    color = deployment_colors[deployment_id]
+                    eprop_color[aux_e] = color
 
-                color = deployment_colors[deployment_id]
-                eprop_color[aux_e] = color
+        locations = graph_json["locations"]
+        positions = graph.new_vertex_property("vector<double>")
+        for node, v in node_to_vertices.items():
+            loc = get_location(node, locations)
+            positions[v] = [loc["lng"], loc["lat"]]
 
-    locations = graph_json["locations"]
-    positions = graph.new_vertex_property("vector<double>")
-    for node, v in node_to_vertices.items():
-        loc = get_location(node, locations)
-        print(f"node {node} at {loc}")
-        positions[v] = [loc["lng"], loc["lat"]]
+        for service, v in services_to_v.items():
+            loc = get_location(service, locations)
+            positions[v] = [loc["lng"], loc["lat"]]
 
-    for service, v in services_to_v.items():
-        loc = get_location(service, locations)
-        print(f"node {service} at {loc}")
-        positions[v] = [loc["lng"], loc["lat"]]
+        print(f"Plotting {file} combined graph with {len(graph.get_vertices())} nodes and {len(graph.get_edges())} "
+              f"edges")
 
-    print(f"Plotting combined graph with {len(graph.get_vertices())} nodes and {len(graph.get_edges())} edges")
+        vprops = {
+            "text": vprop_text,
+            "color": vprop_color,
+            "fill_color": vprop_fill_color,
+            "shape": vprop_shape,
+        }
 
-    vprops = {
-        "text": vprop_text,
-        "color": vprop_color,
-        "fill_color": vprop_fill_color,
-        "shape": vprop_shape,
-    }
+        out_filename = file.split(".")[0]
 
-    graph_draw(graph, pos=positions, output_size=(4000, 4000), vertex_size=10, output=image_local_path,
-               bg_color=[1., 1., 1., 1.], vertex_fill_color=vprop_fill_color, edge_color=eprop_color,
-               fit_view=True, adjust_aspect=True, vprops=vprops, vertex_text_color=[0., 0., 0., 1.],
-               vertex_font_size=14)
+        graph_draw(graph, pos=positions, output_size=(4000, 4000), vertex_size=10,
+                   output=f"{image_local_path}/{out_filename}.png",
+                   bg_color=[1., 1., 1., 1.], vertex_fill_color=vprop_fill_color, edge_color=eprop_color,
+                   fit_view=True, adjust_aspect=True, vprops=vprops, vertex_text_color=[0., 0., 0., 1.],
+                   vertex_font_size=14)
 
 
-def get_scp_file(origin, target):
-    print("copying deployer image via scp")
-    try:
-        subprocess.run(["scp", "dicluster:%s" % origin, target], check=True)
-    except subprocess.CalledProcessError as eAux:
-        print(f"scp returned {eAux['returncode']}")
-        return False
-    return True
+def main():
+    args = sys.argv[1:]
+    if len(args) > 2:
+        print("usage: python3 visualizer.py graph_results.json [--multi]")
+        exit(1)
+
+    filename = ""
+    multi = False
+
+    for arg in args:
+        if filename == "":
+            filename = arg
+        elif arg == "--multi":
+            multi = True
+
+    if filename == "":
+        filename = graph_json_local_path
+
+    mypath = "/Users/banjos/Desktop/deployer_pngs/"
+    onlyfiles = [os.path.join(mypath, f) for f in os.listdir(mypath) if os.path.isfile(os.path.join(mypath, f))]
+    print(f"deleting {onlyfiles}")
+    for file in onlyfiles:
+        os.remove(file)
+
+    graph_combined_deployments(filename, multi)
 
 
-def rsync_folder_from_server(target, origin):
-    print(f"rsyncing {target} to {origin}")
-    try:
-        subprocess.run(["rsync", "-av", target, origin, "--delete"], check=True)
-    except subprocess.CalledProcessError as eAux:
-        print("rsync error")
-        return False
-    return True
-
-
-mypath = "/Users/banjos/Desktop/deployer_pngs/"
-onlyfiles = [os.path.join(mypath, f) for f in os.listdir(mypath) if os.path.isfile(os.path.join(mypath, f))]
-print(f"deleting {onlyfiles}")
-for file in onlyfiles:
-    os.remove(file)
-
-while True:
-    deployer_failed = False
-    archimedes_failed = False
-    if not rsync_folder_from_server("dicluster:/home/b.anjos/deployer_pngs", "/Users/banjos/Desktop/"):
-        deployer_failed = True
-
-    rsync_folder_from_server(results_tree_filename, results_tree_local_path)
-
-    # if get_scp_file(archimedes_tex_filename, archimedes_tex_local_path):
-    #     try:
-    #         subprocess.run(["pdflatex", "-interaction=nonstopmode", "-output-directory",
-    #         archimedes_out_local_path,
-    #                         archimedes_tex_local_path], check=True)
-    #     except subprocess.CalledProcessError as e:
-    #         print("error running pdflatex: ", e.returncode)
-    #
-    #     try:
-    #         subprocess.run(["convert", "-density", "300", archimedes_pdf_local_path,
-    #                         "-quality", "90", "-strip", archimedes_png_local_path], check=True)
-    #     except subprocess.CalledProcessError as e:
-    #         print("error running convert: ", e.returncode)
-    # else:
-    #     archimedes_failed = True
-
-    graph_combined_deployments()
-
-    if deployer_failed and archimedes_failed:
-        time.sleep(wait)
-
-    time.sleep(20)
+if __name__ == '__main__':
+    main()

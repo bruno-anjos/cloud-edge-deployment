@@ -19,8 +19,16 @@ host = socket.gethostname().strip()
 def run_cmd_with_try(cmd):
     print(f"Running | {cmd} | LOCAL")
     cp = subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL)
+
+    failed = False
     if cp.stderr is not None:
-        raise Exception(cp.stderr)
+        failed = True
+        print(f"StdErr: {cp.stderr}")
+    if cp.returncode != 0:
+        failed = True
+        print(f"RetCode: {cp.returncode}")
+    if failed:
+        exit(1)
 
 
 def exec_cmd_on_nodes(cmd):
@@ -102,7 +110,8 @@ def launch_dummy(info):
     env_variables = f'--env NODE_IP="{info[NODE_IP]}" --env NODE_ID="{info[NAME]}" --env NODE_NUM="{info[NUM]}" ' \
                     f'--env LOCATION="{info[LOCATION]}" --env LANDMARKS="{landmarks}" ' \
                     f'--env CONFIG_FILE="config/banjos_config.txt" --env WAIT_FOR_START="true"'
-    volumes = f'-v /tmp/images:/images -v /lib/modules:/lib/modules -v /tmp/bandwidth_stats:/bandwidth_stats'
+    volumes = f'-v /tmp/images:/images -v /lib/modules:/lib/modules -v /tmp/bandwidth_stats:/bandwidth_stats ' \
+              f'-v /tmp/tables:/tables'
     launch_cmd = f'docker run -d --network={network} --privileged --ip {info[NODE_IP]} ' \
                  f'--name={info[NAME]} --hostname {info[NAME]} {env_variables} {volumes} {quotas_opts} ' \
                  f'--cap-add=ALL brunoanjos/dummy_node:latest'
@@ -113,7 +122,7 @@ def launch_dummy(info):
 
 
 def start_services_in_dummy(info):
-    start_services_cmd = f"docker exec {info[NAME]} ./deploy_services.sh {default_timeout} {measurement_counts}"
+    start_services_cmd = f"docker exec {info[NAME]} ./deploy_services.sh"
     if not swarm or info[NODE] == host:
         run_cmd_with_try(start_services_cmd)
     else:
@@ -282,10 +291,23 @@ def copy_tmp_images_swarm():
         run_cmd_with_try(cmd)
 
 
+def clean_tables_dir():
+    for node in nodes:
+        print(f"Clearing tables dir in node {node}")
+        exec_cmd_on_node(node, '( [ ! -d /tmp/tables ] || docker run -v /tmp/tables:/tables alpine sh -c "rm -rf '
+                               '/tables/dummy*" )')
+
+
+def setup_tables_dir():
+    for node in nodes:
+        print(f"Creating tables dir in node {node}")
+        exec_cmd_on_node(node, '( [ -d /tmp/tables ] || mkdir /tmp/tables ) ')
+
+
 def setup_bandwidth_dir():
     for node in nodes:
         print(f"Creating bandwidth stats dir in node {node}")
-        exec_cmd_on_node(node, "mkdir /tmp/bandwidth_stats")
+        exec_cmd_on_node(node, '( [ -d /tmp/bandwidth_stats ] || mkdir /tmp/bandwidth_stats ) ')
 
 
 def clean_deployment(info):
@@ -414,7 +436,7 @@ if not reuse:
 
     print("Writing dummy infos...")
     with open(f"/tmp/dummy_infos.json", "w") as dummy_infos_fp:
-        json.dump(dummy_infos, dummy_infos_fp)
+        json.dump(dummy_infos, dummy_infos_fp, indent=4)
 
     print("Writing node IPs...")
     with open(f"{project_path}/build/deployer/node_ips.json", "w") as deployer_ips_fp, \
@@ -444,6 +466,8 @@ nm_morais_path = os.path.expanduser("~/go/src/github.com/nm-morais/")
 for file in os.listdir(nm_morais_path):
     update_dependencies(nm_morais_path + file)
 
+clean_tables_dir()
+setup_tables_dir()
 setup_bandwidth_dir()
 
 print("Building images...")
@@ -479,26 +503,6 @@ elif quotas_filename != "":
         if CPU_QUOTA_KEY in quotas:
             print(f"{CPU_QUOTA_KEY} set to {quotas[CPU_QUOTA_KEY]}")
 
-# timeout between samples of bandwidth
-default_timeout = 1000
-
-duration = scenario["duration"]
-
-unit = duration[-1]
-multiplier = 1
-
-if unit == "s" or unit == "S":
-    multiplier = 1
-elif unit == "m" or unit == "M":
-    multiplier = 60
-elif unit == "h" or unit == "H":
-    multiplier = 60 * 60
-
-duration_value = int(duration[:-1])
-
-# total number of samples
-measurement_counts = duration_value * multiplier
-
 pool = Pool(processes=os.cpu_count())
 if not reuse:
     start = time.time()
@@ -510,8 +514,6 @@ if not reuse:
     pool.map(setup_tc, dummy_infos)
     done = time.time()
     print(f"Took {done - start} seconds to setup tc")
-
-print(f"Taking {measurement_counts} samples, {default_timeout}ms apart")
 
 start = time.time()
 pool.map(start_services_in_dummy, dummy_infos)

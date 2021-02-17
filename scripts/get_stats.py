@@ -4,6 +4,7 @@ import os
 import socket
 import subprocess
 import sys
+import matplotlib.pyplot as plt
 
 client_logs_dirname = "client_logs"
 
@@ -28,7 +29,12 @@ def exec_cmd_on_node(node, cmd):
     run_cmd_with_try(remote_cmd)
 
 
-def sync_stats_to_NAS():
+def clean_folder_nas():
+    cmd = f"rm -f {os.path.expanduser('~/bandwidth_stats/*')}"
+    subprocess.run(cmd.split(" "))
+
+
+def sync_stats_to_nas(dummy_infos):
     hostname = socket.gethostname()
 
     nodes = {}
@@ -77,23 +83,45 @@ def get_bandwidth_stats():
     return node_results
 
 
-args = sys.argv[1:]
+def main():
+    args = sys.argv[1:]
 
-if len(args) > 1:
-    print("usage: python3 get_stats.py [output_log_dir]")
-    exit(1)
+    if len(args) > 1:
+        print("usage: python3 get_stats.py [output_log_dir]")
+        exit(1)
 
-if len(args) == 1:
-    output_dir = args[0]
-else:
-    output_dir = os.path.expanduser("~")
+    if len(args) == 1:
+        output_dir = args[0]
+    else:
+        output_dir = os.path.expanduser("~")
 
-with open("/tmp/dummy_infos.json", "r") as dummy_infos_fp:
-    dummy_infos = json.load(dummy_infos_fp)
+    with open("/tmp/dummy_infos.json", "r") as dummy_infos_fp:
+        dummy_infos = json.load(dummy_infos_fp)
 
-print("Will sync stats to NAS...")
-sync_stats_to_NAS()
+    print("Cleaning folder in NAS...")
 
-results = get_bandwidth_stats()
-with open(f"{output_dir}/bandwidth_results.json", 'w') as results_fp:
-    json.dump(results, results_fp, indent=4)
+    clean_folder_nas()
+
+    print("Will sync stats to NAS...")
+    sync_stats_to_nas(dummy_infos)
+
+    node_results = get_bandwidth_stats()
+    with open(f"{output_dir}/bandwidth_results.json", 'w') as results_fp:
+        json.dump(node_results, results_fp, indent=4)
+
+    for node, results in node_results.items():
+        x_axis = []
+        y_axis = []
+
+        for result in results:
+            x_axis.append(result[TIMESTAMP])
+            y_axis.append(result[BYTES_TOTAL])
+
+        plt.plot(x_axis, y_axis, label=node)
+
+    plt.legend()
+    plt.show()
+
+
+if __name__ == '__main__':
+    main()

@@ -6,197 +6,90 @@ import sys
 import time
 from multiprocessing import Pool
 
-from tabulate import tabulate
+
+def run_cmd_with_try(cmd):
+    print(f"Running | {cmd} | LOCAL")
+    cp = subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL)
+
+    failed = False
+    if cp.stderr is not None:
+        failed = True
+        print(f"StdErr: {cp.stderr}")
+    if cp.returncode != 0:
+        failed = True
+        print(f"RetCode: {cp.returncode}")
+    if failed:
+        exit(1)
 
 
-def exec_req(url):
-    cmd = f"docker exec -t vis_entry http -b {url}"
-    result = subprocess.getoutput(cmd).strip()
-    return json.loads(result)
+def exec_cmd_on_host(node, cmd):
+    path_var = os.environ["PATH"]
+    remote_cmd = f"oarsh {node} -- 'PATH=\"{path_var}\" && {cmd}'"
+    run_cmd_with_try(remote_cmd)
 
 
-def get_services_table(node):
-    url = (archimedesURLf % dummy_infos[node]["ip"]) + tablePath
+def get_all_hierarchy_tables(count):
+    tables = {}
+    for node in nodes:
+        table_path = f"{recordings_path}/{node}/{count}.json"
+        with open(table_path, 'r') as table_fp:
+            tables[node] = json.load(table_fp)
 
-    try:
-        table_resp = exec_req(url)
-        return table_resp
-    except json.JSONDecodeError:
-        return {}
-
-
-def get_hierarchy_table(node):
-    url = (deployerURLf % dummy_infos[node]["ip"]) + tablePath
-
-    try:
-        table_resp = exec_req(url)
-        return node, table_resp
-    except json.JSONDecodeError:
-        return node, {"dead": True}
+    return tables
 
 
-def get_all_hierarchy_tables():
-    tables_aux = {}
+def collect_recordings(aux_duration, timeout):
+    cycles = int(aux_duration[:-1]) // int(timeout[:-1])
+    snapshots_path = os.path.expanduser('~/snapshots/')
 
-    results = pool.map(get_hierarchy_table, nodes)
-    for res in results:
-        node, table = res
-        tables_aux[node] = table
+    for count in range(cycles):
+        target_path = f"{snapshots_path}/{count}.json"
+        node_tables = get_all_hierarchy_tables(count+1)
 
-    return tables_aux
+        print("Got all hierarchy tables!")
 
+        # add all connections
+        deployment_colors = {}
+        i = 0
 
-def get_all_services_tables():
-    tables_aux = {}
-    for nodeAux in nodes:
-        table_aux = get_services_table(nodeAux)
-        if table_aux:
-            tables_aux[nodeAux] = table_aux
-    return tables_aux
+        # graphs = {}
 
+        deployments = set()
+        for node in node_tables:
+            for deployment_id in node_tables[node]:
+                if deployment_id == "dead":
+                    continue
+                deployments.add(deployment_id)
+                # graphs[deployment_id] = Graph(directed=True)
+                if deployment_id not in deployment_colors:
+                    color = colors[i % len(colors)]
+                    deployment_colors[deployment_id] = color
+                    i += 1
 
-def get_load(deployment_id, node):
-    autonomic_ulr_f = "http://%s:50000/archimedes"
-    load_path = "/deployments/%s/load"
+        aux_locations = {"nodes": {}, "services": {}}
 
-    url = (autonomic_ulr_f % dummy_infos[node]["ip"]) + (load_path % deployment_id)
+        services = [file_name for file_name in os.listdir(services_path)]
+        for service in services:
+            with open(f"{services_path}/{service}", 'r') as service_fp:
+                service_loc = json.load(service_fp)
+                if service not in aux_locations["services"]:
+                    aux_locations["services"][service] = service_loc
 
-    try:
-        table_resp = exec_req(url)
-        return table_resp
-    except json.JSONDecodeError:
-        return 0.
+        for node in node_tables:
+            loc = get_location(node)
+            aux_locations["nodes"][node] = loc
 
+        graph_json = {
+            "node_tables": node_tables,
+            "colors": deployment_colors,
+            "services": services,
+            "locations": aux_locations
+        }
 
-"""
-table json schema:
+        with open(target_path, 'w', encoding='utf-8') as graph_json_fp:
+            json.dump(graph_json, graph_json_fp, ensure_ascii=False, indent=4)
 
-{
-    "deploymentId": {
-        "parent": {
-            "id": "",
-            "addr": ""
-        },
-        "grandparent": {
-            "id": "",
-            "addr": ""
-        },
-        "children": {
-            "childId": {
-                "id": "",
-                "addr": ""
-            }
-        },
-        "isStatic": False,
-        "isOrphan": False
-    }
-}
-"""
-
-
-def add_if_missing(graph, table, node):
-    nodes_aux = [name for name in graph.vs['name']]
-    if node in nodes_aux:
-        return
-    if "dead" in table:
-        graph.add_vertex(node, color="black", service=False)
-
-
-def get_load_for_given_node(node_table, node, aux_pool):
-    processes = {}
-    loads = []
-
-    for deployment_id in node_table.keys():
-        processes[deployment_id] = aux_pool.apply_async(get_load, (deployment_id, node))
-
-    for deployment_id, p in processes.items():
-        load = p.get()
-        load_string = f"{deployment_id}: {load}"
-        loads.append(load_string)
-
-    return loads
-
-
-def graph_deployer(target_path):
-    print("creating graph for deployers")
-
-    node_tables = get_all_hierarchy_tables()
-
-    print("Got all hierarchy tables!")
-
-    loads = {}
-    for node in node_tables:
-        aux_loads = get_load_for_given_node(node_tables[node], node, pool)
-        loads[node] = aux_loads
-
-    # add all connections
-    deployment_colors = {}
-    i = 0
-
-    # graphs = {}
-
-    deployments = set()
-    for node in node_tables:
-        for deployment_id in node_tables[node]:
-            if deployment_id == "dead":
-                continue
-            deployments.add(deployment_id)
-            # graphs[deployment_id] = Graph(directed=True)
-            if deployment_id not in deployment_colors:
-                color = colors[i % len(colors)]
-                deployment_colors[deployment_id] = color
-                i += 1
-
-    aux_locations = {"nodes": {}, "services": {}}
-
-    services = [file_name for file_name in os.listdir(services_path)]
-    for service in services:
-        with open(f"{services_path}/{service}") as service_fp:
-            service_loc = json.load(service_fp)
-            if service not in aux_locations["services"]:
-                aux_locations["services"][service] = service_loc
-
-    for node in node_tables:
-        loc = get_location(node)
-        aux_locations["nodes"][node] = loc
-
-    graph_json = {
-        "node_tables": node_tables,
-        "colors": deployment_colors,
-        "loads": loads,
-        "services": services,
-        "locations": aux_locations
-    }
-
-    with open(target_path, 'w') as graph_json_fp:
-        json.dump(graph_json, graph_json_fp)
-
-    # deployer_processes = {}
-    # for deployment_id in deployments:
-    #     deployer_processes[deployment_id] = pool.apply_async(graph_deployment, (
-    #         deployment_id, graphs[deployment_id], node_tables, deployment_colors[deployment_id], loads))
-
-    # resulting_trees = {}
-    # for deployment_id, dp in deployer_processes.items():
-    #     res = dp.get()
-    #     if not dp.successful():
-    #         print(f"error with {deployment_id}: {res}")
-    #         return
-    #     resulting_trees[deployment_id] = res
-
-    # with open(f"/home/b.anjos/results/results.json", "w") as results_fp:
-    #     print("writing results.json")
-    #     results = json.dumps(resulting_trees, indent=4, sort_keys=False)
-    #     results_fp.write(results)
-
-    # if not has_tables:
-    #     mypath = "/home/b.anjos/deployer_pngs/"
-    #     onlyfiles = [os.path.join(mypath, f) for f in os.listdir(mypath) if os.path.isfile(os.path.join(mypath, f))]
-    #     print(f"deleting {onlyfiles}")
-    #     for file in onlyfiles:
-    #         os.remove(file)
-
-    print(f"saved graph.json to {target_path}")
+        print(f"saved graph.json to {target_path}")
 
 
 def get_location(name):
@@ -208,47 +101,29 @@ def get_location(name):
         print(f"{name} has no location in {locations}")
 
 
-def graph_archimedes():
-    s_tables = get_all_services_tables()
+def start_recording(aux_duration, timeout):
+    infos = []
+    for node in nodes:
+        url = (deployerURLf % dummy_infos[node]["ip"]) + startRecordingPath
+        infos.append((url, f"Duration={aux_duration} Timeout={timeout}"))
 
-    entries_field_id = "Entries"
-    instances_field_id = "Instances"
-    initialized_field_id = "Initialized"
-    static_field_id = "Static"
-    local_field_id = "Local"
-    max_hops_field_id = "MaxHops"
+    pool.map(exec_req, infos)
 
-    tab_headers = ["ServiceId", "Hops", "MaxHops", "Version", "InstanceId", "Initialized", "Static", "Local"]
 
-    latex_filename = "/home/b.anjos/archimedes_tables.tex"
-    latex_file = open(latex_filename, "w")
-    latex_file.write("\\documentclass{article}\n"
-                     "\\nonstopmode\n"
-                     "\\begin{document}\n"
-                     "\\title{Archimedes tables}\n"
-                     "\\maketitle\n")
+def exec_req(info):
+    (url, content) = info
 
-    for node, sTable in s_tables.items():
-        table = [tab_headers]
-        if sTable[entries_field_id]:
-            for serviceId, entry in sTable[entries_field_id].items():
-                first = True
-                for instanceId, instance in entry[instances_field_id].items():
-                    row = ["", "", "", ""]
-                    if first:
-                        row = [serviceId, entry[max_hops_field_id]]
-                        first = False
-                    row.extend([instanceId, instance[initialized_field_id], instance[static_field_id],
-                                instance[local_field_id]])
-                    table.append(row)
-            latex_file.write("\\begin{center}\n")
-            latex_file.write("NODE: %s\n\n" % node)
-            latex_file.write(tabulate(table, headers="firstrow", tablefmt="latex"))
-            latex_file.write("\\end{center}\n\n")
+    docker_cmd = ['docker', 'exec', '-t', 'vis_entry', 'http', '-b', url]
+    docker_cmd.extend(content.split(" "))
+    subprocess.run(docker_cmd)
+    return
 
-    latex_file.write("\n\\end{document}")
-    latex_file.close()
-    print("wrote archimedes latex file")
+
+def remove_visualizer_entrypoint():
+    cmd = "docker stop vis_entry"
+    subprocess.run(cmd, shell=True)
+    cmd = "docker rm vis_entry"
+    subprocess.run(cmd, shell=True)
 
 
 def setup_visualizer_entrypoint():
@@ -256,18 +131,56 @@ def setup_visualizer_entrypoint():
     subprocess.run(cmd, shell=True)
 
 
+def process_time_string(time_string):
+    time_in_seconds = int(time_string[:-1])
+
+    time_suffix = time_string[-1]
+    if time_suffix == "m" or time_suffix == "M":
+        time_in_seconds = time_in_seconds * 60
+    elif time_suffix == "h" or time_suffix == "H":
+        time_in_seconds = time_in_seconds * 60 * 60
+
+    return time_in_seconds
+
+
+print("Removing old entrypoint...")
+remove_visualizer_entrypoint()
+print("Done!")
+
+print("Setting up entrypoint...")
+setup_visualizer_entrypoint()
+print("Done!")
+
 deployerURLf = 'http://%s:50002/deployer'
 archimedesURLf = 'http://%s:50000/archimedes'
 tablePath = '/table'
+startRecordingPath = '/start_recording'
 services_path = "/tmp/services"
 
 args = sys.argv[1:]
 
-if len(args) != 2:
-    print("usage: python3 visualizer_daemon.py <scenario_filename> <time_between_snapshots>")
+if len(args) > 5:
+    print("usage: python3 visualizer_daemon.py <scenario_filename> <time_between_snapshots> <duration_in_seconds> ["
+          "--output_dir=] [--collect_only]")
+    exit(1)
 
-scenario_filename = args[0]
-time_between = args[1]
+scenario_filename = ""
+time_between = ""
+duration = ""
+output_dir = os.path.expanduser('~/snapshots')
+collect_only = False
+
+for arg in args:
+    if "--output_dir=" in arg:
+        output_dir = arg.split("--output_dir=")[1]
+    elif "--collect_only" == arg:
+        collect_only = True
+    elif scenario_filename == "":
+        scenario_filename = arg
+    elif time_between == "":
+        time_between = arg
+    elif duration == "":
+        duration = arg
 
 with open(f"{os.path.expanduser('~/ced-scenarios')}/{scenario_filename}", 'r') as scenario_fp:
     scenario = json.load(scenario_fp)
@@ -309,39 +222,17 @@ colors = ["blue", "pink", "green", "orange", "dark blue", "brown", "dark green"]
 arrow_width_dict = {attr_grandparent: 3, attr_parent: 1, attr_child: 1, attr_neigh: 0.5}
 edge_width_dict = {attr_grandparent: 1, attr_parent: 1, attr_child: 3, attr_neigh: 0.5}
 
+pool = Pool(os.cpu_count())
 
-def remove_visualizer_entrypoint():
-    cmd = "docker stop vis_entry"
-    subprocess.run(cmd, shell=True)
-    cmd = "docker rm vis_entry"
-    subprocess.run(cmd, shell=True)
+if not collect_only:
+    start_recording(duration, time_between)
 
+    time.sleep(process_time_string(duration))
 
-print("Removing old entrypoint...")
-remove_visualizer_entrypoint()
-print("Done!")
+recordings_path = os.path.expanduser("~/tables/")
 
-print("Setting up entrypoint...")
-setup_visualizer_entrypoint()
-print("Done!")
+hosts = subprocess.getoutput("oarprint host").strip().split("\n")
+for host in hosts:
+    exec_cmd_on_host(host, f'cp -R /tmp/tables/* {recordings_path}')
 
-time_between_in_seconds = int(time_between[:-1])
-
-time_suffix = time_between[-1]
-if time_suffix == "m" or time_suffix == "M":
-    time_between_in_seconds = time_between_in_seconds * 60
-elif time_suffix == "h" or time_suffix == "H":
-    time_between_in_seconds = time_between_in_seconds * 60 * 60
-
-pool = Pool(processes=os.cpu_count())
-while True:
-    start = time.time()
-    timestamp = int(start)
-    path = f"{os.path.expanduser('~/snapshots')}/{timestamp}"
-    print(f"saving snapshot to {path}")
-    graph_deployer(path)
-    time_took = time.time() - start
-
-    remaining_time = time_between_in_seconds - time_took
-    if remaining_time > 0:
-        time.sleep(remaining_time)
+collect_recordings(duration, time_between)

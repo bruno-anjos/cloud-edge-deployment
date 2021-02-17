@@ -32,6 +32,8 @@ const (
 	// scheduler
 	heartbeatDeploymentInstanceName         = "HEARTBEAT_DEPLOYMENT_INSTANCE"
 	registerHeartbeatDeploymentInstanceName = "REGISTER_HEARTBEAT"
+
+	startRecordingName = "START_RECORDING"
 )
 
 // Path variables
@@ -70,6 +72,9 @@ var (
 		_instanceIDPathVarFormatted)
 	parentAliveRoute = fmt.Sprintf(deployer.ParentAlivePath, _deployerIDPathVarFormatted)
 	setReadyRoute    = deployer.SetReadyPath
+
+	// statistics
+	startRecordingRoute = deployer.StartRecordingPath
 )
 
 var Routes = []servers.Route{
@@ -79,6 +84,13 @@ var Routes = []servers.Route{
 		Method:      http.MethodPost,
 		Pattern:     setReadyRoute,
 		HandlerFunc: setReadyHandler,
+	},
+
+	{
+		Name:        startRecordingName,
+		Method:      http.MethodPost,
+		Pattern:     startRecordingRoute,
+		HandlerFunc: startRecordingHandler,
 	},
 
 	{

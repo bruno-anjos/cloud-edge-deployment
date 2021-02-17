@@ -1,4 +1,4 @@
-replicas: 2
+replicas: 1
 deploymentName: store
 containers:
   - image: docker.io/brunoanjos/store:latest

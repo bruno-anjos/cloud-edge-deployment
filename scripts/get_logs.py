@@ -15,7 +15,12 @@ log_prefixes = ["archimedes", "autonomic", "deployer", "scheduler", "demmon"]
 def get_client_logs(logs_dir_name):
     clients_dir_path = f"{logs_dir_name}/clients/"
     os.mkdir(clients_dir_path)
-    subprocess.run(["cp", "/tmp/client_logs/*", clients_dir_path])
+
+    cmd = ["cp", "-R", "/tmp/client_logs/*", clients_dir_path]
+
+    print(f"RUNNING | {' '.join(cmd)}")
+
+    subprocess.run(" ".join(cmd), shell=True)
 
 
 def get_specific_logs(logs_dir_name, dummy, cluster_node, logs_prefix):
@@ -52,11 +57,8 @@ else:
 with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/locations.json", 'r') as locations_fp:
     nodes = json.load(locations_fp)["nodes"].keys()
 
-if os.path.isdir(logs_dir) or os.path.isfile(logs_dir):
-    print(f"ERROR: dir {logs_dir} already exists")
-    exit(1)
-
-os.mkdir(logs_dir)
+if not os.path.exists(logs_dir):
+    os.mkdir(logs_dir)
 
 with open(f"/tmp/dummy_infos.json", "r") as dummy_infos_fp:
     infos = json.load(dummy_infos_fp)

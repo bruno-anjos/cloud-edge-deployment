@@ -7,9 +7,6 @@ DOCKER_IMAGE="brunoanjos/demmon:latest"
 
 set -e
 
-timeout=$1
-measurement_counts=$2
-
 while :; do
   if ! docker info >/dev/null 2>&1; then
     echo "Docker does not seem to be running, run it first and retry"
@@ -47,6 +44,7 @@ run &
 
 SERVICE_NAME="deployer"
 PORT="50002"
+OPTIONS="-v /tables:/tables"
 run &
 
 SERVICE_NAME="autonomic"
@@ -55,5 +53,3 @@ OPTIONS=""
 run &
 
 wait
-
-bwm-ng -t "$timeout" -I eth0 -o csv -c "$measurement_counts" -u bytes -T rate -F /bandwidth_stats/"$NODE_ID".csv -D 1

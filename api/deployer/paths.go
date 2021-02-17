@@ -30,6 +30,8 @@ const (
 	DeploymentInstanceAlivePath = "/deployments/%s/%s/alive"
 	DeploymentInstancePath      = "/deployments/%s/%s"
 	SetReadyPath                = "/set_ready"
+
+	StartRecordingPath = "/start_recording"
 )
 
 func GetDeploymentsPath() string {
