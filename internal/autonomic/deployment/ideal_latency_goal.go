@@ -3,7 +3,6 @@ package deployment
 import (
 	"fmt"
 	"math"
-	"net/http"
 	"os"
 	"sort"
 	"strconv"
@@ -14,20 +13,19 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
 	"github.com/golang/geo/s2"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	processingThreshold = 0.8
-
 	maximumDistancePercentage = 1.2
 	satisfiedDistance         = 20.
 	maxDistance               = servers.EarthRadius * math.Pi
 	maxChildren               = 4.
 	branchingCutoff           = 1
 
-	maxExploringTTL    = 3
+	maxExploringTTL    = 0
 	nonMaxedPercentage = 1.
 
 	idealLatencyGoalID = "GOAL_IDEAL_LATENCY"
@@ -65,7 +63,7 @@ type idealLatency struct {
 }
 
 func newIdealLatencyGoal(deployment *Deployment) *idealLatency {
-	deplLogger := log.WithField("DEPL", deployment.DeploymentID)
+	deplLogger := log.WithFields(log.Fields{"DEPL": deployment.DeploymentID, "GOAL": "IDEAL_LATENCY"})
 
 	locationToken, ok := os.LookupEnv(utils.LocationEnvVarName)
 	if !ok {
@@ -86,23 +84,19 @@ func (i *idealLatency) Optimize(optDomain domain) (isAlreadyMax bool, optRange r
 	optRange = optDomain
 	actionArgs = nil
 
-	// check if processing time is the main reason for latency
-	// processingTimeTooHigh := i.checkProcessingTime()
-	// if processingTimeTooHigh {
-	//     return
-	// }
-
-	archClient := i.deployment.archFactory.New(servers.ArchimedesLocalHostPort)
-
-	centroids, status := archClient.GetClientCentroids(servers.ArchimedesLocalHostPort, i.deployment.DeploymentID)
-	if status == http.StatusNotFound {
-		return
-	} else if status != http.StatusOK {
-		i.deplLogger.Errorf("got status code %d while attempting to get client centroids for deployment %s", status,
-			i.deployment.DeploymentID)
-
+	centroids := environment.GetClientCentroids(i.deployment.Environment.DemmonCli, i.deployment.DeploymentID, Myself)
+	if len(centroids) == 0 {
 		return
 	}
+
+	centroidTokens := make([]string, len(centroids))
+
+	for idx, centroid := range centroids {
+		centroidTokens[idx] = centroid.ToToken()
+	}
+
+	log.Debugf("got centroids %+v", centroidTokens)
+	centroidTokens = nil
 
 	candidates, sortingCriteria, ok := i.GenerateDomain(centroids)
 	if !ok {
@@ -211,7 +205,7 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 		exploringTTL := value.(exploringMapValue)
 		i.deplLogger.Debugf("my exploringTTL is %d(%d)", exploringTTL, maxExploringTTL)
 
-		if exploringTTL+1 == maxExploringTTL {
+		if exploringTTL+1 >= maxExploringTTL {
 			return nil, nil, true
 		}
 	}
@@ -271,19 +265,26 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 			}
 
 			var percentage float64
-			if delta != 0 {
-				percentage = delta / myDists[centroidID]
+
+			if myDists[centroidID] == 0 {
+				if delta == 0 {
+					percentage = 1
+				} else {
+					percentage = math.Inf(1)
+				}
 			} else {
-				percentage = 0
+				percentage = delta / myDists[centroidID]
+			}
+
+			if myDists[centroidID] != 0. {
+				percentage = delta / myDists[centroidID]
+			} else if myDists[centroidID] == 0 && delta == 0 {
 			}
 
 			nodeCentroidsMap[centroidID] = &nodeWithDistance{
 				NodeID:             nodeID,
 				DistancePercentage: percentage,
 			}
-
-			i.deplLogger.Debugf("distance from %s(%s) to %s, %f", nodeID, location.ToToken(), centroidID.ToToken(),
-				delta)
 		}
 	}
 
@@ -390,12 +391,10 @@ func (i *idealLatency) generateMultipleExtendAction(targets result, args ...inte
 
 	exploredTTL := deployerAPI.NotExploringTTL
 
-	value, ok := i.deployment.Exploring.Load(Myself.ID)
-	if ok {
+	value, imExplored := i.deployment.Exploring.Load(Myself.ID)
+	if imExplored {
 		exploredTTL = value.(exploringMapValue)
 	}
-
-	_, imExplored := i.deployment.Exploring.Load(Myself.ID)
 
 	i.deplLogger.Debugf("im being explored %t", imExplored)
 
@@ -409,9 +408,8 @@ func (i *idealLatency) generateMultipleExtendAction(targets result, args ...inte
 
 		for _, cellID := range cells {
 			_, centroidExtended := i.centroidsExtended[cellID]
-			_, iAmExploring := i.deployment.Exploring.Load(Myself)
 
-			if !centroidExtended && !iAmExploring {
+			if !centroidExtended && !imExplored {
 				targetsExploring[node] = deployerAPI.NotExploringTTL
 
 				break
@@ -526,23 +524,29 @@ func (i *idealLatency) checkShouldBranch(centroids []s2.CellID) bool {
 
 	distanceFactor := maxDistance / (maxDistance - (avgDistanceToCentroids - satisfiedDistance))
 	childrenFactor := (((maxChildren + 1.) / (float64(numChildren) + 1.)) - 1.) / maxChildren
-	cosDelta := 0.
-	sinDelta := 0.
+	// cosDelta := 0.
+	// sinDelta := 0.
+	//
+	// for _, centroid := range centroids {
+	// 	latDelta := centroid.LatLng().Lat.Degrees() - i.myLocation.LatLng().Lat.Degrees()
+	// 	lngDelta := centroid.LatLng().Lng.Degrees() - i.myLocation.LatLng().Lng.Degrees()
+	// 	angle := math.Atan2(lngDelta, latDelta)
+	// 	cosDelta += math.Cos(angle)
+	// 	sinDelta += math.Sin(angle)
+	// }
+	//
+	// accumulatedDiff := cosDelta + sinDelta
+	//
+	// var heterogeneityFactor float64
+	// if numChildren < 1 {
+	// 	heterogeneityFactor = 1
+	// } else {
+	// 	heterogeneityFactor = accumulatedDiff / float64(numChildren) //nolint:gomnd
+	// }
 
-	for _, centroid := range centroids {
-		latDelta := centroid.LatLng().Lat.Degrees() - i.myLocation.LatLng().Lat.Degrees()
-		lngDelta := centroid.LatLng().Lng.Degrees() - i.myLocation.LatLng().Lng.Degrees()
-		angle := math.Atan2(lngDelta, latDelta)
-		cosDelta += math.Cos(angle)
-		sinDelta += math.Sin(angle)
-	}
-
-	accumulatedDiff := cosDelta + sinDelta
-	heterogeneity := (2. / (accumulatedDiff + 1.)) - 1. //nolint:gomnd
-
-	heterogeneityFactor := float64(numChildren) + 2. - (heterogeneity * float64(numChildren)) //nolint:gomnd
-	branchingFactor := childrenFactor * distanceFactor * heterogeneityFactor * i.depthFactor
-	i.deplLogger.Debugf("branching factor %f (%d)", branchingFactor, numChildren)
+	branchingFactor := childrenFactor * distanceFactor * i.depthFactor
+	i.deplLogger.Debugf("branching factor %f (%d; %f * %f * %f)", branchingFactor, numChildren, childrenFactor,
+		distanceFactor, i.depthFactor)
 
 	validBranch := branchingFactor > branchingCutoff
 	i.deplLogger.Debugf("should branch: %t", validBranch)

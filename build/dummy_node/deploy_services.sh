@@ -34,21 +34,21 @@ docker run -d --cap-add=NET_ADMIN --env NODE_IP="$NODE_IP" --env NODE_ID="$NODE_
   --env LANDMARKS="$LANDMARKS" --env WAIT_FOR_START="$WAIT_FOR_START" "$DOCKER_IMAGE" "$NODE_NUM" "$@"
 
 SERVICE_NAME="archimedes"
-PORT="50000"
+PORT="1500"
 run &
 
 SERVICE_NAME="scheduler"
-PORT="50001"
+PORT="1501"
 OPTIONS="-v /var/run/docker.sock:/var/run/docker.sock"
 run &
 
 SERVICE_NAME="deployer"
-PORT="50002"
+PORT="1502"
 OPTIONS="-v /tables:/tables"
 run &
 
 SERVICE_NAME="autonomic"
-PORT="50003"
+PORT="1503"
 OPTIONS=""
 run &
 

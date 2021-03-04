@@ -1,6 +1,6 @@
 FROM frolvlad/alpine-glibc
 COPY ./archimedes /archimedes
 
-EXPOSE 50000
+EXPOSE 1500
 
 CMD ["/archimedes", "-d"]

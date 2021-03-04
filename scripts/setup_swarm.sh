@@ -7,6 +7,14 @@ if [ -z $name ]; then
   name="swarm-network"
 fi
 
+host=$(hostname)
+
+docker swarm leave -f
+for node in $(oarprint host); do
+  if [ $node != $host ]; then
+    oarsh $node "docker swarm leave -f"
+  fi
+done
 
 if [ -z $subnet ] || [ -z $name ]; then
   echo "setup takes 2 arguments (net_name defaults to swarm_network)"
@@ -17,7 +25,6 @@ fi
 docker swarm init
 JOIN_TOKEN=$(docker swarm join-token manager -q)
 
-host=$(hostname)
 for node in $(oarprint host); do
   if [ $node != $host ]; then
     oarsh $node "docker swarm join --token $JOIN_TOKEN $host:2377"

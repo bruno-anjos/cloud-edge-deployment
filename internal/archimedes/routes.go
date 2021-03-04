@@ -24,7 +24,6 @@ const (
 	redirectName                   = "REDIRECT"
 	removeRedirectName             = "REMOVE_REDIRECT"
 	getRedirectedName              = "GET_REDIRECTED"
-	getAvgClientLocationName       = "GET_AVG_CLIENT_LOCATION"
 	setExploringLocationName       = "SET_EXPLORING_CLIENT_LOCATION"
 	addDeploymentNodeName          = "ADD_DEPLOYMENT_NODE"
 	removeDeploymentNodeName       = "REMOVE_DEPLOYMENT_NODE"
@@ -55,7 +54,6 @@ var (
 	resolveRoute                    = archimedes.ResolvePath
 	redirectRoute                   = fmt.Sprintf(archimedes.RedirectPath, _deploymentIDPathVarFormatted)
 	redirectedRoute                 = fmt.Sprintf(archimedes.RedirectedPath, _deploymentIDPathVarFormatted)
-	getAvgClientLocationRoute       = fmt.Sprintf(archimedes.AvgClientLocationPath, _deploymentIDPathVarFormatted)
 	setExploringClientLocationRoute = fmt.Sprintf(archimedes.ExploringClientLocationPath, _deploymentIDPathVarFormatted)
 	addDeploymentNodeRoute          = fmt.Sprintf(archimedes.AddDeploymentNodePath, _deploymentIDPathVarFormatted)
 	removeDeploymentNodeRoute       = fmt.Sprintf(archimedes.RemoveDeploymentNodePath, _deploymentIDPathVarFormatted,
@@ -105,13 +103,6 @@ var Routes = []servers.Route{
 		Method:      http.MethodPost,
 		Pattern:     setExploringClientLocationRoute,
 		HandlerFunc: setExploringClientLocationHandler,
-	},
-
-	{
-		Name:        getAvgClientLocationName,
-		Method:      http.MethodGet,
-		Pattern:     getAvgClientLocationRoute,
-		HandlerFunc: getClientCentroidsHandler,
 	},
 
 	{

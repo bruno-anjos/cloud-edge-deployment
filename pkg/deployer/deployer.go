@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	Port = 50002
+	Port = 1502
 )
 
 type Client interface {

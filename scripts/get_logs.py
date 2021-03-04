@@ -34,11 +34,24 @@ def get_specific_logs(logs_dir_name, dummy, cluster_node, logs_prefix):
         subprocess.run(docker_logs_cmd, stdout=log_file, stderr=log_file)
 
 
+def get_other_logs(logs_dir_name, dummy, cluster_node):
+    inside_docker_cmd = f"docker ps -a --format {{{{.Names}}}}".split(" ")
+    docker_logs_cmd = f"oarsh {cluster_node} -- docker exec {dummy}".split(" ")
+    docker_logs_cmd.extend(inside_docker_cmd)
+
+    output = subprocess.getoutput(" ".join(docker_logs_cmd))
+    dummy_containers = [line.strip() for line in output.split("\n") if line not in log_prefixes]
+    for container in dummy_containers:
+        get_specific_logs(logs_dir_name, dummy, cluster_node, container)
+
+
 def get_dummy_logs(logs_dir_name, dummy):
     os.mkdir(f"{logs_dir_name}/{dummy}")
     cluster_node = dummy_infos[dummy]["node"]
     for log_prefix in log_prefixes:
         get_specific_logs(logs_dir_name, dummy, cluster_node, log_prefix)
+
+    get_other_logs(logs_dir_name, dummy, cluster_node)
 
 
 args = sys.argv[1:]

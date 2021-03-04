@@ -86,9 +86,23 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.
 	sTable = newDeploymentsTable()
 	remoteTable = newRemoteDeploymentsTable()
 
-	clientsManager = clients.NewManager()
-
 	myself = utils.NodeFromEnv()
+
+	demCliConf := client.DemmonClientConf{
+		DemmonPort:     daemonPort,
+		DemmonHostAddr: myself.Addr,
+		RequestTimeout: requestTimeout,
+	}
+
+	demCli = client.New(demCliConf)
+	err, errChan := demCli.ConnectTimeout(connectTimeout)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	go internalUtils.PanicOnErrFromChan(errChan)
+
+	clientsManager = clients.NewManager(demCli, myself)
 
 	autoFactory = autoFactoryAux
 	deplFactory = deplFactoryAux
@@ -119,20 +133,6 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, deplFactoryAux deployer.
 	archimedesID = uuid.New().String()
 
 	log.Infof("ARCHIMEDES ID: %s", archimedesID)
-
-	demCliConf := client.DemmonClientConf{
-		DemmonPort:     daemonPort,
-		DemmonHostAddr: myself.Addr,
-		RequestTimeout: requestTimeout,
-	}
-
-	demCli = client.New(demCliConf)
-	err, errChan := demCli.ConnectTimeout(connectTimeout)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	go internalUtils.PanicOnErrFromChan(errChan)
 
 	msgChan, _, err := demCli.InstallBroadcastMessageHandler(demmonAPI.DiscoverMessageID)
 	if err != nil {
@@ -417,6 +417,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 	reqLogger.Debugf("got request from %s", reqBody.Location.LatLng().String())
 
+	// first: check for redirections
 	redirect, targetURL := checkForLoadBalanceRedirections(reqBody.ToResolve.Host)
 	if redirect {
 		reqLogger.Debugf(
@@ -433,6 +434,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 	canRedirect := true
 
+	// guarantee that it will not make a redirections loop
 	if len(reqBody.Redirects) > 0 {
 		lastRedirect := reqBody.Redirects[len(reqBody.Redirects)-1]
 
@@ -447,6 +449,7 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// if it can redirect then redirect to the closest node accepting redirections
 	if canRedirect {
 		redirectTo := checkForClosestNodeRedirection(reqBody.DeploymentID, reqBody.Location)
 
@@ -543,7 +546,7 @@ func checkForLoadBalanceRedirections(hostToResolve string) (redirect bool, targe
 	return redirect, targetURL
 }
 
-func handleRedirection(hostToResolve string, redirectConfig redirectionsMapValue) (redirect bool, targetURL url.URL) {
+func handleRedirection(hostToResolve string, redirectConfig *redirectedConfig) (redirect bool, targetURL url.URL) {
 	current := atomic.AddInt32(&redirectConfig.Current, 1)
 	if current <= redirectConfig.Goal {
 		redirect, targetURL = true, url.URL{
@@ -806,7 +809,8 @@ func addDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
 		exploringNodes.add(deploymentID, reqBody.Node.ID)
 	}
 
-	log.Debugf("added node %s for deployment %s (exploring: %t)", reqBody.Node, deploymentID, reqBody.Exploring)
+	log.Debugf("added node %s for deployment %s (location: %s, exploring: %t)", reqBody.Node, deploymentID,
+		reqBody.Location.ToToken(), reqBody.Exploring)
 }
 
 func removeDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
@@ -817,23 +821,6 @@ func removeDeploymentNodeHandler(_ http.ResponseWriter, r *http.Request) {
 	exploringNodes.checkAndDelete(deploymentID, nodeID)
 
 	log.Debugf("deleted node %s for deployment %s", nodeID, deploymentID)
-}
-
-func getClientCentroidsHandler(w http.ResponseWriter, r *http.Request) {
-	deploymentID := internalUtils.ExtractPathVar(r, deploymentIDPathVar)
-
-	centroids, ok := clientsManager.GetDeploymentClientsCentroids(deploymentID)
-	if !ok {
-		internalUtils.SendJSONReplyStatus(w, http.StatusNotFound, nil)
-	} else {
-		centroidTokens := make([]string, len(centroids))
-		for i, centroid := range centroids {
-			centroidTokens[i] = centroid.ToToken()
-		}
-
-		log.Debugf("%s centroids: %+v", deploymentID, centroidTokens)
-		internalUtils.SendJSONReplyOK(w, centroids)
-	}
 }
 
 func resolveInstance(originalPort nat.Port, instance *api.Instance) (*api.ResolvedDTO, bool) {
@@ -860,6 +847,7 @@ func checkForClosestNodeRedirection(deploymentID string, clientLocation s2.CellI
 		deploymentID, func(node *utils.Node, nodeLocId s2.CellID) bool {
 			auxLocation := s2.CellFromCellID(nodeLocId)
 			currDiff := servers.ChordAngleToKM(auxLocation.DistanceToCell(s2.CellFromCellID(clientLocation)))
+			log.Debugf("dist to %s (%s): %f, currBestDist %f", node.ID, nodeLocId.ToToken(), currDiff, bestDiff)
 			if currDiff < bestDiff {
 				bestDiff = currDiff
 				redirectTo = node
@@ -869,7 +857,7 @@ func checkForClosestNodeRedirection(deploymentID string, clientLocation s2.CellI
 		},
 	)
 
-	log.Debugf("best node in vicinity to redirect client from %+v to is %s", clientLocation, redirectTo)
+	log.Debugf("best node in vicinity to redirect client from %s to is %s", clientLocation.ToToken(), redirectTo)
 
 	if redirectTo.ID != myself.ID {
 		log.Debugf("will redirect client at %s to %s", clientLocation.ToToken(), redirectTo)

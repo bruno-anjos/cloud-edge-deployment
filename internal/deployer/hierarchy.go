@@ -18,8 +18,11 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/deployer"
 	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
+	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
 	"github.com/docker/go-connections/nat"
 	"github.com/golang/geo/s2"
+	client "github.com/nm-morais/demmon-client/pkg"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
@@ -30,6 +33,9 @@ const (
 
 	orphanValue    = 1
 	notOrphanValue = 0
+
+	daemonPort     = 8090
+	requestTimeout = 5 * time.Second
 )
 
 type (
@@ -205,6 +211,20 @@ type (
 )
 
 func newHierarchyTable() *hierarchyTable {
+	demCliConf := client.DemmonClientConf{
+		DemmonPort:     daemonPort,
+		DemmonHostAddr: myself.Addr,
+		RequestTimeout: requestTimeout,
+	}
+
+	demCli := client.New(demCliConf)
+	err, errChan := demCli.ConnectTimeout(connectTimeout)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	go internalUtils.PanicOnErrFromChan(errChan)
+
 	return &hierarchyTable{
 		hierarchyEntries: sync.Map{},
 		Mutex:            sync.Mutex{},
@@ -456,9 +476,20 @@ func (t *hierarchyTable) addChild(deploymentID string, child *utils.Node, explor
 	entry := value.(typeHierarchyEntriesMapValue)
 	entry.addChild(*child)
 	children.LoadOrStore(child.ID, child)
+
 	autonomicClient.AddDeploymentChild(servers.AutonomicLocalHostPort, deploymentID, child)
-	archimedesClient.AddDeploymentNode(servers.ArchimedesLocalHostPort, deploymentID, child, nodeLocCache.get(child),
-		exploring)
+
+	var childLocation s2.CellID
+
+	value, ok = nodeLocCache.Load(child.ID)
+	if ok {
+		childLocation = value.(s2.CellID)
+	} else {
+		childLocation = environment.GetLocation(demmonCli, child)
+		nodeLocCache.Store(child.ID, childLocation)
+	}
+
+	archimedesClient.AddDeploymentNode(servers.ArchimedesLocalHostPort, deploymentID, child, childLocation, exploring)
 }
 
 func (t *hierarchyTable) removeChild(deploymentID, childID string) {
@@ -747,22 +778,15 @@ func renegotiateParent(deadParent *utils.Node, alternatives map[string]*utils.No
 
 		newParentChan := hTable.setDeploymentAsOrphan(deploymentID)
 
-		var (
-			locations []s2.CellID
-			status    int
-		)
-
-		locations, status = archimedesClient.GetClientCentroids(servers.ArchimedesLocalHostPort, deploymentID)
-		if status == http.StatusNotFound {
+		locations := environment.GetClientCentroids(demmonCli, deploymentID, myself)
+		if len(locations) == 0 {
 			locations = append(locations, location.ID())
-		} else if status != http.StatusOK {
-			log.Errorf("got status %d while trying to get centroids for deployment %s", status, deploymentID)
 		}
 
 		deplClient := deplFactory.New()
 		addr := grandparent.Addr + ":" + strconv.Itoa(deployer.Port)
 
-		status = deplClient.WarnOfDeadChild(addr, deploymentID, deadParent.ID, myself, alternatives, locations)
+		status := deplClient.WarnOfDeadChild(addr, deploymentID, deadParent.ID, myself, alternatives, locations)
 		if status != http.StatusOK {
 			log.Errorf("got status %d while renegotiating parent %s with %s for deployment %s", status,
 				deadParent, grandparent.ID, deploymentID)

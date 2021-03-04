@@ -10,7 +10,7 @@ const (
 	StrategyIdealLatencyID = "STRATEGY_IDEAL_LATENCY"
 	StrategyLoadBalanceID  = "STRATEGY_LOAD_BALANCE"
 
-	Port = 50003
+	Port = 1503
 )
 
 type Client interface {

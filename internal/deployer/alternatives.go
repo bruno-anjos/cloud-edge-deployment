@@ -22,6 +22,24 @@ const (
 	connectTimeout = 5 * time.Second
 )
 
+var demmonCli *client.DemmonClient
+
+func InitAlternatives() {
+	demmonCliConf := client.DemmonClientConf{
+		DemmonPort:     environment.DaemonPort,
+		DemmonHostAddr: myself.Addr,
+		RequestTimeout: environment.ClientRequestTimeout,
+	}
+
+	demmonCli = client.New(demmonCliConf)
+	err, errChan := demmonCli.ConnectTimeout(connectTimeout)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	go internalUtils.PanicOnErrFromChan(errChan)
+}
+
 func setAlternativesHandler(_ http.ResponseWriter, r *http.Request) {
 	deployerID := internalUtils.ExtractPathVar(r, nodeIDPathVar)
 
@@ -39,20 +57,6 @@ func setAlternativesHandler(_ http.ResponseWriter, r *http.Request) {
 }
 
 func updateAlternatives() {
-	demmonCliConf := client.DemmonClientConf{
-		DemmonPort:     environment.DaemonPort,
-		DemmonHostAddr: myself.Addr,
-		RequestTimeout: environment.ClientRequestTimeout,
-	}
-
-	demmonCli := client.New(demmonCliConf)
-	err, errChan := demmonCli.ConnectTimeout(connectTimeout)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	go internalUtils.PanicOnErrFromChan(errChan)
-
 	res, err, _, updateChan := demmonCli.SubscribeNodeUpdates()
 	if err != nil {
 		log.Panic(err)

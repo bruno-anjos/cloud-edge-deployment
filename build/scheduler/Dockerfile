@@ -1,6 +1,6 @@
 FROM frolvlad/alpine-glibc
 COPY ./scheduler /scheduler
 
-EXPOSE 50001
+EXPOSE 1501
 
 CMD ["/scheduler", "-d"]

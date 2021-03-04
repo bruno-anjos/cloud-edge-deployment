@@ -38,12 +38,12 @@ def get_all_hierarchy_tables(count):
     return tables
 
 
-def collect_recordings(aux_duration, timeout):
+def collect_recordings(aux_output_dir, aux_duration, timeout):
     cycles = int(aux_duration[:-1]) // int(timeout[:-1])
-    snapshots_path = os.path.expanduser('~/snapshots/')
+    snapshots_path = aux_output_dir
 
     for count in range(cycles):
-        target_path = f"{snapshots_path}/{count}.json"
+        target_path = f"{snapshots_path}/graph_{count}.json"
         node_tables = get_all_hierarchy_tables(count+1)
 
         print("Got all hierarchy tables!")
@@ -151,8 +151,8 @@ print("Setting up entrypoint...")
 setup_visualizer_entrypoint()
 print("Done!")
 
-deployerURLf = 'http://%s:50002/deployer'
-archimedesURLf = 'http://%s:50000/archimedes'
+deployerURLf = 'http://%s:1502/deployer'
+archimedesURLf = 'http://%s:1500/archimedes'
 tablePath = '/table'
 startRecordingPath = '/start_recording'
 services_path = "/tmp/services"
@@ -235,4 +235,4 @@ hosts = subprocess.getoutput("oarprint host").strip().split("\n")
 for host in hosts:
     exec_cmd_on_host(host, f'cp -R /tmp/tables/* {recordings_path}')
 
-collect_recordings(duration, time_between)
+collect_recordings(output_dir, duration, time_between)

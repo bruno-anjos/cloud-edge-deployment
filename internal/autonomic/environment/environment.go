@@ -170,7 +170,10 @@ func exportLocationPeriodically(demmonCli *client.DemmonClient, myself *utils.No
 		err = demmonCli.PushMetricBlob([]body_types.TimeseriesDTO{
 			{
 				MeasurementName: MetricLocation,
-				TSTags:          map[string]string{nodeIDTag: myself.ID},
+				TSTags: map[string]string{
+					nodeIDTag: myself.ID,
+					hostTag:   myself.Addr,
+				},
 				Values: []body_types.ObservableDTO{
 					{
 						TS:     time.Now(),
@@ -186,6 +189,13 @@ func exportLocationPeriodically(demmonCli *client.DemmonClient, myself *utils.No
 		log.Debugf("exported location %s", location.ToToken())
 
 		<-ticker.C
+	}
+}
+
+func SetupClientCentroidsExport(demmCli *client.DemmonClient) {
+	err := demmCli.InstallBucket(MetricCentroids, locationExportFrequency, defaultBucketSize)
+	if err != nil {
+		log.Panic(err)
 	}
 }
 
@@ -276,7 +286,7 @@ func (e *Environment) GetLocationInVicinity() map[string]s2.CellID {
 
 	timeseries, err := e.DemmonCli.Query(query, queryTimeout)
 	if err != nil {
-		log.Panic(err)
+		log.Warn(err)
 	}
 
 	locations := map[string]s2.CellID{}
@@ -415,26 +425,27 @@ func getDeploymentIDMetricString(deploymentID, metricID string) string {
 }
 
 const (
-	DeploymentTag = "Deployment"
+	DeploymentTag = "deployment"
 
-	locationWithHostQuery  = `SelectLast("%s", {"Host": "%s"})`
+	locationWithHostQuery  = `SelectLast("%s", {"host": "%s"})`
 	LocationQuery          = `SelectLast("%s", "*")`
-	loadPerDeploymentQuery = `Avg(Select("%s", {"Host": "%s", "Deployment": "%s"}), "value")`
+	loadPerDeploymentQuery = `Avg(Select("%s", {"host": "%s", "deployment": "%s"}), "value")`
+	centroidsQuery         = `SelectLast("%s", {"host": "%s", "deployment": "%s"})`
 )
 
 func GetLocation(demmonCli *client.DemmonClient, host *utils.Node) s2.CellID {
-	query := fmt.Sprintf(locationWithHostQuery, MetricLocation, host.Addr)
+	query := fmt.Sprintf(locationWithHostQuery, MetricLocationInVicinity, host.Addr)
 
 	timeseries, err := demmonCli.Query(query, queryTimeout)
 	if err != nil {
-		log.Panic(err)
+		log.Warn(err)
 	}
 
 	return s2.CellIDFromToken(timeseries[0].Values[0].Fields["value"].(string))
 }
 
 func GetLoad(demmonCli *client.DemmonClient, deploymentID string, host *utils.Node) int {
-	query := fmt.Sprintf(loadPerDeploymentQuery, MetricLoad, deploymentID, host.Addr)
+	query := fmt.Sprintf(loadPerDeploymentQuery, MetricLoad, host.Addr, deploymentID)
 
 	timeseries, err := demmonCli.Query(query, queryTimeout)
 	if err != nil {
@@ -447,4 +458,34 @@ func GetLoad(demmonCli *client.DemmonClient, deploymentID string, host *utils.No
 	}
 
 	return 0
+}
+
+func ExportClientCentroids(demmonCli *client.DemmonClient, deploymentID string, node *utils.Node,
+	centroids []s2.CellID) {
+	err := demmonCli.PushMetricBlob([]body_types.TimeseriesDTO{
+		{
+			MeasurementName: MetricCentroids,
+			TSTags:          map[string]string{hostTag: node.Addr, DeploymentTag: deploymentID},
+			Values: []body_types.ObservableDTO{
+				{
+					TS:     time.Now(),
+					Fields: map[string]interface{}{"value": centroids},
+				},
+			},
+		},
+	})
+	if err != nil {
+		log.Panic(err)
+	}
+}
+
+func GetClientCentroids(demmonCli *client.DemmonClient, deploymentID string, node *utils.Node) []s2.CellID {
+	query := fmt.Sprintf(centroidsQuery, MetricCentroids, node.Addr, deploymentID)
+
+	timeseries, err := demmonCli.Query(query, queryTimeout)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return timeseries[0].Values[0].Fields["value"].([]s2.CellID)
 }

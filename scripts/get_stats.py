@@ -4,6 +4,8 @@ import os
 import socket
 import subprocess
 import sys
+
+import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 
 client_logs_dirname = "client_logs"
@@ -83,44 +85,93 @@ def get_bandwidth_stats():
     return node_results
 
 
+def find_lowest_timestamp(node_results):
+    lowest_timestamp = -1
+
+    for _, results in node_results.items():
+        for result in results:
+            if lowest_timestamp == -1 or lowest_timestamp > float(result[TIMESTAMP]):
+                lowest_timestamp = float(result[TIMESTAMP])
+
+    return lowest_timestamp
+
+
 def main():
     args = sys.argv[1:]
 
-    if len(args) > 1:
-        print("usage: python3 get_stats.py [output_log_dir]")
+    if len(args) > 2:
+        print("usage: python3 get_stats.py [output_log_dir] [--plot-only=results.json]")
         exit(1)
 
-    if len(args) == 1:
-        output_dir = args[0]
+    plot_only = False
+    results_json = ""
+    output_dir = os.path.expanduser("~")
+    for arg in args:
+        if '--plot-only' in arg:
+            plot_only = True
+            results_json = arg.split('=')[1]
+        else:
+            output_dir = arg
+
+    if not plot_only:
+        with open("/tmp/dummy_infos.json", "r") as dummy_infos_fp:
+            dummy_infos = json.load(dummy_infos_fp)
+
+        print("Cleaning folder in NAS...")
+
+        clean_folder_nas()
+
+        print("Will sync stats to NAS...")
+        sync_stats_to_nas(dummy_infos)
+
+        node_results = get_bandwidth_stats()
+        with open(f"{output_dir}/bandwidth_results.json", 'w') as results_fp:
+            json.dump(node_results, results_fp, indent=4)
     else:
-        output_dir = os.path.expanduser("~")
+        with open(results_json, 'r') as results_fp:
+            node_results = json.load(results_fp)
 
-    with open("/tmp/dummy_infos.json", "r") as dummy_infos_fp:
-        dummy_infos = json.load(dummy_infos_fp)
+    lowest_timestamp = find_lowest_timestamp(node_results)
 
-    print("Cleaning folder in NAS...")
+    plt.figure(figsize=(25, 15))
 
-    clean_folder_nas()
+    pcolors = list(colors.TABLEAU_COLORS.keys())
+    pline_types = ['-', '--', '-.', ':']
+    markers = ['o', '^', '<', '>']
 
-    print("Will sync stats to NAS...")
-    sync_stats_to_nas(dummy_infos)
+    print(pcolors)
 
-    node_results = get_bandwidth_stats()
-    with open(f"{output_dir}/bandwidth_results.json", 'w') as results_fp:
-        json.dump(node_results, results_fp, indent=4)
-
+    color_i = 0
+    line_i = 0
+    marker_i = 0
     for node, results in node_results.items():
         x_axis = []
         y_axis = []
 
         for result in results:
-            x_axis.append(result[TIMESTAMP])
-            y_axis.append(result[BYTES_TOTAL])
+            x_axis.append(float(result[TIMESTAMP]) - float(lowest_timestamp))
+            y_axis.append(float(result[BYTES_TOTAL]) / 1000)
 
-        plt.plot(x_axis, y_axis, label=node)
+        color_i = color_i % len(pcolors)
+        line_i = line_i % len(pline_types)
+        marker_i = marker_i % len(markers)
+
+        color = pcolors[color_i]
+        line_type = pline_types[line_i]
+        marker = markers[marker_i]
+
+        plt.plot(x_axis, y_axis, label=node.split('.csv')[0], color=color, linestyle=line_type, marker=marker)
+
+        color_i += 1
+
+        if color_i == len(pcolors):
+            line_i += 1
+
+        if line_i == len(pline_types):
+            marker_i += 1
 
     plt.legend()
-    plt.show()
+    plt.savefig(f'{output_dir}/bandwidths.png')
 
 
 if __name__ == '__main__':

@@ -8,7 +8,7 @@ cd bruno-anjos || exit
 echo "Syncing CED..."
 rsync -a cloud-edge-deployment/ dicluster:/home/b.anjos/go/src/github.com/bruno-anjos/cloud-edge-deployment --delete
 
-echo "Syncing Archimedes..."
+echo "Syncing ArchimedesHTTPClient..."
 rsync -a archimedesHTTPClient/ dicluster:/home/b.anjos/go/src/github.com/bruno-anjos/archimedesHTTPClient --delete
 
 cd .. || exit

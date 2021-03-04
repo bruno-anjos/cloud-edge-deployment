@@ -197,15 +197,6 @@ func (c *Client) SetResolvingAnswer(addr, id string, resolved *api.ResolvedDTO) 
 	return
 }
 
-func (c *Client) GetClientCentroids(addr, deploymentID string) (centroids []s2.CellID, status int) {
-	path := api.GetAvgClientLocationPath(deploymentID)
-	req := internalUtils.BuildRequest(http.MethodGet, addr, path, nil)
-
-	status, _ = internalUtils.DoRequest(c.GetHTTPClient(), req, &centroids)
-
-	return
-}
-
 func (c *Client) SetExploringCells(addr, deploymentID string, cells []s2.CellID) (status int) {
 	reqBody := cells
 
@@ -217,9 +208,7 @@ func (c *Client) SetExploringCells(addr, deploymentID string, cells []s2.CellID)
 	return
 }
 
-func (c *Client) AddDeploymentNode(addr,
-	deploymentID string, node *utils.Node, location s2.CellID,
-	exploring bool,
+func (c *Client) AddDeploymentNode(addr, deploymentID string, node *utils.Node, location s2.CellID, exploring bool,
 ) (status int) {
 	reqBody := api.AddDeploymentNodeRequestBody{
 		Node:      node,

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	Port = 50000
+	Port = 1500
 )
 
 type Client interface {
@@ -28,7 +28,6 @@ type Client interface {
 	RemoveRedirect(addr, deploymentID string) (status int)
 	GetRedirected(addr, deploymentID string) (redirected int32, status int)
 	SetResolvingAnswer(addr, id string, resolved *api.ResolvedDTO) (status int)
-	GetClientCentroids(addr, deploymentID string) (centroids []s2.CellID, status int)
 	SetExploringCells(addr, deploymentID string, cells []s2.CellID) (status int)
 	AddDeploymentNode(addr, deploymentID string, node *utils.Node, location s2.CellID,
 		exploring bool) (status int)

@@ -253,8 +253,18 @@ def setup_anchors():
     return entrypoints_ips
 
 
-def generate_demmon_config(infos, map_name):
-    latency_filename = f"{project_path}/latency_maps/{map_name}/lat.txt"
+def generate_demmon_config(latencies, infos):
+    if latencies is None:
+        print("missing latencies")
+        exit(1)
+
+    latency_filename = f"{project_path}/lats.txt"
+    with open(latency_filename, 'w') as f:
+        for node_latencies in latencies:
+            latencies_string = " ".join([str(latency) for latency in node_latencies])
+            f.write(latencies_string)
+            f.write("\n")
+
     subprocess.run(f"cp {latency_filename} {os.environ['DEMMON_DIR']}/config/latency_map.txt".split(" "))
 
     config_filename = "config/banjos_config.txt"
@@ -474,7 +484,7 @@ print("Building images...")
 
 if demmon:
     print("Generating demmon config...")
-    generate_demmon_config(dummy_infos, map_name)
+    generate_demmon_config(scenario["latencies"], dummy_infos)
 
 build_dummy_node_image()
 

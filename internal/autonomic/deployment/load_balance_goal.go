@@ -44,11 +44,15 @@ type deploymentLoadBalanceGoal struct {
 	deployment       *Deployment
 	staleCycles      int
 	overloadedCycles int
+	deplLogger       *log.Entry
 }
 
 func newLoadBalanceGoal(deployment *Deployment) *deploymentLoadBalanceGoal {
 	return &deploymentLoadBalanceGoal{
-		deployment: deployment,
+		deployment:       deployment,
+		staleCycles:      0,
+		overloadedCycles: 0,
+		deplLogger:       log.WithFields(log.Fields{"DEPL": deployment.DeploymentID, "GOAL": "LOAD_BALANCE"}),
 	}
 }
 
@@ -63,16 +67,16 @@ func (l *deploymentLoadBalanceGoal) Optimize(optDomain domain) (isAlreadyMax boo
 		return
 	}
 
-	log.Debugf("%s generated domain %+v", loadBalanceGoalID, candidateIds)
+	l.deplLogger.Debugf("%s generated domain %+v", loadBalanceGoalID, candidateIds)
 
 	filtered := l.Filter(candidateIds, optDomain)
-	log.Debugf("%s filtered result %+v", loadBalanceGoalID, filtered)
+	l.deplLogger.Debugf("%s filtered result %+v", loadBalanceGoalID, filtered)
 
 	ordered := l.Order(filtered, sortingCriteria)
-	log.Debugf("%s ordered result %+v", loadBalanceGoalID, ordered)
+	l.deplLogger.Debugf("%s ordered result %+v", loadBalanceGoalID, ordered)
 
 	optRange, isAlreadyMax = l.Cutoff(ordered, sortingCriteria)
-	log.Debugf("%s cutoff result (%t)%+v", loadBalanceGoalID, isAlreadyMax, optRange)
+	l.deplLogger.Debugf("%s cutoff result (%t)%+v", loadBalanceGoalID, isAlreadyMax, optRange)
 
 	if !isAlreadyMax {
 		isAlreadyMax, optRange, actionArgs = l.handleNotMaximized(optRange, ordered, sortingCriteria)
@@ -117,7 +121,7 @@ func (l *deploymentLoadBalanceGoal) handleNotMaximized(optRange, ordered result,
 		addr := node.Addr + ":" + strconv.Itoa(archimedes.Port)
 		can, _ := archClient.CanRedirectToYou(addr, l.deployment.DeploymentID, Myself.ID)
 
-		log.Debugf("%s deployment %s to redirect: %t", node, l.deployment.DeploymentID, can)
+		l.deplLogger.Debugf("%s deployment %s to redirect: %t", node, l.deployment.DeploymentID, can)
 
 		if can {
 			filteredRedirectedTargets = append(filteredRedirectedTargets, node)
@@ -127,7 +131,7 @@ func (l *deploymentLoadBalanceGoal) handleNotMaximized(optRange, ordered result,
 	newOptRange = filteredRedirectedTargets
 	l.overloadedCycles = 0
 
-	log.Debugf("resetting overloaded cycles")
+	l.deplLogger.Debugf("resetting overloaded cycles")
 
 	return isAlreadyMax, newOptRange, actionArgs
 }
@@ -143,6 +147,8 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain domain
 	info = map[string]interface{}{}
 	load := l.deployment.GetLoad()
 
+	l.deplLogger.Debugf("i have load: %d", load)
+
 	domain = append(domain, Myself)
 	info[Myself.ID] = infoValueType{
 		Load: load,
@@ -152,7 +158,7 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain domain
 	for nodeID, node := range vicinity {
 		_, okS := l.deployment.Suspected.Load(nodeID)
 		if okS || (l.deployment.Parent != nil && nodeID == l.deployment.Parent.ID) {
-			log.Debugf("ignoring %s", nodeID)
+			l.deplLogger.Debugf("ignoring %s", nodeID)
 
 			continue
 		}
@@ -165,7 +171,7 @@ func (l *deploymentLoadBalanceGoal) GenerateDomain(_ interface{}) (domain domain
 			Node: node,
 		}
 
-		log.Debugf("%s has load: %d(%d)", nodeID, info[nodeID].(infoValueType).Load, load)
+		l.deplLogger.Debugf("%s has load: %d(%d)", nodeID, info[nodeID].(infoValueType).Load, load)
 	}
 
 	success = true
@@ -197,7 +203,7 @@ func (l *deploymentLoadBalanceGoal) Cutoff(candidates domain, candidatesCriteria
 	myLoad := candidatesCriteria[Myself.ID].(infoValueType).Load
 
 	if myLoad > maximumLoad {
-		log.Debugf("im overloaded: %d (%d)", myLoad, overloadedCyclesToRedirect)
+		l.deplLogger.Debugf("im overloaded: %d (%d)", myLoad, overloadedCyclesToRedirect)
 
 		if l.overloadedCycles == overloadedCyclesToRedirect {
 			maxed = false
@@ -205,7 +211,7 @@ func (l *deploymentLoadBalanceGoal) Cutoff(candidates domain, candidatesCriteria
 
 		l.overloadedCycles++
 	} else {
-		log.Debugf("resetting overloaded cycles")
+		l.deplLogger.Debugf("resetting overloaded cycles")
 		l.overloadedCycles = 0
 	}
 
@@ -223,7 +229,7 @@ func (l *deploymentLoadBalanceGoal) Cutoff(candidates domain, candidatesCriteria
 }
 
 func (l *deploymentLoadBalanceGoal) GenerateAction(targets []*utils.Node, args ...interface{}) actions.Action {
-	log.Debugf("generating action %s", (args[lbActionTypeArgIndex]).(string))
+	l.deplLogger.Debugf("generating action %s", (args[lbActionTypeArgIndex]).(string))
 
 	switch args[lbActionTypeArgIndex].(string) {
 	case actions.ExtendDeploymentID:
@@ -283,7 +289,7 @@ func (l *deploymentLoadBalanceGoal) handleOverload(candidates result) (
 		}
 	}
 
-	log.Debugf("%s new opt range %+v", loadBalanceGoalID, newOptRange)
+	l.deplLogger.Debugf("%s new opt range %+v", loadBalanceGoalID, newOptRange)
 
 	return
 }
@@ -299,7 +305,7 @@ func (l *deploymentLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 
 	if hasChildren {
 		l.staleCycles = 0
-		log.Debugf("%s should NOT be removed, because it has children", l.deployment.DeploymentID)
+		l.deplLogger.Debugf("%s should NOT be removed, because it has children", l.deployment.DeploymentID)
 
 		return false
 	}
@@ -307,13 +313,13 @@ func (l *deploymentLoadBalanceGoal) checkIfShouldBeRemoved() bool {
 	load := l.deployment.GetLoad()
 	if load > 0 {
 		l.staleCycles = 0
-		log.Debugf("%s should NOT be removed, because it has load %d", l.deployment.DeploymentID, load)
+		l.deplLogger.Debugf("%s should NOT be removed, because it has load %d", l.deployment.DeploymentID, load)
 
 		return false
 	}
 
 	l.staleCycles++
-	log.Debugf("increased stale cycles to %d(%d)", l.staleCycles, staleCyclesNumToRemove)
+	l.deplLogger.Debugf("increased stale cycles to %d(%d)", l.staleCycles, staleCyclesNumToRemove)
 
 	return l.staleCycles == staleCyclesNumToRemove
 }

@@ -78,7 +78,7 @@ var (
 	suspectedDeployments sync.Map
 	children             sync.Map
 
-	nodeLocCache *nodeLocationCache
+	nodeLocCache sync.Map
 
 	timer *time.Timer
 
@@ -117,12 +117,6 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 	hTable = newHierarchyTable()
 	pTable = newParentsTable()
 
-	suspectedChild = sync.Map{}
-	suspectedDeployments = sync.Map{}
-	children = sync.Map{}
-
-	nodeLocCache = &nodeLocationCache{}
-
 	timer = time.NewTimer(sendAlternativesTimeout)
 
 	fallback = loadFallbackHostname(fallbackFilename)
@@ -151,6 +145,8 @@ func InitServer(autoFactoryAux autonomic.ClientFactory, archFactoryAux archimede
 	if !exists {
 		log.Panic("no IP env var")
 	}
+
+	InitAlternatives()
 
 	go sendHeartbeatsPeriodically()
 	go sendAlternativesPeriodically()
@@ -689,8 +685,6 @@ func removeNode(nodeAddr string) {
 	})
 }
 
-// Function simulation lower API
-// Node up is only triggered for nodes that appeared one hop away.
 func onNodeUp(id, addr string) {
 	success := addNode(id, addr)
 	if !success {

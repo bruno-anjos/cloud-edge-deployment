@@ -28,7 +28,7 @@ def deploy_clients(wait_time, num, region, logs_dir, network, duration, fallback
     volumes = f'-v {logs_dir}:/logs -v /tmp/services:/services'
     cmd = f'docker run -d {env} --network "{network}" {volumes} brunoanjos/client:latest'
 
-    res = subprocess.run(cmd)
+    res = subprocess.run(cmd, shell=True)
     if res.returncode != 0:
         print(res)
         exit(1)
@@ -47,6 +47,8 @@ def process_time_string(time_string):
 
 
 def clean_clients_logs(logs_dir):
+    print(f'Cleaning logs dir {logs_dir}')
+
     cmd = f'docker run -v {logs_dir}:/logs debian:latest sh -c "rm -rf /logs/*"'
     res = subprocess.run(cmd, shell=True)
     if res.returncode != 0:
@@ -55,6 +57,7 @@ def clean_clients_logs(logs_dir):
 
 
 def clean_services():
+    print('Cleaning services')
     cmd = 'docker run -v /tmp/services:/services debian:latest sh -c "rm -rf /services/*"'
     res = subprocess.run(cmd, shell=True)
     if res.returncode != 0:
@@ -76,6 +79,11 @@ def main():
 
     clean_services()
 
+    top_dir = '/tmp/client_logs'
+
+    if not os.path.exists(top_dir):
+        os.mkdir(top_dir)
+
     with open(path, 'r') as clients_scenario_fp:
         clients_scenario = json.load(clients_scenario_fp)
 
@@ -89,7 +97,7 @@ def main():
 
             print(f"Launching {clients_id}")
             async_waits.append(pool.apply_async(deploy_clients, (
-                int(wait_time), num, region, f"/tmp/client_logs/{clients_id}", "swarm-network", duration, fallback)))
+                int(wait_time), num, region, f"{top_dir}/{clients_id}", "swarm-network", duration, fallback)))
 
     for w in async_waits:
         w.get()

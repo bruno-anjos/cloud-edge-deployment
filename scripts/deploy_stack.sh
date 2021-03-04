@@ -20,22 +20,22 @@ function run() {
 docker network create nodes-network
 
 SERVICE_NAME="archimedes"
-PORT="50000"
+PORT="1500"
 run &
 
 SERVICE_NAME="scheduler"
-PORT="50001"
+PORT="1501"
 OPTIONS="-v /var/run/docker.sock:/var/run/docker.sock"
 run &
 
 SERVICE_NAME="deployer"
-PORT="50002"
+PORT="1502"
 ALTERNATIVES_DIR="$(pwd)/$REL_PATH/../build/deployer/alternatives"
 OPTIONS="--mount type=bind,source=$ALTERNATIVES_DIR,target=/alternatives"
 run &
 
 SERVICE_NAME="autonomic"
-PORT="50003"
+PORT="1503"
 OPTIONS=""
 run &
 

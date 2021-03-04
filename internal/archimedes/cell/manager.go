@@ -6,7 +6,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/golang/geo/s2"
+	client "github.com/nm-morais/demmon-client/pkg"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -30,6 +33,8 @@ type (
 		addDeploymentLock sync.Mutex
 		activeCells       sync.Map
 		splittedCells     sync.Map
+		demmCli           *client.DemmonClient
+		myself            *utils.Node
 	}
 )
 
@@ -43,13 +48,17 @@ const (
 	timeBetweenMerges = 30 * time.Second
 )
 
-func NewManager() *Manager {
+func NewManager(demmCli *client.DemmonClient, myself *utils.Node) *Manager {
 	cm := &Manager{
 		cellsByDeployment: sync.Map{},
 		addDeploymentLock: sync.Mutex{},
 		activeCells:       sync.Map{},
 		splittedCells:     sync.Map{},
+		demmCli:           demmCli,
+		myself:            myself,
 	}
+
+	environment.SetupClientCentroidsExport(demmCli)
 
 	go cm.mergeCellsPeriodically()
 
@@ -281,6 +290,16 @@ func (cm *Manager) getTopCell(deploymentID string, deploymentCells cellsByDeploy
 			if loaded {
 				value.(*sync.Map).Store(cellID, c)
 			}
+
+			var centroids []s2.CellID
+			value.(*sync.Map).Range(func(key, _ interface{}) bool {
+				id := key.(activeCellsKey)
+				centroids = append(centroids, id)
+
+				return true
+			})
+
+			environment.ExportClientCentroids(cm.demmCli, deploymentID, cm.myself, centroids)
 		}
 	}
 

@@ -10,8 +10,10 @@ import (
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/archimedes/cell"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/deployment"
 	"github.com/bruno-anjos/cloud-edge-deployment/internal/autonomic/environment"
-	"github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	internalUtils "github.com/bruno-anjos/cloud-edge-deployment/internal/utils"
+	"github.com/bruno-anjos/cloud-edge-deployment/pkg/utils"
 	"github.com/golang/geo/s2"
+	client "github.com/nm-morais/demmon-client/pkg"
 	"github.com/nm-morais/demmon-common/exporters"
 	exporter "github.com/nm-morais/demmon-exporter"
 	log "github.com/sirupsen/logrus"
@@ -56,7 +58,7 @@ const (
 	loadSamples = 10
 )
 
-func NewManager() *Manager {
+func NewManager(demmCli *client.DemmonClient, myself *utils.Node) *Manager {
 	exporterConf := &exporter.Conf{
 		Silent:          true,
 		LogFolder:       logFolder,
@@ -74,14 +76,14 @@ func NewManager() *Manager {
 		log.Panic(err)
 	}
 
-	go utils.PanicOnErrFromChan(errChan)
+	go internalUtils.PanicOnErrFromChan(errChan)
 
 	r := &Manager{
 		numReqsLastMinute: sync.Map{},
 		currBatch:         sync.Map{},
 		exploringCells:    sync.Map{},
 		gauges:            sync.Map{},
-		cellManager:       cell.NewManager(),
+		cellManager:       cell.NewManager(demmCli, myself),
 		gauge:             exp.NewGauge(environment.MetricLoad, loadSamples),
 	}
 
@@ -101,6 +103,8 @@ func (r *Manager) exportLoadsPeriodically() {
 			gauge := value.(gaugesMapValue)
 
 			load := r.getLoad(deploymentID)
+			log.Debugf("exporting load %d for deployment %s", load, deploymentID)
+
 			gauge.Set(float64(load))
 
 			return true

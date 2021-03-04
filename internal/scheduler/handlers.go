@@ -346,7 +346,7 @@ func stopContainerAsync(instanceID, contID, url, removePath string) {
 
 		_, err := httpClient.Do(req)
 		if err != nil {
-			log.Panic(err)
+			log.Error(err)
 		}
 	}
 
@@ -355,15 +355,15 @@ func stopContainerAsync(instanceID, contID, url, removePath string) {
 		log.Panic(err)
 	}
 
-	log.Debugf("Removing %s", contID)
-
-	err = dockerClient.ContainerRemove(context.Background(), contID, types.ContainerRemoveOptions{
-		RemoveVolumes: true,
-		Force:         true,
-	})
-	if err != nil {
-		log.Panic(err)
-	}
+	// log.Debugf("Removing %s", contID)
+	//
+	// err = dockerClient.ContainerRemove(context.Background(), contID, types.ContainerRemoveOptions{
+	// 	RemoveVolumes: true,
+	// 	Force:         true,
+	// })
+	// if err != nil {
+	// 	log.Panic(err)
+	// }
 
 	log.Debugf("deleted instance %s corresponding to container %s", instanceID, contID)
 
