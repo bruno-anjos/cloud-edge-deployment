@@ -145,8 +145,12 @@ func (c *Client) Resolve(host string, port nat.Port, deploymentID string, cLocat
 
 	var resp api.ResolveResponseBody
 	status, timedOut = internalUtils.DoRequest(c.GetHTTPClient(), req, &resp)
-	rHost = resp.Host
-	rPort = resp.Port
+	log.Warnf("timed out on request %s:%s at %s", host, port.Port(), addr)
+
+	if !timedOut {
+		rHost = resp.Host
+		rPort = resp.Port
+	}
 
 	return
 }
@@ -268,7 +272,7 @@ func (c *Client) ChangeArchimedesAddr(addr string) {
 }
 
 func (c *Client) handleRedirect(req *http.Request, via []*http.Request) error {
-	log.Debugf("redirecting %s to %s", via[len(via)-1].URL.Host, req.URL.Host)
+	log.Infof("redirecting %s to %s; redirections:", via[len(via)-1].URL.Host, req.URL.Host)
 
 	if req.URL.Path == "/archimedes/resolve" {
 		reqBody := api.ResolveRequestBody{}
@@ -278,12 +282,16 @@ func (c *Client) handleRedirect(req *http.Request, via []*http.Request) error {
 			panic(err)
 		}
 
-		host, _, err := net.SplitHostPort(via[len(via)-1].URL.Host)
-		if err != nil {
-			panic(err)
+		reqBody.Redirects = make([]string, len(via))
+		for i, viaReq := range via {
+			host, _, splitErr := net.SplitHostPort(viaReq.URL.Host)
+			if splitErr != nil {
+				log.Panic(splitErr)
+			}
+			reqBody.Redirects[i] = host
 		}
 
-		reqBody.Redirects = append(reqBody.Redirects, host)
+		log.Infof("redirections %+v", reqBody.Redirects)
 
 		var bodyBytes []byte
 

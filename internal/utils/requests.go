@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -17,6 +17,9 @@ import (
 
 const (
 	ReqIDHeaderField = "REQ_ID"
+
+	errTimeout1 = "timeout"
+	errTimeout2 = "Timeout"
 )
 
 func BuildRequest(method, host, path string, body interface{}) *http.Request {
@@ -80,7 +83,7 @@ func DoRequest(httpClient *http.Client, request *http.Request, responseBody inte
 	if err != nil {
 		status = -1
 
-		timedOut = os.IsTimeout(err)
+		timedOut = strings.Contains(err.Error(), errTimeout1) || strings.Contains(err.Error(), errTimeout2)
 
 		log.Warn(err)
 

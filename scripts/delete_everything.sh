@@ -7,7 +7,7 @@ docker stop $containers
 docker rm $containers
 docker volume prune -f
 docker system prune -f
-docker network rm $DOCKER_NET
+docker network rm swarm-network
 
 rm -rf /tmp/images/*
 rm -rf /tmp/bandwidth_stats/*

@@ -2,6 +2,7 @@ package archimedes
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -165,7 +166,7 @@ func broadcastPeriodically() {
 			},
 		})
 		if err != nil {
-			log.Panic(err)
+			log.Error(err)
 		}
 	}
 }
@@ -424,41 +425,49 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 			"redirecting %s to %s to achieve load balancing", reqBody.ToResolve.Host,
 			targetURL.Host,
 		)
-		clientsManager.RemoveFromExploring(reqBody.DeploymentID)
-		http.Redirect(w, r, targetURL.String(), http.StatusPermanentRedirect)
 
-		return
+		host, _, splitErr := net.SplitHostPort(targetURL.Host)
+		if splitErr != nil {
+			log.Panic(splitErr)
+		}
+
+		canRedirect := true
+		if len(reqBody.Redirects) > 0 {
+			for _, redirected := range reqBody.Redirects {
+				if redirected == host {
+					canRedirect = false
+				}
+			}
+		}
+
+		if canRedirect {
+			clientsManager.RemoveFromExploring(reqBody.DeploymentID)
+			http.Redirect(w, r, targetURL.String(), http.StatusPermanentRedirect)
+			return
+		} else {
+			log.Warnf("(load) wanted to redirect to %s but is already in redirections %+v", targetURL.Host,
+				reqBody.Redirects)
+		}
 	}
 
 	reqLogger.Debugf("redirections %+v", reqBody.Redirects)
 
-	canRedirect := true
+	redirectTo := checkForClosestNodeRedirection(reqBody.DeploymentID, reqBody.Location)
+	switch redirectTo.ID {
+	case myself.ID:
+		reqLogger.Debugf("im the node to redirect to")
+	default:
+		reqLogger.Debugf("redirecting to %s from %s", redirectTo, reqBody.Location)
 
-	// guarantee that it will not make a redirections loop
-	if len(reqBody.Redirects) > 0 {
-		lastRedirect := reqBody.Redirects[len(reqBody.Redirects)-1]
+		canRedirect := true
 
-		value, ok := redirectingToMe.Load(reqBody.DeploymentID)
-		if ok {
-			_, ok = value.(redirectingToMeMapValue).Load(lastRedirect)
-			canRedirect = !ok
-
-			if ok {
-				reqLogger.Debugf("%s is redirecting to me", lastRedirect)
+		for _, redirected := range reqBody.Redirects {
+			if redirected == redirectTo.ID || redirected == redirectTo.Addr {
+				canRedirect = false
 			}
 		}
-	}
 
-	// if it can redirect then redirect to the closest node accepting redirections
-	if canRedirect {
-		redirectTo := checkForClosestNodeRedirection(reqBody.DeploymentID, reqBody.Location)
-
-		switch redirectTo.ID {
-		case myself.ID:
-			reqLogger.Debugf("im the node to redirect to")
-		default:
-			reqLogger.Debugf("redirecting to %s from %s", redirectTo, reqBody.Location)
-
+		if canRedirect {
 			targetURL = url.URL{
 				Scheme:      "http",
 				Opaque:      "",
@@ -474,8 +483,10 @@ func resolveHandler(w http.ResponseWriter, r *http.Request) {
 
 			clientsManager.RemoveFromExploring(reqBody.DeploymentID)
 			http.Redirect(w, r, targetURL.String(), http.StatusPermanentRedirect)
-
 			return
+		} else {
+			log.Warnf("(dist) wanted to redirect to %s but is already in redirections %+v", targetURL.Host,
+				reqBody.Redirects)
 		}
 	}
 

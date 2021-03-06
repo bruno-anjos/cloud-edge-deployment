@@ -9,13 +9,6 @@ fi
 
 host=$(hostname)
 
-docker swarm leave -f
-for node in $(oarprint host); do
-  if [ $node != $host ]; then
-    oarsh $node "docker swarm leave -f"
-  fi
-done
-
 if [ -z $subnet ] || [ -z $name ]; then
   echo "setup takes 2 arguments (net_name defaults to swarm_network)"
   echo "setup.sh <subnet> <net_name>"

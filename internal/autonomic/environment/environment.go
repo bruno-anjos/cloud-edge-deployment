@@ -183,7 +183,7 @@ func exportLocationPeriodically(demmonCli *client.DemmonClient, myself *utils.No
 			},
 		})
 		if err != nil {
-			log.Panic(err)
+			log.Error(err)
 		}
 
 		log.Debugf("exported location %s", location.ToToken())
@@ -262,7 +262,7 @@ func (e *Environment) UpdateDeploymentInterestSet(deploymentID, outputMetricID s
 			Hosts: ISHosts,
 		})
 		if err != nil {
-			log.Panic(err)
+			log.Error(err)
 		}
 	}
 }
@@ -389,7 +389,7 @@ func (e *Environment) updateVicinityInterestSet() {
 		Hosts: hosts,
 	})
 	if err != nil {
-		log.Panic(err)
+		log.Error(err)
 	}
 
 	log.Debug("updated interest set")
@@ -462,6 +462,11 @@ func GetLoad(demmonCli *client.DemmonClient, deploymentID string, host *utils.No
 
 func ExportClientCentroids(demmonCli *client.DemmonClient, deploymentID string, node *utils.Node,
 	centroids []s2.CellID) {
+	centroidTokens := make([]string, len(centroids))
+	for i, centroid := range centroids {
+		centroidTokens[i] = centroid.ToToken()
+	}
+
 	err := demmonCli.PushMetricBlob([]body_types.TimeseriesDTO{
 		{
 			MeasurementName: MetricCentroids,
@@ -469,13 +474,13 @@ func ExportClientCentroids(demmonCli *client.DemmonClient, deploymentID string, 
 			Values: []body_types.ObservableDTO{
 				{
 					TS:     time.Now(),
-					Fields: map[string]interface{}{"value": centroids},
+					Fields: map[string]interface{}{"value": centroidTokens},
 				},
 			},
 		},
 	})
 	if err != nil {
-		log.Panic(err)
+		log.Error(err)
 	}
 }
 
@@ -484,8 +489,16 @@ func GetClientCentroids(demmonCli *client.DemmonClient, deploymentID string, nod
 
 	timeseries, err := demmonCli.Query(query, queryTimeout)
 	if err != nil {
-		log.Panic(err)
+		log.Error(err)
+		return nil
 	}
 
-	return timeseries[0].Values[0].Fields["value"].([]s2.CellID)
+	values := timeseries[0].Values[0].Fields["value"].([]interface{})
+	centroids := make([]s2.CellID, len(values))
+
+	for i := range values {
+		centroids[i] = s2.CellIDFromToken(values[i].(string))
+	}
+
+	return centroids
 }

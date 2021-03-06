@@ -516,7 +516,8 @@ elif quotas_filename != "":
 pool = Pool(processes=os.cpu_count())
 if not reuse:
     start = time.time()
-    pool.map(launch_dummy, dummy_infos)
+    for info in dummy_infos:
+        launch_dummy(info)
     done = time.time()
     print(f"Took {done - start} seconds to launch dummies")
 

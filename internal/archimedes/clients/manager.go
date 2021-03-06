@@ -46,7 +46,7 @@ type (
 )
 
 const (
-	batchTimer             = 10 * time.Second
+	batchTimer             = 5 * time.Second
 	loadExportFrequency    = 5 * time.Second
 	metricsExportFrequency = 20 * time.Second
 
