@@ -109,7 +109,7 @@ def launch_dummy(info):
 
     env_variables = f'--env NODE_IP="{info[NODE_IP]}" --env NODE_ID="{info[NAME]}" --env NODE_NUM="{info[NUM]}" ' \
                     f'--env LOCATION="{info[LOCATION]}" --env LANDMARKS="{landmarks}" ' \
-                    f'--env CONFIG_FILE="config/banjos_config.txt" --env WAIT_FOR_START="true"'
+                    f'--env IPS_FILE="config/banjos_config.txt" --env WAIT_FOR_START="true"'
     volumes = f'-v /tmp/images:/images -v /lib/modules:/lib/modules -v /tmp/bandwidth_stats:/bandwidth_stats ' \
               f'-v /tmp/tables:/tables'
     launch_cmd = f'docker run -d --network={network} --privileged --ip {info[NODE_IP]} ' \
@@ -270,8 +270,8 @@ def generate_demmon_config(latencies, infos):
     config_filename = "config/banjos_config.txt"
     ips_filename = "config/banjos_ips_config.txt"
 
-    os.environ["CONFIG_FILE"] = config_filename
-    os.environ["IPS_MAP"] = ips_filename
+    os.environ["LATENCY_MAP"] = config_filename
+    os.environ["IPS_FILE"] = ips_filename
 
     config_file_path = f'{os.environ["DEMMON_DIR"]}/{config_filename}'
     ips_config_file_path = f'{os.environ["DEMMON_DIR"]}/{ips_filename}'

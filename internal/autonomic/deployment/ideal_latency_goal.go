@@ -293,6 +293,10 @@ func (i *idealLatency) GenerateDomain(arg interface{}) (domain domain, info map[
 	return domain, info, success
 }
 
+func (i *idealLatency) Filter(candidates, domain domain) (filtered result) {
+	return defaultFilter(candidates, domain)
+}
+
 func (i *idealLatency) Order(candidates domain, sortingCriteria map[string]interface{}) (ordered result) {
 	ordered = candidates
 	sort.Slice(ordered, func(i, j int) bool {
@@ -300,10 +304,6 @@ func (i *idealLatency) Order(candidates domain, sortingCriteria map[string]inter
 	})
 
 	return
-}
-
-func (i *idealLatency) Filter(candidates, domain domain) (filtered result) {
-	return defaultFilter(candidates, domain)
 }
 
 func (i *idealLatency) Cutoff(candidates domain, candidatesCriteria map[string]interface{}) (cutoff result,

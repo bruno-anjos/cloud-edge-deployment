@@ -112,7 +112,7 @@ func (c *Client) RegisterHearbeatDeploymentInstance(addr, deploymentID, instance
 	return
 }
 
-func (c *Client) SendHearbeatDeploymentInstance(addr, deploymentID, instanceID string) (status int) {
+func (c *Client) SendHeartbeatDeploymentInstance(addr, deploymentID, instanceID string) (status int) {
 	path := api.GetDeploymentInstanceAlivePath(deploymentID, instanceID)
 	req := internalUtils.BuildRequest(http.MethodPut, addr, path, nil)
 
@@ -212,13 +212,13 @@ func (c *Client) SendInstanceHeartbeatToDeployerPeriodically(addr string) {
 		<-ticker.C
 		log.Info("sending heartbeat to deployer")
 
-		status = c.SendHearbeatDeploymentInstance(addr, deploymentID, instanceID)
+		status = c.SendHeartbeatDeploymentInstance(addr, deploymentID, instanceID)
 		switch status {
 		case http.StatusNotFound:
 			log.Warnf("heartbeat to deployer retrieved not found")
 		case http.StatusOK:
 		default:
-			panic(errors.New(fmt.Sprintf("received unexpected status %d", status)))
+			log.Error(errors.New(fmt.Sprintf("received unexpected status %d", status)))
 		}
 	}
 }

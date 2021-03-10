@@ -42,9 +42,17 @@ def collect_recordings(aux_output_dir, aux_duration, timeout):
     cycles = int(aux_duration[:-1]) // int(timeout[:-1])
     snapshots_path = aux_output_dir
 
+    services = [file_name for file_name in os.listdir(services_path)]
+    service_locs = {}
+
+    for service in services:
+        with open(f"{services_path}/{service}", 'r') as service_fp:
+            service_loc = json.load(service_fp)
+            service_locs[service] = service_loc
+
     for count in range(cycles):
         target_path = f"{snapshots_path}/graph_{count}.json"
-        node_tables = get_all_hierarchy_tables(count+1)
+        node_tables = get_all_hierarchy_tables(count + 1)
 
         print("Got all hierarchy tables!")
 
@@ -68,12 +76,9 @@ def collect_recordings(aux_output_dir, aux_duration, timeout):
 
         aux_locations = {"nodes": {}, "services": {}}
 
-        services = [file_name for file_name in os.listdir(services_path)]
-        for service in services:
-            with open(f"{services_path}/{service}", 'r') as service_fp:
-                service_loc = json.load(service_fp)
-                if service not in aux_locations["services"]:
-                    aux_locations["services"][service] = service_loc
+        for service in service_locs:
+            if service not in aux_locations["services"]:
+                aux_locations["services"][service] = service_locs[service]
 
         for node in node_tables:
             loc = get_location(node)

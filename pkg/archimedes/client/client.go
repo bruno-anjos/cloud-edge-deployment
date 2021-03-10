@@ -145,11 +145,12 @@ func (c *Client) Resolve(host string, port nat.Port, deploymentID string, cLocat
 
 	var resp api.ResolveResponseBody
 	status, timedOut = internalUtils.DoRequest(c.GetHTTPClient(), req, &resp)
-	log.Warnf("timed out on request %s:%s at %s", host, port.Port(), addr)
 
 	if !timedOut {
 		rHost = resp.Host
 		rPort = resp.Port
+	} else {
+		log.Warnf("timed out on request %s:%s at %s", host, port.Port(), addr)
 	}
 
 	return

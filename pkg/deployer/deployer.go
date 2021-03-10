@@ -22,7 +22,7 @@ type Client interface {
 	RegisterDeploymentInstance(addr, deploymentID, instanceID string, static bool,
 		portTranslation nat.PortMap, local bool) (status int)
 	RegisterHearbeatDeploymentInstance(addr, deploymentID, instanceID string) (status int)
-	SendHearbeatDeploymentInstance(addr, deploymentID, instanceID string) (status int)
+	SendHeartbeatDeploymentInstance(addr, deploymentID, instanceID string) (status int)
 	WarnOfDeadChild(addr, deploymentID, deadChildID string, grandChild *utils.Node,
 		alternatives map[string]*utils.Node, locations []s2.CellID) (status int)
 	SetGrandparent(addr, deploymentID string, grandparent *utils.Node) (status int)
