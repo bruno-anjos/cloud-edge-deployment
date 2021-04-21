@@ -56,6 +56,7 @@ var (
 
 	getPortLock = sync.Mutex{}
 	usedPorts   = map[string]interface{}{}
+	nodeNum     string
 )
 
 func InitServer(deplFactory deployer.ClientFactory) {
@@ -98,6 +99,11 @@ func InitServer(deplFactory deployer.ClientFactory) {
 	}
 
 	log.Debugf("Node at location %s", location)
+
+	nodeNum, ok = os.LookupEnv(utils.NodeNumEnvVarName)
+	if !ok {
+		log.Panic("env var NODE_NUM missing")
+	}
 }
 
 func startInstanceHandler(w http.ResponseWriter, r *http.Request) {
@@ -179,6 +185,7 @@ func getEnvVars(containerInstance *api.ContainerInstanceDTO, instanceID string,
 		strconv.Itoa(containerInstance.ReplicaNumber))
 	locationEnvVar := fmt.Sprintf(envVarFormatString, utils.LocationEnvVarName, location)
 	nodeIDEnvVar := fmt.Sprintf(envVarFormatString, utils.NodeIDEnvVarName, myself.ID)
+	nodeNumEnvVar := fmt.Sprintf(envVarFormatString, utils.NodeNumEnvVarName, nodeNum)
 
 	for idx, envVar := range containerInstance.EnvVars {
 		if envVar == instanceIDEnvVarReplace {
@@ -187,30 +194,10 @@ func getEnvVars(containerInstance *api.ContainerInstanceDTO, instanceID string,
 	}
 
 	envVars = append(envVars, deploymentIDEnvVar, instanceIDEnvVar, locationEnvVar, fallbackEnvVar, nodeIPEnvVar,
-		replicaNumEnvVar, portsEnvVar, nodeIDEnvVar)
+		replicaNumEnvVar, portsEnvVar, nodeIDEnvVar, nodeNumEnvVar)
 	envVars = append(envVars, containerInstance.EnvVars...)
 
 	return envVars
-}
-
-func pullImage(containerInstance *api.ContainerInstanceDTO, imageName string) {
-	log.Debugf("pulling image %s", imageName)
-
-	reader, err := dockerClient.ImagePull(context.Background(), containerInstance.ImageName,
-		types.ImagePullOptions{})
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = ioutil.ReadAll(reader)
-	if err != nil {
-		panic(err)
-	}
-
-	err = reader.Close()
-	if err != nil {
-		panic(err)
-	}
 }
 
 func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
@@ -317,7 +304,8 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 				log.Error(err)
 			}
 
-			log.Panicf("got status code %d while adding instances to deployer", status)
+			log.Warn("got status code %d while adding instances for deployment %d to deployer",
+				containerInstance.DeploymentName, status)
 
 			return
 		}
@@ -334,6 +322,26 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 		instanceToContainer.Store(instanceID, cont.ID)
 
 		log.Debugf("container %s started for instance %s", cont.ID, instanceID)
+	}
+}
+
+func pullImage(containerInstance *api.ContainerInstanceDTO, imageName string) {
+	log.Debugf("pulling image %s", imageName)
+
+	reader, err := dockerClient.ImagePull(context.Background(), containerInstance.ImageName,
+		types.ImagePullOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = ioutil.ReadAll(reader)
+	if err != nil {
+		panic(err)
+	}
+
+	err = reader.Close()
+	if err != nil {
+		panic(err)
 	}
 }
 

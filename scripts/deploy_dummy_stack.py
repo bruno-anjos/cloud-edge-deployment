@@ -10,10 +10,27 @@ from multiprocessing import Pool
 
 import s2sphere
 from netaddr import IPNetwork
+import paramiko
 
-project_path = os.path.expanduser("~/go/src/github.com/bruno-anjos/cloud-edge-deployment")
+project_path = os.path.expanduser(
+    "~/go/src/github.com/bruno-anjos/cloud-edge-deployment")
 nodes = subprocess.getoutput("oarprint host").strip().split("\n")
 host = socket.gethostname().strip()
+
+
+def run_cmd_with_try_and_log(cmd):
+    print(f"Running | {cmd} | LOCAL")
+    cp = subprocess.run(cmd, shell=True)
+
+    failed = False
+    if cp.stderr is not None:
+        failed = True
+        print(f"StdErr: {cp.stderr}")
+    if cp.returncode != 0:
+        failed = True
+        print(f"RetCode: {cp.returncode}")
+    if failed:
+        exit(1)
 
 
 def run_cmd_with_try(cmd):
@@ -76,23 +93,26 @@ def del_everything_swarm():
     exec_cmd_on_nodes_parallel(remove_cmd)
 
 
-def create_network():
+def create_network(cidr, network):
     print("Creating network...")
-    create_network_cmd = f"docker network create --subnet={cidr_provided} {network}"
+    create_network_cmd = f"docker network create --subnet={cidr} {network}"
     run_cmd_with_try(create_network_cmd)
 
 
-def setup_swarm():
-    setup_swarm_cmd = f"bash {project_path}/scripts/setup_swarm.sh {cidr_provided} {network}"
+def setup_swarm(cidr, network):
+    setup_swarm_cmd = f"bash {project_path}/scripts/setup_swarm.sh {cidr} {network}"
     run_cmd_with_try(setup_swarm_cmd)
 
 
-def build_dummy_node_image():
+def build_dummy_node_image(reuse, verbose):
     print("Building dummy node image...")
     build_cmd = f"bash {project_path}/build/dummy_node/build_dummy_node.sh"
     if reuse:
         build_cmd += " --skip-final"
-    run_cmd_with_try(build_cmd)
+    if verbose:
+        run_cmd_with_try_and_log(build_cmd)
+    else:
+        run_cmd_with_try(build_cmd)
 
 
 NAME = "name"
@@ -100,9 +120,18 @@ NODE_IP = "ip"
 LOCATION = "location"
 NODE = "node"
 NUM = "num"
+MEM_QUOTA_KEY = "max_mem"
+CPU_QUOTA_KEY = "max_cpu"
 
 
-def launch_dummy(info):
+def run_cmd_with_conn(node, cmd, clients):
+    client = clients[node]
+    _, stdout, stderr = client.exec_command(cmd)
+    for line in stderr.readlines():
+        print(f'[PARAMIKO ERROR] [{node}] {line}')
+
+
+def launch_dummy(info, quotas, landmarks, network, swarm, clients):
     quotas_opts = ""
     if quotas is not None:
         quotas_opts = f"--memory={quotas[MEM_QUOTA_KEY]} --cpus={quotas[CPU_QUOTA_KEY]}"
@@ -118,23 +147,24 @@ def launch_dummy(info):
     if not swarm or info[NODE] == host:
         run_cmd_with_try(launch_cmd)
     else:
-        exec_cmd_on_node(info[NODE], launch_cmd)
+        run_cmd_with_conn(info[NODE], launch_cmd, clients)
 
 
-def start_services_in_dummy(info):
+def start_services_in_dummy(info, swarm, clients):
     start_services_cmd = f"docker exec {info[NAME]} ./deploy_services.sh"
     if not swarm or info[NODE] == host:
-        run_cmd_with_try(start_services_cmd)
+        run_cmd_with_try_and_log(start_services_cmd)
     else:
-        exec_cmd_on_node(info[NODE], start_services_cmd)
+        run_cmd_with_conn(info[NODE], start_services_cmd, clients)
 
 
-def build_dummy_infos(num, s2_locs):
+def build_dummy_infos(num, s2_locs, ips):
     print("Building dummy nodes infos...")
 
     infos = []
     if len(ips) < num:
-        print(f"CIDR only has {len(ips)} IPs but {num} nodes were supposed to be launched...")
+        print(
+            f"CIDR only has {len(ips)} IPs but {num} nodes were supposed to be launched...")
         exit(1)
 
     for i, ip in zip(range(1, num + 1), ips):
@@ -145,7 +175,7 @@ def build_dummy_infos(num, s2_locs):
             NAME: name,
             NODE_IP: ip,
             LOCATION: location,
-            NUM: i,
+            NUM: i-1,
         }
 
         print(f"{name}: {ip} | {location}")
@@ -154,7 +184,7 @@ def build_dummy_infos(num, s2_locs):
     return infos
 
 
-def build_dummy_infos_swarm(num, s2_locs, entrypoints_ips):
+def build_dummy_infos_swarm(num, s2_locs, entrypoints_ips, ips):
     print("Building dummy nodes infos for swarm...")
     print(f"Ignoring IPs {entrypoints_ips}")
 
@@ -201,7 +231,7 @@ def update_dependencies(build_path):
     run_cmd_with_try(cmd)
 
 
-def load_s2_locations():
+def load_s2_locations(scenario):
     print("Loading s2 locations...")
 
     locations = scenario["locations"]
@@ -218,7 +248,7 @@ def load_s2_locations():
     return s2_locs
 
 
-def setup_anchors():
+def setup_anchors(network):
     entrypoints_ips = set()
     for node in nodes:
         print(f"Setting up anchor at {node}")
@@ -234,16 +264,18 @@ def setup_anchors():
             "IPv4Address": "192.168.160.3/20",
             "IPv6Address": ""
         }
-        
+
         so we split at max once thus giving us only the value and not the key
         """
-        output = exec_cmd_on_node_with_output(get_entrypoint_cmd, node).strip().split(" ", 1)[1]
+        output = exec_cmd_on_node_with_output(
+            get_entrypoint_cmd, node).strip().split(" ", 1)[1]
         entrypoint_json = json.loads(output)
 
         entrypoints_ips.add(entrypoint_json["IPv4Address"].split("/")[0])
 
         get_anchor_cmd = f"docker network inspect {network} | grep 'anchor' -A 5 -B 1"
-        output = exec_cmd_on_node_with_output(get_anchor_cmd, node).strip().split(" ", 1)[1]
+        output = exec_cmd_on_node_with_output(
+            get_anchor_cmd, node).strip().split(" ", 1)[1]
 
         if output[-1] == ",":
             output = output[:-1]
@@ -261,11 +293,13 @@ def generate_demmon_config(latencies, infos):
     latency_filename = f"{project_path}/lats.txt"
     with open(latency_filename, 'w') as f:
         for node_latencies in latencies:
-            latencies_string = " ".join([str(latency) for latency in node_latencies])
+            latencies_string = " ".join([str(latency)
+                                         for latency in node_latencies])
             f.write(latencies_string)
             f.write("\n")
 
-    subprocess.run(f"cp {latency_filename} {os.environ['DEMMON_DIR']}/config/latency_map.txt".split(" "))
+    subprocess.run(
+        f"cp {latency_filename} {os.environ['DEMMON_DIR']}/config/latency_map.txt".split(" "))
 
     config_filename = "config/banjos_config.txt"
     ips_filename = "config/banjos_ips_config.txt"
@@ -317,10 +351,11 @@ def setup_tables_dir():
 def setup_bandwidth_dir():
     for node in nodes:
         print(f"Creating bandwidth stats dir in node {node}")
-        exec_cmd_on_node(node, '( [ -d /tmp/bandwidth_stats ] || mkdir /tmp/bandwidth_stats ) ')
+        exec_cmd_on_node(
+            node, '( [ -d /tmp/bandwidth_stats ] || mkdir /tmp/bandwidth_stats ) ')
 
 
-def clean_deployment(info):
+def clean_deployment(info, swarm):
     clean_cmd = f"docker exec {info[NAME]} ./clean_dummy.sh"
     if not swarm or info[NODE] == host:
         run_cmd_with_try(clean_cmd)
@@ -328,208 +363,226 @@ def clean_deployment(info):
         exec_cmd_on_node(info[NODE], clean_cmd)
 
 
-def setup_tc(info):
+def setup_tc(info, bandwidth_limit, swarm, clients):
     clean_cmd = f"docker exec {info[NAME]} ./setup_tc.sh {bandwidth_limit}"
     if not swarm or info[NODE] == host:
         run_cmd_with_try(clean_cmd)
     else:
-        exec_cmd_on_node(info[NODE], clean_cmd)
+        run_cmd_with_conn(info[NODE], clean_cmd, clients)
 
 
-def load_scenario():
+def load_scenario(scenario_filename):
     with open(f"{os.path.expanduser('~/ced-scenarios')}/{scenario_filename}") as scenario_fp:
         return json.load(scenario_fp)
 
 
-args = sys.argv[1:]
-if len(args) < 3:
-    print("usage: deploy_dummy_stack.py <scenario> <cidr> <bandwith_limit_in_mbits> [--swarm] [--demmon] ["
-          "--build-only]")
-    exit(1)
+def main():
+    args = sys.argv[1:]
 
-swarm = False
-demmon = False
-build_only = False
-reuse = False
-scenario_filename = ""
-cidr_provided = ""
-fallback_id = ""
-map_name = ""
-bandwidth_limit = ""
-quotas_filename = ""
-
-skip = False
-
-for i, arg in enumerate(args):
-    if skip:
-        skip = False
-        continue
-    if arg == "--swarm":
-        swarm = True
-    elif arg == "--demmon":
-        demmon = True
-    elif arg == "--build-only":
-        build_only = True
-    elif arg == "--reuse":
-        reuse = True
-    elif arg == "--fallback":
-        fallback_id = args[i + 1]
-        skip = True
-        print(f"Fallback: {fallback_id}")
-    elif arg == "--mapname":
-        map_name = args[i + 1]
-        skip = True
-        print(f"Map name: {map_name}")
-    elif arg == "--quotas":
-        quotas_filename = args[i + 1]
-        skip = True
-        print(f"Quotas filename: {quotas_filename}")
-    elif scenario_filename == "":
-        scenario_filename = arg
-    elif cidr_provided == "":
-        cidr_provided = arg
-    elif bandwidth_limit == "":
-        bandwidth_limit = arg
-    else:
-        print(f"unrecognized option {arg}")
+    if len(args) < 3:
+        print("usage: deploy_dummy_stack.py <scenario> <cidr> <bandwith_limit_in_mbits> [--swarm] [--demmon] ["
+              "--build-only] [--quotas quotas.json] [--reuse] [--fallback node1] [--mapname mapnumber] [-v]")
         exit(1)
 
-scenario = load_scenario()
-num_nodes = len(scenario["locations"])
+    swarm = False
+    demmon = False
+    build_only = False
+    reuse = False
+    scenario_filename = ""
+    cidr_provided = ""
+    fallback_id = ""
+    map_name = ""
+    bandwidth_limit = ""
+    quotas_filename = ""
+    verbose = False
 
-if swarm:
-    print("Running in swarm mode")
+    skip = False
 
-print("Deleting...")
+    for i, arg in enumerate(args):
+        if skip:
+            skip = False
+            continue
+        if arg == "--swarm":
+            swarm = True
+        elif arg == "--demmon":
+            demmon = True
+        elif arg == "--build-only":
+            build_only = True
+        elif arg == "--reuse":
+            reuse = True
+        elif arg == "--fallback":
+            fallback_id = args[i + 1]
+            skip = True
+            print(f"Fallback: {fallback_id}")
+        elif arg == "--mapname":
+            map_name = args[i + 1]
+            skip = True
+            print(f"Map name: {map_name}")
+        elif arg == "--quotas":
+            quotas_filename = args[i + 1]
+            skip = True
+            print(f"Quotas filename: {quotas_filename}")
+        elif arg == "-v":
+            verbose = True
+        elif scenario_filename == "":
+            scenario_filename = arg
+        elif cidr_provided == "":
+            cidr_provided = arg
+        elif bandwidth_limit == "":
+            bandwidth_limit = arg
+        else:
+            print(f"unrecognized option {arg}")
+            exit(1)
 
-network = ""
-landmarks = ""
+    scenario = load_scenario(scenario_filename)
+    num_nodes = len(scenario["locations"])
 
-dummy_infos = {}
-if reuse:
-    print("Cleaning dummy nodes...")
-    with open(f"/tmp/dummy_infos.json", "r") as dummy_infos_fp:
-        dummy_infos = json.load(dummy_infos_fp)
-        pool = Pool(processes=os.cpu_count())
-        pool.map(clean_deployment, dummy_infos)
-        pool.close()
-        pool.join()
-else:
-    print("Building from scratch...")
     if swarm:
-        network = "swarm-network"
-        os.environ["DOCKER_NET"] = network
-        del_everything_swarm()
+        print("Running in swarm mode")
+
+    clients = {}
+    if len(nodes) > 1:
+        for node in nodes:
+            if node == host:
+                continue
+            client = paramiko.SSHClient()
+            client.load_system_host_keys()
+            client.connect(node)
+            clients[node] = client
+
+    print("Deleting...")
+
+    network = ""
+    landmarks = ""
+
+    dummy_infos = {}
+    if reuse:
+        print("Cleaning dummy nodes...")
+        with open(f"/tmp/dummy_infos.json", "r") as dummy_infos_fp:
+            dummy_infos = json.load(dummy_infos_fp)
+            pool = Pool(processes=os.cpu_count())
+            for info in dummy_infos:
+                clean_deployment(info, swarm)
     else:
-        network = "dummies-network"
-        os.environ["DOCKER_NET"] = network
-        del_everything()
-    print(f"Setting network as {network}")
+        print("Building from scratch...")
+        if swarm:
+            network = "swarm-network"
+            os.environ["DOCKER_NET"] = network
+            del_everything_swarm()
+        else:
+            network = "dummies-network"
+            os.environ["DOCKER_NET"] = network
+            del_everything()
+        print(f"Setting network as {network}")
 
-ips = [str(ip) for ip in IPNetwork(cidr_provided)]
-# Ignore first two IPs since they normally are the NetAddr and the Gateway, and ignore last one since normally it's the
-# broadcast IP
-ips = ips[2:-1]
+    ips = [str(ip) for ip in IPNetwork(cidr_provided)]
+    # Ignore first two IPs since they normally are the NetAddr and the Gateway, and ignore last one since normally it's the
+    # broadcast IP
+    ips = ips[2:-1]
 
-s2_locations = load_s2_locations()
+    s2_locations = load_s2_locations(scenario)
 
-print("Setting node configs...")
+    print("Setting node configs...")
 
-if not reuse:
-    if swarm:
-        setup_swarm()
-        entrypoints = setup_anchors()
-        dummy_infos = build_dummy_infos_swarm(num_nodes, s2_locations, entrypoints)
-    else:
-        create_network()
-        dummy_infos = build_dummy_infos(num_nodes, s2_locations)
-
-    print("Writing dummy infos...")
-    with open(f"/tmp/dummy_infos.json", "w") as dummy_infos_fp:
-        json.dump(dummy_infos, dummy_infos_fp, indent=4)
-
-    print("Writing node IPs...")
-    with open(f"{project_path}/build/deployer/node_ips.json", "w") as deployer_ips_fp, \
-            open(f"{project_path}/build/autonomic/node_ips.json", "w") as autonomic_ips_fp:
-        node_ips = {}
-        for dummy in dummy_infos:
-            node_ips[dummy[NAME]] = dummy[NODE_IP]
-        json.dump(node_ips, deployer_ips_fp)
-        json.dump(node_ips, autonomic_ips_fp)
-
-print("Writing fallback...")
-with open(f"{project_path}/build/deployer/fallback.json", "w") as fallback_fp:
-    if fallback_id == "":
-        fallback_id = scenario["fallback"]
-    fallback = {"Id": fallback_id}
-    for aux_node in dummy_infos:
-        if aux_node[NAME] == fallback_id:
-            print(f"Fallback IP: {aux_node[NODE_IP]}")
-            fallback["Addr"] = aux_node[NODE_IP]
-            break
-    landmarks = fallback["Addr"]
-    print(f"Wrote fallback: {fallback}")
-    json.dump(fallback, fallback_fp)
-
-update_dependencies(project_path)
-nm_morais_path = os.path.expanduser("~/go/src/github.com/nm-morais/")
-for file in os.listdir(nm_morais_path):
-    update_dependencies(nm_morais_path + file)
-
-clean_tables_dir()
-setup_tables_dir()
-setup_bandwidth_dir()
-
-print("Building images...")
-
-if demmon:
-    print("Generating demmon config...")
-    generate_demmon_config(scenario["latencies"], dummy_infos)
-
-build_dummy_node_image()
-
-if swarm:
     if not reuse:
-        load_dummy_node_image_swarm()
-    copy_tmp_images_swarm()
+        if swarm:
+            setup_swarm(cidr_provided, network)
+            entrypoints = setup_anchors(network)
+            dummy_infos = build_dummy_infos_swarm(
+                num_nodes, s2_locations, entrypoints, ips)
+        else:
+            create_network(cidr_provided, network)
+            dummy_infos = build_dummy_infos(num_nodes, s2_locations, ips)
 
-print("Launching...")
+        print("Writing dummy infos...")
+        with open(f"/tmp/dummy_infos.json", "w") as dummy_infos_fp:
+            json.dump(dummy_infos, dummy_infos_fp, indent=4)
 
-if build_only:
-    print("Aborting launch due to build only...")
-    exit(1)
+        print("Writing node IPs...")
+        with open(f"{project_path}/build/deployer/node_ips.json", "w") as deployer_ips_fp, \
+                open(f"{project_path}/build/autonomic/node_ips.json", "w") as autonomic_ips_fp:
+            node_ips = {}
+            for dummy in dummy_infos:
+                node_ips[dummy[NAME]] = dummy[NODE_IP]
+            json.dump(node_ips, deployer_ips_fp)
+            json.dump(node_ips, autonomic_ips_fp)
 
-MEM_QUOTA_KEY = "max_mem"
-CPU_QUOTA_KEY = "max_cpu"
+    print("Writing fallback...")
+    with open(f"{project_path}/build/deployer/fallback.json", "w") as fallback_fp:
+        if fallback_id == "":
+            fallback_id = scenario["fallback"]
+        fallback = {"Id": fallback_id}
+        for aux_node in dummy_infos:
+            if aux_node[NAME] == fallback_id:
+                print(f"Fallback IP: {aux_node[NODE_IP]}")
+                fallback["Addr"] = aux_node[NODE_IP]
+                break
+        landmarks = fallback["Addr"]
+        print(f"Wrote fallback: {fallback}")
+        json.dump(fallback, fallback_fp)
 
-quotas = None
-if quotas_filename != "" and reuse:
-    print(f"[WARNING] Quotas can only be set when launching the stack from scratch. Ignoring quotas...")
-elif quotas_filename != "":
-    with open(quotas_filename, 'r') as quotas_fp:
-        quotas = json.load(quotas_fp)
-        if MEM_QUOTA_KEY in quotas:
-            print(f"{MEM_QUOTA_KEY} set to {quotas[MEM_QUOTA_KEY]}")
-        if CPU_QUOTA_KEY in quotas:
-            print(f"{CPU_QUOTA_KEY} set to {quotas[CPU_QUOTA_KEY]}")
+    update_dependencies(project_path)
+    nm_morais_path = os.path.expanduser("~/go/src/github.com/nm-morais/")
+    for file in os.listdir(nm_morais_path):
+        update_dependencies(nm_morais_path + file)
 
-pool = Pool(processes=os.cpu_count())
-if not reuse:
+    clean_tables_dir()
+    setup_tables_dir()
+    setup_bandwidth_dir()
+
+    print("Building images...")
+
+    if demmon:
+        print("Generating demmon config...")
+        generate_demmon_config(scenario["latencies"], dummy_infos)
+
+    build_dummy_node_image(reuse, verbose)
+
+    if swarm:
+        if not reuse:
+            load_dummy_node_image_swarm()
+        copy_tmp_images_swarm()
+
+    print("Launching...")
+
+    if build_only:
+        print("Aborting launch due to build only...")
+        exit(1)
+
+    quotas = None
+    if quotas_filename != "" and reuse:
+        print(f"[WARNING] Quotas can only be set when launching the stack from scratch. Ignoring quotas...")
+    elif quotas_filename != "":
+        with open(quotas_filename, 'r') as quotas_fp:
+            quotas = json.load(quotas_fp)
+            if MEM_QUOTA_KEY in quotas:
+                print(f"{MEM_QUOTA_KEY} set to {quotas[MEM_QUOTA_KEY]}")
+            if CPU_QUOTA_KEY in quotas:
+                print(f"{CPU_QUOTA_KEY} set to {quotas[CPU_QUOTA_KEY]}")
+
+    pool = Pool(processes=os.cpu_count())
+    if not reuse:
+        start = time.time()
+        for info in dummy_infos:
+            launch_dummy(info, quotas, landmarks, network, swarm, clients)
+        done = time.time()
+        print(f"Took {done - start} seconds to launch dummies")
+
+        start = time.time()
+        for info in dummy_infos:
+            setup_tc(info, bandwidth_limit, swarm, clients)
+        done = time.time()
+        print(f"Took {done - start} seconds to setup tc")
+
     start = time.time()
     for info in dummy_infos:
-        launch_dummy(info)
+        start_services_in_dummy(info, swarm, clients)
     done = time.time()
-    print(f"Took {done - start} seconds to launch dummies")
+    print(f"Took {done - start} seconds to start services")
 
-    start = time.time()
-    pool.map(setup_tc, dummy_infos)
-    done = time.time()
-    print(f"Took {done - start} seconds to setup tc")
+    pool.close()
+    pool.join()
 
-start = time.time()
-pool.map(start_services_in_dummy, dummy_infos)
-done = time.time()
-print(f"Took {done - start} seconds to start services")
 
-pool.close()
-pool.join()
+if __name__ == '__main__':
+    main()

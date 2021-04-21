@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +24,11 @@ type (
 	typeInterestSetsValue struct {
 		ISID   *string
 		Finish chan interface{}
+	}
+
+	nodeWithLocation struct {
+		Node     *utils.Node
+		Location string
 	}
 
 	vicinityKey   = string
@@ -67,6 +73,8 @@ const (
 	horizonDistance = 3
 )
 
+var knownLocations = sync.Map{}
+
 func NewEnvironment(myself *utils.Node, location s2.CellID, autoClient autonomic.Client) *Environment {
 	exporterConf := &exporter.Conf{
 		Silent:          true,
@@ -86,10 +94,8 @@ func NewEnvironment(myself *utils.Node, location s2.CellID, autoClient autonomic
 		RequestTimeout: ClientRequestTimeout,
 	}
 	demmonCli := client.New(demmonCliConf)
-	err, connectErrChan := demmonCli.ConnectTimeout(connectTimeout)
-	if err != nil {
-		log.Panic(err)
-	}
+
+	connectErrChan := RetryConnect(demmonCli)
 
 	go internalUtils.PanicOnErrFromChan(connectErrChan)
 
@@ -114,7 +120,8 @@ func NewEnvironment(myself *utils.Node, location s2.CellID, autoClient autonomic
 
 func (e *Environment) installNeighborLocationQuery(demmonCli *client.DemmonClient) {
 	locationNeighborQuery := fmt.Sprintf(`SelectLast("%s","*")`, MetricLocation)
-	ISID, errChan, _, err := demmonCli.InstallCustomInterestSet(body_types.CustomInterestSet{
+
+	set := body_types.CustomInterestSet{
 		DialRetryBackoff: dialBackoff,
 		DialTimeout:      dialTimeout,
 		Hosts:            []body_types.CustomInterestSetHost{},
@@ -132,10 +139,9 @@ func (e *Environment) installNeighborLocationQuery(demmonCli *client.DemmonClien
 				},
 			},
 		},
-	})
-	if err != nil {
-		log.Panic(err)
 	}
+
+	ISID, _, errChan := retryInstallCustomSet(demmonCli, set)
 
 	go internalUtils.PanicOnErrFromChan(errChan)
 
@@ -159,15 +165,27 @@ func startExporting(exp *exporter.Exporter, installedChan <-chan interface{}) {
 func exportLocationPeriodically(demmonCli *client.DemmonClient, myself *utils.Node, location s2.CellID,
 	installedChan chan<- interface{}) {
 	ticker := time.NewTicker(locationExportFrequency)
-	err := demmonCli.InstallBucket(MetricLocation, locationExportFrequency, defaultBucketSize)
-	if err != nil {
-		log.Panic(err)
+
+	var (
+		err   error
+		retry = true
+	)
+
+	for retry {
+		err = demmonCli.InstallBucket(MetricLocation, locationExportFrequency, defaultBucketSize)
+		if err != nil {
+			if !strings.Contains(err.Error(), errTimedOut) {
+				log.Panic(err)
+			}
+		} else {
+			retry = false
+		}
 	}
 
 	close(installedChan)
 
 	for {
-		err = demmonCli.PushMetricBlob([]body_types.TimeseriesDTO{
+		timeseriesDTO := []body_types.TimeseriesDTO{
 			{
 				MeasurementName: MetricLocation,
 				TSTags: map[string]string{
@@ -181,10 +199,8 @@ func exportLocationPeriodically(demmonCli *client.DemmonClient, myself *utils.No
 					},
 				},
 			},
-		})
-		if err != nil {
-			log.Error(err)
 		}
+		retryPushMetric(demmonCli, timeseriesDTO)
 
 		log.Debugf("exported location %s", location.ToToken())
 
@@ -202,7 +218,7 @@ func SetupClientCentroidsExport(demmCli *client.DemmonClient) {
 func (e *Environment) AddDeploymentInterestSet(deploymentID, query, outputMetricID string) {
 	auxID := getDeploymentIDMetricString(deploymentID, outputMetricID)
 
-	ISID, errChan, finishChan, err := e.DemmonCli.InstallCustomInterestSet(body_types.CustomInterestSet{
+	set := body_types.CustomInterestSet{
 		DialRetryBackoff: dialBackoff,
 		DialTimeout:      dialTimeout,
 		Hosts:            []body_types.CustomInterestSetHost{},
@@ -220,10 +236,9 @@ func (e *Environment) AddDeploymentInterestSet(deploymentID, query, outputMetric
 				},
 			},
 		},
-	})
-	if err != nil {
-		log.Panic(err)
 	}
+
+	ISID, finishChan, errChan := retryInstallCustomSet(e.DemmonCli, set)
 
 	log.Debugf("added custom interest set for deployment %s with query %s -> %s", deploymentID, query,
 		outputMetricID)
@@ -257,12 +272,25 @@ func (e *Environment) UpdateDeploymentInterestSet(deploymentID, outputMetricID s
 
 		ISvalue := value.(*typeInterestSetsValue)
 
-		err := e.DemmonCli.UpdateCustomInterestSet(body_types.UpdateCustomInterestSetReq{
-			SetID: *ISvalue.ISID,
-			Hosts: ISHosts,
-		})
-		if err != nil {
-			log.Error(err)
+		var (
+			err    error
+			setReq = body_types.UpdateCustomInterestSetReq{
+				SetID: *ISvalue.ISID,
+				Hosts: ISHosts,
+			}
+			retry = true
+		)
+
+		for retry {
+			err = e.DemmonCli.UpdateCustomInterestSet(setReq)
+			if err != nil {
+				if !strings.Contains(err.Error(), errTimedOut) {
+					log.Error(err)
+					retry = false
+				}
+			} else {
+				retry = true
+			}
 		}
 	}
 }
@@ -284,10 +312,7 @@ func (e *Environment) GetVicinity() (vicinity map[string]*utils.Node) {
 func (e *Environment) GetLocationInVicinity() map[string]s2.CellID {
 	query := fmt.Sprintf(LocationQuery, MetricLocationInVicinity)
 
-	timeseries, err := e.DemmonCli.Query(query, queryTimeout)
-	if err != nil {
-		log.Warn(err)
-	}
+	timeseries := retryQuery(e.DemmonCli, query)
 
 	locations := map[string]s2.CellID{}
 	for _, ts := range timeseries {
@@ -322,13 +347,28 @@ func (e *Environment) announceMyselfPeriodically() {
 	for {
 		log.Debugf("announcing %+v", e.myself)
 
-		err := e.DemmonCli.BroadcastMessage(body_types.Message{
-			ID:      demmonAPI.NodeAnnouncement,
-			TTL:     horizonDistance,
-			Content: e.myself,
-		})
-		if err != nil {
-			log.Panic(err)
+		var (
+			err   error
+			retry = true
+			msg   = body_types.Message{
+				ID:  demmonAPI.NodeAnnouncement,
+				TTL: horizonDistance,
+				Content: &nodeWithLocation{
+					Node:     e.myself,
+					Location: e.location.ToToken(),
+				},
+			}
+		)
+
+		for retry {
+			err = e.DemmonCli.BroadcastMessage(msg)
+			if err != nil {
+				if !strings.Contains(err.Error(), errTimedOut) {
+					log.Panic(err)
+				}
+			} else {
+				retry = false
+			}
 		}
 
 		time.Sleep(announcementTimeout)
@@ -336,9 +376,21 @@ func (e *Environment) announceMyselfPeriodically() {
 }
 
 func (e *Environment) handleAnnouncements() {
-	msgChan, _, err := e.DemmonCli.InstallBroadcastMessageHandler(demmonAPI.NodeAnnouncement)
-	if err != nil {
-		log.Panic(err)
+	var (
+		err     error
+		msgChan chan body_types.Message
+		retry   = true
+	)
+
+	for retry {
+		msgChan, _, err = e.DemmonCli.InstallBroadcastMessageHandler(demmonAPI.NodeAnnouncement)
+		if err != nil {
+			if !strings.Contains(err.Error(), errTimedOut) {
+				log.Panic(err)
+			}
+		} else {
+			retry = false
+		}
 	}
 
 	log.Debugf("started handling announcements...")
@@ -350,17 +402,19 @@ func (e *Environment) handleAnnouncements() {
 		log.Debugf("got msg %+v", msg)
 		switch msg.ID {
 		case demmonAPI.NodeAnnouncement:
-			var nodeAnnounced utils.Node
+			var nodeAnnounced nodeWithLocation
 
 			err = mapstructure.Decode(msg.Content, &nodeAnnounced)
 			if err != nil {
 				log.Panic(err)
 			}
 
-			log.Debugf("adding neighbor %s", nodeAnnounced.ID)
+			log.Debugf("adding neighbor %s", nodeAnnounced.Node.ID)
 
-			nodesAlive.Store(nodeAnnounced.ID, nil)
-			e.vicinity.Store(nodeAnnounced.ID, &nodeAnnounced)
+			nodesAlive.Store(nodeAnnounced.Node.ID, nil)
+			e.vicinity.Store(nodeAnnounced.Node.ID, nodeAnnounced.Node)
+			knownLocations.Store(nodeAnnounced.Node.ID,
+				s2.CellIDFromToken(nodeAnnounced.Location))
 			e.updateVicinityInterestSet()
 
 			log.Debug("handled node announcement")
@@ -384,12 +438,25 @@ func (e *Environment) updateVicinityInterestSet() {
 
 	log.Debug("updating interest set")
 
-	err := e.DemmonCli.UpdateCustomInterestSet(body_types.UpdateCustomInterestSetReq{
-		SetID: *e.vicinityInterestSetID,
-		Hosts: hosts,
-	})
-	if err != nil {
-		log.Error(err)
+	var (
+		err   error
+		retry = true
+		set   = body_types.UpdateCustomInterestSetReq{
+			SetID: *e.vicinityInterestSetID,
+			Hosts: hosts,
+		}
+	)
+
+	for retry {
+		err = e.DemmonCli.UpdateCustomInterestSet(set)
+		if err != nil {
+			if !strings.Contains(err.Error(), errTimedOut) {
+				log.Error(err)
+				retry = false
+			}
+		} else {
+			retry = false
+		}
 	}
 
 	log.Debug("updated interest set")
@@ -431,14 +498,22 @@ const (
 	LocationQuery          = `SelectLast("%s", "*")`
 	loadPerDeploymentQuery = `Avg(Select("%s", {"host": "%s", "deployment": "%s"}), "value")`
 	centroidsQuery         = `SelectLast("%s", {"host": "%s", "deployment": "%s"})`
+
+	errTimedOut = "timed out"
 )
 
 func GetLocation(demmonCli *client.DemmonClient, host *utils.Node) s2.CellID {
 	query := fmt.Sprintf(locationWithHostQuery, MetricLocationInVicinity, host.Addr)
 
-	timeseries, err := demmonCli.Query(query, queryTimeout)
-	if err != nil {
-		log.Warn(err)
+	timeseries := retryQuery(demmonCli, query)
+
+	if len(timeseries) == 0 || len(timeseries[0].Values) == 0 {
+		value, ok := knownLocations.Load(host.ID)
+		if !ok {
+			log.Panic("no location for %s", host.ID)
+		}
+
+		return value.(s2.CellID)
 	}
 
 	return s2.CellIDFromToken(timeseries[0].Values[0].Fields["value"].(string))
@@ -447,11 +522,7 @@ func GetLocation(demmonCli *client.DemmonClient, host *utils.Node) s2.CellID {
 func GetLoad(demmonCli *client.DemmonClient, deploymentID string, host *utils.Node) int {
 	query := fmt.Sprintf(loadPerDeploymentQuery, MetricLoad, host.Addr, deploymentID)
 
-	timeseries, err := demmonCli.Query(query, queryTimeout)
-	if err != nil {
-		log.Warn(err)
-		return 0
-	}
+	timeseries := retryQuery(demmonCli, query)
 
 	if len(timeseries) > 0 && len(timeseries[0].Values) > 0 {
 		return int(timeseries[0].Values[0].Fields["avg_value"].(float64))
@@ -467,7 +538,7 @@ func ExportClientCentroids(demmonCli *client.DemmonClient, deploymentID string, 
 		centroidTokens[i] = centroid.ToToken()
 	}
 
-	err := demmonCli.PushMetricBlob([]body_types.TimeseriesDTO{
+	timeseriesDTO := []body_types.TimeseriesDTO{
 		{
 			MeasurementName: MetricCentroids,
 			TSTags:          map[string]string{hostTag: node.Addr, DeploymentTag: deploymentID},
@@ -478,18 +549,17 @@ func ExportClientCentroids(demmonCli *client.DemmonClient, deploymentID string, 
 				},
 			},
 		},
-	})
-	if err != nil {
-		log.Error(err)
 	}
+
+	retryPushMetric(demmonCli, timeseriesDTO)
 }
 
 func GetClientCentroids(demmonCli *client.DemmonClient, deploymentID string, node *utils.Node) []s2.CellID {
 	query := fmt.Sprintf(centroidsQuery, MetricCentroids, node.Addr, deploymentID)
 
-	timeseries, err := demmonCli.Query(query, queryTimeout)
-	if err != nil {
-		log.Error(err)
+	timeseries := retryQuery(demmonCli, query)
+
+	if len(timeseries) == 0 || len(timeseries[0].Values) == 0 {
 		return nil
 	}
 
@@ -501,4 +571,84 @@ func GetClientCentroids(demmonCli *client.DemmonClient, deploymentID string, nod
 	}
 
 	return centroids
+}
+
+func retryQuery(demmonCli *client.DemmonClient, query string) (timeseries []body_types.TimeseriesDTO) {
+	var (
+		err   error
+		retry = true
+	)
+
+	for retry {
+		timeseries, err = demmonCli.Query(query, queryTimeout)
+		if err != nil {
+			if !strings.Contains(err.Error(), errTimedOut) {
+				log.Warn(err)
+				retry = false
+			}
+		} else {
+			retry = false
+		}
+	}
+
+	return
+}
+
+func retryPushMetric(demmonCli *client.DemmonClient, timeseriesDTO []body_types.TimeseriesDTO) {
+	var (
+		retry = true
+		err   error
+	)
+
+	for retry {
+		err = demmonCli.PushMetricBlob(timeseriesDTO)
+		if err != nil {
+			if !strings.Contains(err.Error(), errTimedOut) {
+				log.Error(err)
+				retry = false
+			}
+		} else {
+			retry = false
+		}
+	}
+}
+
+func retryInstallCustomSet(demmonCli *client.DemmonClient, set body_types.CustomInterestSet) (ISID *string, finishChan chan interface{}, errChan chan error) {
+	retry := true
+
+	var err error
+
+	for retry {
+		ISID, errChan, finishChan, err = demmonCli.InstallCustomInterestSet(set)
+
+		if err != nil {
+			if !strings.Contains(err.Error(), errTimedOut) {
+				log.Panic(err)
+			}
+		} else {
+			retry = false
+		}
+	}
+
+	return
+}
+
+func RetryConnect(demmonCli *client.DemmonClient) (connectErrChan chan error) {
+	var (
+		retry = true
+		err   error
+	)
+
+	for retry {
+		err, connectErrChan = demmonCli.ConnectTimeout(connectTimeout)
+		if err != nil {
+			if !strings.Contains(err.Error(), errTimedOut) {
+				log.Panic(err)
+			}
+		} else {
+			retry = false
+		}
+	}
+
+	return
 }

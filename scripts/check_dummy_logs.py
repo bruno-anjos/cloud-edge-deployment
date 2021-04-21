@@ -169,7 +169,7 @@ def main():
         exit(1)
 
     flag_all = False
-    flag_pattern = "level=error\\|panic\\|DATA RACE\\|race"
+    flag_pattern = "level=error\\|panic\\|DATA RACE"
     logs_dir = ""
     skip = False
 

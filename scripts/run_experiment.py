@@ -6,20 +6,25 @@ import threading
 import time
 from datetime import datetime
 
-project_path = os.getenv("CLOUD_EDGE_DEPLOYMENT")
-scenarios_path = os.path.expanduser('~/ced-scenarios/')
+from matplotlib.pyplot import sca
+
+CLOUD_EDGE_DIR = os.getenv("CLOUD_EDGE_DEPLOYMENT")
+SCENARIOS_DIR = os.path.expanduser('~/ced-scenarios/')
+NOVAPOKEMON_DIR = os.getenv('NOVAPOKEMON')
+MAPS_DIR = f'{CLOUD_EDGE_DIR}/latency_maps'
+SCRIPTS_DIR = f'{NOVAPOKEMON_DIR}/scripts'
 
 
 def run_with_log_and_exit(cmd):
     print(f"RUNNING | {cmd}")
-    ret = subprocess.run(cmd)
+    ret = subprocess.run(cmd, shell=True)
     if ret.returncode != 0:
         exit(ret.returncode)
 
 
 def launch_visualizer_thread(scenario, time_between_snapshots, target_dir, duration):
-    path = f"{project_path}/scripts/visualizer/visualizer_daemon.py"
-    cmd = ["python3", path, scenario, time_between_snapshots, f"--output_dir={target_dir}", duration]
+    path = f'{CLOUD_EDGE_DIR}/scripts/visualizer/visualizer_daemon.py'
+    cmd = f'python3 {path} {scenario} {time_between_snapshots} --output_dir={target_dir} {duration}'
 
     print("Launching visualizer thread...")
 
@@ -29,17 +34,17 @@ def launch_visualizer_thread(scenario, time_between_snapshots, target_dir, durat
 
 
 def save_stats(target_dir):
-    path = f"{project_path}/scripts/get_stats.py"
-    cmd = ["python3", path, target_dir]
+    path = f"{CLOUD_EDGE_DIR}/scripts/get_stats.py"
+    cmd = f'python3 {path} {target_dir}'
 
     print("Saving stats...")
 
     run_with_log_and_exit(cmd)
 
 
-def save_logs(target_dir):
-    path = f"{project_path}/scripts/get_logs.py"
-    cmd = ["python3", path, target_dir]
+def save_logs(logs_dir):
+    path = f"{CLOUD_EDGE_DIR}/scripts/get_logs.py"
+    cmd = f'python3 {path} {logs_dir}'
 
     print("Saving logs...")
 
@@ -47,9 +52,8 @@ def save_logs(target_dir):
 
 
 def deploy_stack(scenario, deploy_opts):
-    path = f"{project_path}/scripts/deploy_dummy_stack.py"
-    cmd = ["python3", path, scenario]
-    cmd.extend(deploy_opts.split(" "))
+    path = f"{CLOUD_EDGE_DIR}/scripts/deploy_dummy_stack.py"
+    cmd = f'python3 {path} {scenario} {deploy_opts}'
 
     print("Deploying stack...")
 
@@ -57,9 +61,8 @@ def deploy_stack(scenario, deploy_opts):
 
 
 def deploy_novapokemon(nova_poke_opts):
-    path = f"{project_path}/scripts/deploy_novapokemon.py"
-    cmd = ["python3", path]
-    cmd.extend(nova_poke_opts.split(" "))
+    path = f"{CLOUD_EDGE_DIR}/scripts/deploy_novapokemon.py"
+    cmd = f'python3 {path} {nova_poke_opts}'
 
     print("Deploying novapokemon...")
 
@@ -67,17 +70,17 @@ def deploy_novapokemon(nova_poke_opts):
 
 
 def start_recording(aux_duration, timeout):
-    path = f"{project_path}/scripts/start_recording.py"
-    cmd = ["python3", path, aux_duration, timeout]
+    path = f"{CLOUD_EDGE_DIR}/scripts/start_recording.py"
+    cmd = f'python3 {path} {aux_duration} {timeout}'
 
     print("Starting bandwidth recordings...")
 
     run_with_log_and_exit(cmd)
 
 
-def deploy_clients(scenario, fallback):
-    path = f"{project_path}/scripts/deploy_novapokemon_clients.py"
-    cmd = ["python3", path, scenario, fallback]
+def deploy_clients(scenario, fallback, timeout, clients):
+    path = f"{CLOUD_EDGE_DIR}/scripts/deploy_novapokemon_clients.py"
+    cmd = f'python3 {path} {scenario} {fallback} {timeout} {clients}'
 
     print("Deploying clients...")
 
@@ -101,6 +104,44 @@ def save_dummy_infos(save_dir):
     subprocess.run(cmd)
 
 
+def get_lats(deploy_opts):
+    splitted_opts = deploy_opts.split(" ")
+
+    found = False
+    mapname = ""
+
+    for i, opt in enumerate(splitted_opts):
+        if opt == "--mapname":
+            mapname = splitted_opts[i + 1]
+            found = True
+
+    if not found:
+        print("missing mapname in deploy opts")
+        exit(1)
+
+    print(f"Getting map {mapname} lats...")
+
+    cmd = f'cp {MAPS_DIR}/{mapname}/lat.txt {NOVAPOKEMON_DIR}/lat.txt'
+    run_with_log_and_exit(cmd)
+
+    print("Done!")
+
+
+def build_novapokemon(scenario, deploy_opts):
+    print("Extracting locations...")
+
+    cmd = f'python3 {SCRIPTS_DIR}/extract_locations_from_scenario.py {scenario}'
+    run_with_log_and_exit(cmd)
+
+    get_lats(deploy_opts)
+
+    print("Done!")
+
+    cmd = f'cd {NOVAPOKEMON_DIR} && bash scripts/build_client.sh && ' \
+        'bash scripts/build_service_images.sh'
+    run_with_log_and_exit(cmd)
+
+
 SCENARIO = "scenario"
 CLIENTS_SCENARIO = "clients_scenario"
 TIME_BETW_SNAP = "time_between_snapshots"
@@ -120,6 +161,8 @@ def main():
     with open(args[0], 'r') as experiment_fp:
         experiment = json.load(experiment_fp)
 
+    build_novapokemon(experiment[SCENARIO], experiment[DEPLOY_OPTS])
+
     deploy_stack(experiment[SCENARIO], experiment[DEPLOY_OPTS])
 
     after_stack_time = process_time_string(experiment[TIME_AFTER_STACK])
@@ -133,32 +176,49 @@ def main():
     print(f"Sleeping {after_deploy_time} after deploying novapokemon...")
     time.sleep(after_deploy_time)
 
-    with open(f'{scenarios_path}/{experiment[SCENARIO]}', 'r') as scenario_fp:
+    with open(f'{SCENARIOS_DIR}/{experiment[SCENARIO]}', 'r') as scenario_fp:
         stack_scenario = json.load(scenario_fp)
         fallback = stack_scenario['fallback']
 
-    cli_thread = threading.Thread(target=deploy_clients, daemon=True, args=(experiment[CLIENTS_SCENARIO], fallback))
+    time_between_in_secs = process_time_string(experiment[TIME_BETW_SNAP])
+    cli_timeout = time_between_in_secs*1000
+    cli_counts = process_time_string(experiment[DURATION])/time_between_in_secs
+    cli_thread = threading.Thread(target=deploy_clients, daemon=True, args=(
+        experiment[CLIENTS_SCENARIO], fallback, cli_timeout, cli_counts))
     cli_thread.start()
 
     date = datetime.now()
     timestamp = date.strftime("%m-%d-%H-%M")
-    target_path = os.path.expanduser(f'~/experiment_{timestamp}/')
-    os.mkdir(target_path)
+    experiment_dir = os.path.expanduser(f'~/experiment_{timestamp}/')
+    os.mkdir(experiment_dir)
+    plots_dir = f'{experiment_dir}/plots'
+    os.mkdir(plots_dir)
+    logs_dir = f'{experiment_dir}/logs'
+    os.mkdir(logs_dir)
+    stats_dir = f'{experiment_dir}/stats'
+    os.mkdir(stats_dir)
 
-    save_dummy_infos(target_path)
+    save_dummy_infos(experiment_dir)
 
     duration = experiment[DURATION]
     duration_in_seconds = process_time_string(duration)
 
-    vs = threading.Thread(target=launch_visualizer_thread, daemon=True,
-                          args=(experiment[SCENARIO], experiment[TIME_BETW_SNAP], target_path, duration))
+    vs = threading.Thread(
+        target=launch_visualizer_thread,
+        daemon=True,
+        args=(
+            experiment[SCENARIO],
+            experiment[TIME_BETW_SNAP],
+            experiment_dir, duration
+        )
+    )
     vs.start()
 
     time.sleep(duration_in_seconds)
 
-    save_stats(target_path)
+    save_stats(experiment_dir)
 
-    save_logs(target_path)
+    save_logs(logs_dir)
 
     cli_thread.join()
     vs.join()

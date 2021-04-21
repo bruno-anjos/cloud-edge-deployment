@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	api "github.com/bruno-anjos/cloud-edge-deployment/api/deployer"
@@ -20,6 +21,8 @@ import (
 
 const (
 	connectTimeout = 5 * time.Second
+
+	errTimedOut = "timed out"
 )
 
 var demmonCli *client.DemmonClient
@@ -32,10 +35,8 @@ func InitAlternatives() {
 	}
 
 	demmonCli = client.New(demmonCliConf)
-	err, errChan := demmonCli.ConnectTimeout(connectTimeout)
-	if err != nil {
-		log.Panic(err)
-	}
+
+	errChan := environment.RetryConnect(demmonCli)
 
 	go internalUtils.PanicOnErrFromChan(errChan)
 }
@@ -57,9 +58,22 @@ func setAlternativesHandler(_ http.ResponseWriter, r *http.Request) {
 }
 
 func updateAlternatives() {
-	res, err, _, updateChan := demmonCli.SubscribeNodeUpdates()
-	if err != nil {
-		log.Panic(err)
+	var (
+		res        *body_types.View
+		err        error
+		updateChan chan body_types.NodeUpdates
+		retry      = true
+	)
+
+	for retry {
+		res, _, updateChan, err = demmonCli.SubscribeNodeUpdates()
+		if err != nil {
+			if !strings.Contains(err.Error(), errTimedOut) {
+				log.Panic(err)
+			}
+		} else {
+			retry = false
+		}
 	}
 
 	go getAlternativesPeriodically(updateChan)

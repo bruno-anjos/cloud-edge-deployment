@@ -13,7 +13,8 @@ rsync -a archimedesHTTPClient/ dicluster:/home/b.anjos/go/src/github.com/bruno-a
 
 cd .. || exit
 echo "Syncing NOVAPokemon..."
-rsync -a NOVAPokemon/ dicluster:/home/b.anjos/go/src/github.com/NOVAPokemon --delete --exclude "*.tar" --exclude "*.git/*"
+rsync -a NOVAPokemon/ dicluster:/home/b.anjos/go/src/github.com/NOVAPokemon --delete --exclude "*.tar" \
+  --exclude "*.git/*" --exclude "venv/*"
 
 cd nm-morais || exit
 echo "Syncing go-babel..."

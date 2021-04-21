@@ -14,9 +14,10 @@ const (
 	LocationEnvVarName   = "LOCATION"
 	ReplicaNumEnvVarName = "REPLICA_NUM"
 
-	NodeIDEnvVarName = "NODE_ID"
-	NodeIPEnvVarName = "NODE_IP"
-	PortsEnvVarName  = "PORTS"
+	NodeIDEnvVarName  = "NODE_ID"
+	NodeNumEnvVarName = "NODE_NUM"
+	NodeIPEnvVarName  = "NODE_IP"
+	PortsEnvVarName   = "PORTS"
 )
 
 func GetPortMapFromEnvVar() (portMap nat.PortMap) {

@@ -2,7 +2,7 @@ import json
 import os
 import sys
 
-from graph_tool.all import *
+from graph_tool.all import Graph, graph_draw, find_vertex
 
 archimedes_tex_filename = "/home/b.anjos/archimedes_tables.tex"
 archimedes_tex_local_path = "/Users/banjos/Desktop/archimedes_tables/archimedes_tables.tex"
@@ -13,7 +13,6 @@ archimedes_png_local_path = "/Users/banjos/Desktop/archimedes_tables/archimedes_
 results_tree_filename = "dicluster:/home/b.anjos/results/results.json"
 results_tree_local_path = "/Users/banjos/Desktop/deployer_pngs/results.json"
 graph_json_local_path = "/Users/banjos/Desktop/deployer_pngs/graph.json"
-image_local_path = os.path.expanduser("~/Desktop/deployer_pngs/")
 
 wait = 5
 
@@ -49,22 +48,18 @@ def get_location(name, locations):
 
 
 def transform_loc_to_range(loc):
-    new_loc = {"lat": 4000 - (((loc["lat"] + 90) * 4000) / 180), "lng": (((loc["lng"] + 180) * 4000) / 360)}
+    new_loc = {"lat": 4000 - (((loc["lat"] + 90) * 4000) / 180),
+               "lng": (((loc["lng"] + 180) * 4000) / 360)}
     return new_loc
 
 
-def graph_combined_deployments(filename, multi):
-    if multi:
-        files = [file for file in os.listdir(filename) if "graph" in file]
-    else:
-        files = [filename]
-
-    print(files)
+def graph_combined_deployments(dir):
+    files = [file for file in os.listdir(dir) if "graph" in file]
 
     for file in files:
         graph = Graph(directed=True)
 
-        with open(f"{filename}/{file}", 'r') as graph_fp:
+        with open(f"{dir}/{file}", 'r') as graph_fp:
             graph_json = json.load(graph_fp)
 
         node_tables = graph_json["node_tables"]
@@ -144,7 +139,7 @@ def graph_combined_deployments(filename, multi):
         out_filename = file.split(".")[0]
 
         graph_draw(graph, pos=positions, output_size=(4000, 4000), vertex_size=10,
-                   output=f"{image_local_path}/{out_filename}.png",
+                   output=f"{dir}/plots/{out_filename}.png",
                    bg_color=[1., 1., 1., 1.], vertex_fill_color=vprop_fill_color, edge_color=eprop_color,
                    fit_view=True, adjust_aspect=True, vprops=vprops, vertex_text_color=[0., 0., 0., 1.],
                    vertex_font_size=14)
@@ -152,29 +147,12 @@ def graph_combined_deployments(filename, multi):
 
 def main():
     args = sys.argv[1:]
-    if len(args) > 2:
-        print("usage: python3 visualizer.py graph_results.json [--multi]")
+    if len(args) != 1:
+        print("usage: python3 visualizer.py <experiment_dir>")
         exit(1)
 
-    filename = ""
-    multi = False
-
-    for arg in args:
-        if filename == "":
-            filename = arg
-        elif arg == "--multi":
-            multi = True
-
-    if filename == "":
-        filename = graph_json_local_path
-
-    mypath = "/Users/banjos/Desktop/deployer_pngs/"
-    onlyfiles = [os.path.join(mypath, f) for f in os.listdir(mypath) if os.path.isfile(os.path.join(mypath, f))]
-    print(f"deleting {onlyfiles}")
-    for file in onlyfiles:
-        os.remove(file)
-
-    graph_combined_deployments(filename, multi)
+    experiment_dir = args[0]
+    graph_combined_deployments(experiment_dir)
 
 
 if __name__ == '__main__':

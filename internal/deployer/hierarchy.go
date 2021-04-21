@@ -308,6 +308,8 @@ func (t *hierarchyTable) addDeployment(dto *api.DeploymentDTO, depthFactor float
 		return false
 	}
 
+	log.Debugf("added deployment %s to hierarchy table", dto.DeploymentID)
+
 	autonomicClient.RegisterDeployment(servers.AutonomicLocalHostPort, dto.DeploymentID,
 		autonomic.StrategyIdealLatencyID, depthFactor, exploringTTL)
 

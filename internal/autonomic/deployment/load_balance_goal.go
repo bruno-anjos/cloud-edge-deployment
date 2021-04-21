@@ -234,6 +234,7 @@ func (l *deploymentLoadBalanceGoal) GenerateAction(targets []*utils.Node, args .
 	switch args[lbActionTypeArgIndex].(string) {
 	case actions.ExtendDeploymentID:
 		location := environment.GetLocation(l.deployment.Environment.DemmonCli, targets[0])
+
 		toExclude := map[string]interface{}{}
 
 		l.deployment.Blacklist.Range(func(key, value interface{}) bool {

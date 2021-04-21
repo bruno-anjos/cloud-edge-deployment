@@ -28,15 +28,15 @@ def start_recording_in_dummy(info):
 
 
 def process_time_string(time_string):
-    time_in_seconds = int(time_string[:-1]) * 1000
+    time_in_ms = int(time_string[:-1]) * 1000
 
     time_suffix = time_string[-1]
     if time_suffix == "m" or time_suffix == "M":
-        time_in_seconds = time_in_seconds * 60
+        time_in_ms = time_in_ms * 60
     elif time_suffix == "h" or time_suffix == "H":
-        time_in_seconds = time_in_seconds * 60 * 60
+        time_in_ms = time_in_ms * 60 * 60
 
-    return time_in_seconds
+    return time_in_ms
 
 
 args = sys.argv[1:]

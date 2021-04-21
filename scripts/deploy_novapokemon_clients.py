@@ -12,10 +12,11 @@ REGION = "region"
 DURATION = "duration"
 WAIT_TIME = "wait_time"
 
-NUM_ARGS = 2
+NUM_ARGS = 4
 
 
-def deploy_clients(wait_time, num, region, logs_dir, network, duration, fallback):
+def deploy_clients(wait_time, num, region, logs_dir, network, duration,
+                   fallback, client_id, timeout, counts):
     time.sleep(wait_time)
 
     if os.path.exists(logs_dir):
@@ -24,8 +25,9 @@ def deploy_clients(wait_time, num, region, logs_dir, network, duration, fallback
         os.mkdir(logs_dir)
 
     env = f'--env NUM_CLIENTS={num} --env REGION={region} --env CLIENTS_TIMEOUT={duration} ' \
-          f'--env FALLBACK_URL={fallback} --env-file {project_path}/scripts/client-env.list'
-    volumes = f'-v {logs_dir}:/logs -v /tmp/services:/services'
+          f'--env FALLBACK_URL={fallback} --env CLIENT_ID={client_id} --env TIMEOUT={timeout} ' \
+        f' --env MEASURE_COUNTS={counts} --env-file {project_path}/scripts/client-env.list'
+    volumes = f'-v {logs_dir}:/logs -v /tmp/services:/services -v /tmp/bandwidth_stats:/bandwidth_stats'
     cmd = f'docker run -d {env} --network "{network}" {volumes} brunoanjos/client:latest'
 
     res = subprocess.run(cmd, shell=True)
@@ -70,12 +72,15 @@ def main():
 
     args = sys.argv[1:]
     if len(args) != NUM_ARGS:
-        print("usage: python3 scripts/deploy_novapokemon_clients.py <clients_scenario.json> <fallback>")
+        print("usage: python3 scripts/deploy_novapokemon_clients.py "\
+            "<clients_scenario.json> <fallback> <timeout> <counts>")
         exit(1)
 
     clients_scenarios = f"{os.path.expanduser('~')}/ced-client-scenarios/"
     path = f"{clients_scenarios}/{args[0]}"
     fallback = args[1]
+    timeout = args[2]
+    counts = args[3]
 
     clean_services()
 
@@ -96,8 +101,16 @@ def main():
             wait_time = process_time_string(clients_config[WAIT_TIME])
 
             print(f"Launching {clients_id}")
-            async_waits.append(pool.apply_async(deploy_clients, (
-                int(wait_time), num, region, f"{top_dir}/{clients_id}", "swarm-network", duration, fallback)))
+            async_waits.append(
+                pool.apply_async(
+                    deploy_clients,
+                    (
+                        int(wait_time), num, region, f"{top_dir}/{clients_id}",
+                        "swarm-network", duration, fallback, clients_id,
+                        timeout, counts
+                    )
+                )
+            )
 
     for w in async_waits:
         w.get()
