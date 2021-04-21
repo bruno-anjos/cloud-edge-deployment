@@ -1,0 +1,29 @@
+{
+    "authentication": {},
+    "battles": {},
+    "gyms": {},
+    "location": {},
+    "microtransactions": {},
+    "notifications": {},
+    "store": {},
+    "trades": {},
+    "trainers": {},
+    "novapokemon-usersdb": {
+        "deployment_yaml": "dbs/usersdb.yaml"
+    },
+    "novapokemon-trainersdb": {
+        "deployment_yaml": "dbs/trainersdb.yaml"
+    },
+    "novapokemon-microtransactionsdb": {
+        "deployment_yaml": "dbs/microtransactionsdb.yaml"
+    },
+    "novapokemon-locationdb": {
+        "deployment_yaml": "dbs/locationdb.yaml"
+    },
+    "novapokemon-notificationsdb": {
+        "deployment_yaml": "dbs/notificationsdb.yaml"
+    },
+    "novapokemon-gymsdb": {
+        "deployment_yaml": "dbs/gymsdb.yaml"
+    }
+}
