@@ -4,8 +4,9 @@ import json
 import os
 import socket
 import subprocess
-import sys
 from multiprocessing import Pool
+
+import sys
 
 archimedesLogs = "archimedes"
 autonomicLogs = "autonomic"
@@ -132,7 +133,7 @@ def build_infos():
 
 def show_docker_results(nodes, results, other_results, flag_all, logs_errors_path):
     for result in results:
-        node, log,  success, to_log, output = result
+        node, log, success, to_log, output = result
         if flag_all or not success:
             print(to_log)
         if not success:
@@ -189,7 +190,7 @@ def main():
     global filterSuffix
     filterSuffix = ["|", "grep", f"\"{flag_pattern}\""]
 
-    logs_errors_path = "/home/b.anjos/dummy_logs_errors/"
+    logs_errors_path = os.path.expanduser("~/dummy_logs_errors/")
     if not os.path.exists(logs_errors_path):
         os.mkdir(logs_errors_path)
 

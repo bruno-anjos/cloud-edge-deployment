@@ -12,12 +12,30 @@ clients_config_file = f"{os.path.expanduser('~')}" \
 log_prefixes = ["archimedes", "autonomic", "deployer", "scheduler", "demmon"]
 
 
-def get_client_logs(client_logs_dir_name):
-    cmd = ["cp", "-R", "/tmp/client_logs/*", client_logs_dir_name]
+def run_cmd_with_try(cmd):
+    print(f"Running | {cmd} | LOCAL")
+    cp = subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL)
 
-    print(f"RUNNING | {' '.join(cmd)}")
+    failed = False
+    if cp.stderr is not None:
+        failed = True
+        print(f"StdErr: {cp.stderr}")
+    if cp.returncode != 0:
+        failed = True
+        print(f"RetCode: {cp.returncode}")
+    if failed:
+        exit(1)
 
-    subprocess.run(" ".join(cmd), shell=True)
+
+def exec_cmd_on_node(node, cmd):
+    path_var = os.environ["PATH"]
+    remote_cmd = f"oarsh {node} -- 'PATH=\"{path_var}\" && {cmd}'"
+    run_cmd_with_try(remote_cmd)
+
+
+def get_client_logs(client_logs_dir_name, clients_node):
+    cmd = f'cp -R /tmp/client_logs/* {client_logs_dir_name}'
+    exec_cmd_on_node(clients_node, cmd)
 
 
 def get_specific_logs(logs_dir_name, dummy, cluster_node, logs_prefix):
@@ -54,17 +72,18 @@ def get_dummy_logs(dummy_infos, server_logs_dir, dummy):
 
 def main():
     args = sys.argv[1:]
-    if len(args) > 1:
-        print("ERROR: usage: python3 get_logs.py <output_dir")
+    if len(args) != 2:
+        print("ERROR: usage: python3 get_logs.py <output_dir> <clients_node>")
         exit(1)
 
-    date = datetime.now()
-    timestamp = date.strftime("%m-%d-%H-%M")
+    logs_dir = ''
+    clients_node = ''
 
-    if len(args) == 1:
-        logs_dir = args[0]
-    else:
-        logs_dir = f'{os.path.expanduser("~")}/dummy_logs_{timestamp}'
+    for arg in args:
+        if logs_dir == '':
+            logs_dir = arg
+        elif clients_node == '':
+            clients_node = arg
 
     with open(f"{os.path.dirname(os.path.realpath(__file__))}/visualizer/locations.json", 'r') as locations_fp:
         nodes = json.load(locations_fp)["nodes"].keys()
@@ -93,7 +112,7 @@ def main():
             )
         )
 
-    get_client_logs(client_logs_dir)
+    get_client_logs(client_logs_dir, clients_node)
 
     for p in processess:
         p.wait()

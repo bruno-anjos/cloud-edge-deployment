@@ -1,20 +1,20 @@
 #!/usr/bin/python3
 import json
 import os
+import re
 import socket
 import subprocess
-import sys
-import time
 from functools import partial
-from multiprocessing import Pool
+from multiprocessing.pool import Pool
 
 import s2sphere
+import sys
+import time
 from netaddr import IPNetwork
-import paramiko
 
-project_path = os.path.expanduser(
+CED_DIR = os.path.expanduser(
     "~/go/src/github.com/bruno-anjos/cloud-edge-deployment")
-nodes = subprocess.getoutput("oarprint host").strip().split("\n")
+NOVAPOKEMON_DIR = os.path.expanduser("~/go/src/github.com/NOVAPokemon")
 host = socket.gethostname().strip()
 
 
@@ -30,7 +30,7 @@ def run_cmd_with_try_and_log(cmd):
         failed = True
         print(f"RetCode: {cp.returncode}")
     if failed:
-        exit(1)
+        sys.exit(f'failed running cmd: {cmd}')
 
 
 def run_cmd_with_try(cmd):
@@ -45,10 +45,10 @@ def run_cmd_with_try(cmd):
         failed = True
         print(f"RetCode: {cp.returncode}")
     if failed:
-        exit(1)
+        sys.exit(f'failed running cmd: {cmd}')
 
 
-def exec_cmd_on_nodes(cmd):
+def exec_cmd_on_nodes(cmd, nodes):
     for node in nodes:
         print(f"Running | {cmd} | {node}")
         if node == host:
@@ -57,7 +57,7 @@ def exec_cmd_on_nodes(cmd):
             exec_cmd_on_node(node, cmd)
 
 
-def exec_cmd_on_nodes_parallel(cmd):
+def exec_cmd_on_nodes_parallel(cmd, nodes):
     cmd_pool = Pool(processes=os.cpu_count())
 
     other_nodes = [node for node in nodes if node != host]
@@ -79,18 +79,18 @@ def exec_cmd_on_node_with_output(cmd, node):
     (status, out) = subprocess.getstatusoutput(remote_cmd)
     if status != 0:
         print(out)
-        exit(1)
+        sys.exit(f'failed running cmd: {remote_cmd}')
     return out
 
 
 def del_everything():
-    remove_cmd = f"bash {project_path}/scripts/delete_everything.sh"
+    remove_cmd = f"bash {CED_DIR}/scripts/delete_everything.sh"
     run_cmd_with_try(remove_cmd)
 
 
-def del_everything_swarm():
-    remove_cmd = f"bash {project_path}/scripts/delete_everything.sh"
-    exec_cmd_on_nodes_parallel(remove_cmd)
+def del_everything_swarm(nodes):
+    remove_cmd = f"bash {CED_DIR}/scripts/delete_everything.sh"
+    exec_cmd_on_nodes_parallel(remove_cmd, nodes)
 
 
 def create_network(cidr, network):
@@ -100,19 +100,17 @@ def create_network(cidr, network):
 
 
 def setup_swarm(cidr, network):
-    setup_swarm_cmd = f"bash {project_path}/scripts/setup_swarm.sh {cidr} {network}"
+    setup_swarm_cmd = f"bash {CED_DIR}/scripts/setup_swarm.sh {cidr} {network}"
     run_cmd_with_try(setup_swarm_cmd)
 
 
 def build_dummy_node_image(reuse, verbose):
     print("Building dummy node image...")
-    build_cmd = f"bash {project_path}/build/dummy_node/build_dummy_node.sh"
+    build_cmd = f"bash {CED_DIR}/build/dummy_node/build_dummy_node.sh"
     if reuse:
         build_cmd += " --skip-final"
-    if verbose:
-        run_cmd_with_try_and_log(build_cmd)
-    else:
-        run_cmd_with_try(build_cmd)
+
+    run_cmd_with_try_and_log(build_cmd)
 
 
 NAME = "name"
@@ -124,14 +122,8 @@ MEM_QUOTA_KEY = "max_mem"
 CPU_QUOTA_KEY = "max_cpu"
 
 
-def run_cmd_with_conn(node, cmd, clients):
-    client = clients[node]
-    _, stdout, stderr = client.exec_command(cmd)
-    for line in stderr.readlines():
-        print(f'[PARAMIKO ERROR] [{node}] {line}')
-
-
-def launch_dummy(info, quotas, landmarks, network, swarm, clients):
+def launch_dummy(args):
+    info, quotas, landmarks, network, swarm = args
     quotas_opts = ""
     if quotas is not None:
         quotas_opts = f"--memory={quotas[MEM_QUOTA_KEY]} --cpus={quotas[CPU_QUOTA_KEY]}"
@@ -147,15 +139,16 @@ def launch_dummy(info, quotas, landmarks, network, swarm, clients):
     if not swarm or info[NODE] == host:
         run_cmd_with_try(launch_cmd)
     else:
-        run_cmd_with_conn(info[NODE], launch_cmd, clients)
+        exec_cmd_on_node(info[NODE], launch_cmd)
 
 
-def start_services_in_dummy(info, swarm, clients):
+def start_services_in_dummy(args):
+    info, swarm = args
     start_services_cmd = f"docker exec {info[NAME]} ./deploy_services.sh"
     if not swarm or info[NODE] == host:
         run_cmd_with_try_and_log(start_services_cmd)
     else:
-        run_cmd_with_conn(info[NODE], start_services_cmd, clients)
+        exec_cmd_on_node(info[NODE], start_services_cmd)
 
 
 def build_dummy_infos(num, s2_locs, ips):
@@ -165,7 +158,7 @@ def build_dummy_infos(num, s2_locs, ips):
     if len(ips) < num:
         print(
             f"CIDR only has {len(ips)} IPs but {num} nodes were supposed to be launched...")
-        exit(1)
+        sys.exit('not enough IPs in CIDR')
 
     for i, ip in zip(range(1, num + 1), ips):
         name = f"dummy{i}"
@@ -175,7 +168,7 @@ def build_dummy_infos(num, s2_locs, ips):
             NAME: name,
             NODE_IP: ip,
             LOCATION: location,
-            NUM: i-1,
+            NUM: i - 1,
         }
 
         print(f"{name}: {ip} | {location}")
@@ -184,7 +177,7 @@ def build_dummy_infos(num, s2_locs, ips):
     return infos
 
 
-def build_dummy_infos_swarm(num, s2_locs, entrypoints_ips, ips):
+def build_dummy_infos_swarm(num, s2_locs, entrypoints_ips, ips, server_nodes):
     print("Building dummy nodes infos for swarm...")
     print(f"Ignoring IPs {entrypoints_ips}")
 
@@ -198,15 +191,14 @@ def build_dummy_infos_swarm(num, s2_locs, entrypoints_ips, ips):
             if ip in entrypoints_ips:
                 curr_ip += 1
                 if curr_ip >= len(ips):
-                    print("Not enough IPs in CIDR for swarm")
-                    exit(1)
+                    sys.exit("Not enough IPs in CIDR for swarm")
                 ip = ips[curr_ip]
             else:
                 valid = True
 
         name = f"dummy{dummies_deployed}"
         location = s2_locs[name]
-        node = nodes[(dummies_deployed - 1) % len(nodes)]
+        node = server_nodes[(dummies_deployed - 1) % len(server_nodes)]
 
         dummy_info = {
             NAME: name,
@@ -248,9 +240,9 @@ def load_s2_locations(scenario):
     return s2_locs
 
 
-def setup_anchors(network):
+def setup_anchors(network, server_nodes):
     entrypoints_ips = set()
-    for node in nodes:
+    for node in server_nodes:
         print(f"Setting up anchor at {node}")
         anchor_cmd = f"docker run -d --name=anchor-{node} --network {network} alpine sleep 30m"
         exec_cmd_on_node(node, anchor_cmd)
@@ -287,10 +279,9 @@ def setup_anchors(network):
 
 def generate_demmon_config(latencies, infos):
     if latencies is None:
-        print("missing latencies")
-        exit(1)
+        sys.exit("missing latencies")
 
-    latency_filename = f"{project_path}/lats.txt"
+    latency_filename = f"{CED_DIR}/lats.txt"
     with open(latency_filename, 'w') as f:
         for node_latencies in latencies:
             latencies_string = " ".join([str(latency)
@@ -321,12 +312,15 @@ def generate_demmon_config(latencies, infos):
             ips_config_file_fp.write(node_config)
 
 
-def load_dummy_node_image_swarm():
-    load_cmd = f"docker load < {project_path}/build/dummy_node/dummy_node.tar"
-    exec_cmd_on_nodes(load_cmd)
+def load_dummy_node_image_swarm(nodes):
+    load_client_cmd = f"docker load < {CED_DIR}/build/dummy_node/dummy_node.tar"
+    exec_cmd_on_nodes(load_client_cmd, nodes)
+
+    load_client_cmd = f"docker load < {NOVAPOKEMON_DIR}/images/client.tar"
+    exec_cmd_on_nodes(load_client_cmd, nodes)
 
 
-def copy_tmp_images_swarm():
+def copy_tmp_images_swarm(nodes):
     for node in nodes:
         if node == host:
             continue
@@ -335,20 +329,20 @@ def copy_tmp_images_swarm():
         run_cmd_with_try(cmd)
 
 
-def clean_tables_dir():
+def clean_tables_dir(nodes):
     for node in nodes:
         print(f"Clearing tables dir in node {node}")
         exec_cmd_on_node(node, '( [ ! -d /tmp/tables ] || docker run -v /tmp/tables:/tables alpine sh -c "rm -rf '
                                '/tables/dummy*" )')
 
 
-def setup_tables_dir():
+def setup_tables_dir(nodes):
     for node in nodes:
         print(f"Creating tables dir in node {node}")
         exec_cmd_on_node(node, '( [ -d /tmp/tables ] || mkdir /tmp/tables ) ')
 
 
-def setup_bandwidth_dir():
+def setup_bandwidth_dir(nodes):
     for node in nodes:
         print(f"Creating bandwidth stats dir in node {node}")
         exec_cmd_on_node(
@@ -363,12 +357,13 @@ def clean_deployment(info, swarm):
         exec_cmd_on_node(info[NODE], clean_cmd)
 
 
-def setup_tc(info, bandwidth_limit, swarm, clients):
-    clean_cmd = f"docker exec {info[NAME]} ./setup_tc.sh {bandwidth_limit}"
+def setup_tc(args):
+    info, bandwidth_limit, swarm, ip_prefix = args
+    clean_cmd = f"docker exec {info[NAME]} ./setup_tc.sh {bandwidth_limit} {ip_prefix}"
     if not swarm or info[NODE] == host:
         run_cmd_with_try(clean_cmd)
     else:
-        run_cmd_with_conn(info[NODE], clean_cmd, clients)
+        exec_cmd_on_node(info[NODE], clean_cmd)
 
 
 def load_scenario(scenario_filename):
@@ -376,13 +371,22 @@ def load_scenario(scenario_filename):
         return json.load(scenario_fp)
 
 
+def atoi(text):
+    return int(text) if text.isdigit() else text
+
+
+def natural_keys(text):
+    return [atoi(c) for c in re.split(r'(\d+)', text)]
+
+
 def main():
     args = sys.argv[1:]
 
-    if len(args) < 3:
-        print("usage: deploy_dummy_stack.py <scenario> <cidr> <bandwith_limit_in_mbits> [--swarm] [--demmon] ["
-              "--build-only] [--quotas quotas.json] [--reuse] [--fallback node1] [--mapname mapnumber] [-v]")
-        exit(1)
+    if len(args) < 5:
+        print(
+            "usage: deploy_dummy_stack.py <scenario> <cidr> <bandwith_limit_in_mbits> <nodes (ex: node1,node2,node3)> <edge_bw_multiplier> [--swarm] [--demmon] ["
+            "--build-only] [--quotas quotas.json] [--reuse] [--mapname mapnumber] [-v]")
+        exit(f'wrong arguments')
 
     swarm = False
     demmon = False
@@ -392,9 +396,11 @@ def main():
     cidr_provided = ""
     fallback_id = ""
     map_name = ""
-    bandwidth_limit = ""
+    bandwidth_limit = -1
     quotas_filename = ""
     verbose = False
+    nodes = []
+    edge_bandwidth_multipliter = -1
 
     skip = False
 
@@ -410,10 +416,6 @@ def main():
             build_only = True
         elif arg == "--reuse":
             reuse = True
-        elif arg == "--fallback":
-            fallback_id = args[i + 1]
-            skip = True
-            print(f"Fallback: {fallback_id}")
         elif arg == "--mapname":
             map_name = args[i + 1]
             skip = True
@@ -428,11 +430,14 @@ def main():
             scenario_filename = arg
         elif cidr_provided == "":
             cidr_provided = arg
-        elif bandwidth_limit == "":
-            bandwidth_limit = arg
+        elif bandwidth_limit == -1:
+            bandwidth_limit = int(arg)
+        elif len(nodes) == 0:
+            nodes = arg.split(',')
+        elif edge_bandwidth_multipliter == -1:
+            edge_bandwidth_multipliter = float(arg)
         else:
-            print(f"unrecognized option {arg}")
-            exit(1)
+            sys.exit(f"unrecognized option {arg}")
 
     scenario = load_scenario(scenario_filename)
     num_nodes = len(scenario["locations"])
@@ -440,15 +445,7 @@ def main():
     if swarm:
         print("Running in swarm mode")
 
-    clients = {}
-    if len(nodes) > 1:
-        for node in nodes:
-            if node == host:
-                continue
-            client = paramiko.SSHClient()
-            client.load_system_host_keys()
-            client.connect(node)
-            clients[node] = client
+    nodes.sort(key=natural_keys)
 
     print("Deleting...")
 
@@ -460,7 +457,6 @@ def main():
         print("Cleaning dummy nodes...")
         with open(f"/tmp/dummy_infos.json", "r") as dummy_infos_fp:
             dummy_infos = json.load(dummy_infos_fp)
-            pool = Pool(processes=os.cpu_count())
             for info in dummy_infos:
                 clean_deployment(info, swarm)
     else:
@@ -468,7 +464,7 @@ def main():
         if swarm:
             network = "swarm-network"
             os.environ["DOCKER_NET"] = network
-            del_everything_swarm()
+            del_everything_swarm(nodes)
         else:
             network = "dummies-network"
             os.environ["DOCKER_NET"] = network
@@ -487,9 +483,9 @@ def main():
     if not reuse:
         if swarm:
             setup_swarm(cidr_provided, network)
-            entrypoints = setup_anchors(network)
+            entrypoints = setup_anchors(network, nodes)
             dummy_infos = build_dummy_infos_swarm(
-                num_nodes, s2_locations, entrypoints, ips)
+                num_nodes, s2_locations, entrypoints, ips, nodes)
         else:
             create_network(cidr_provided, network)
             dummy_infos = build_dummy_infos(num_nodes, s2_locations, ips)
@@ -499,8 +495,8 @@ def main():
             json.dump(dummy_infos, dummy_infos_fp, indent=4)
 
         print("Writing node IPs...")
-        with open(f"{project_path}/build/deployer/node_ips.json", "w") as deployer_ips_fp, \
-                open(f"{project_path}/build/autonomic/node_ips.json", "w") as autonomic_ips_fp:
+        with open(f"{CED_DIR}/build/deployer/node_ips.json", "w") as deployer_ips_fp, \
+                open(f"{CED_DIR}/build/autonomic/node_ips.json", "w") as autonomic_ips_fp:
             node_ips = {}
             for dummy in dummy_infos:
                 node_ips[dummy[NAME]] = dummy[NODE_IP]
@@ -508,9 +504,8 @@ def main():
             json.dump(node_ips, autonomic_ips_fp)
 
     print("Writing fallback...")
-    with open(f"{project_path}/build/deployer/fallback.json", "w") as fallback_fp:
-        if fallback_id == "":
-            fallback_id = scenario["fallback"]
+    fallback_id = scenario["fallback"]
+    with open(f"{CED_DIR}/build/deployer/fallback.json", "w") as fallback_fp:
         fallback = {"Id": fallback_id}
         for aux_node in dummy_infos:
             if aux_node[NAME] == fallback_id:
@@ -521,14 +516,14 @@ def main():
         print(f"Wrote fallback: {fallback}")
         json.dump(fallback, fallback_fp)
 
-    update_dependencies(project_path)
+    update_dependencies(CED_DIR)
     nm_morais_path = os.path.expanduser("~/go/src/github.com/nm-morais/")
     for file in os.listdir(nm_morais_path):
         update_dependencies(nm_morais_path + file)
 
-    clean_tables_dir()
-    setup_tables_dir()
-    setup_bandwidth_dir()
+    clean_tables_dir(nodes)
+    setup_tables_dir(nodes)
+    setup_bandwidth_dir(nodes)
 
     print("Building images...")
 
@@ -540,14 +535,13 @@ def main():
 
     if swarm:
         if not reuse:
-            load_dummy_node_image_swarm()
-        copy_tmp_images_swarm()
+            load_dummy_node_image_swarm(nodes)
+        copy_tmp_images_swarm(nodes)
 
     print("Launching...")
 
     if build_only:
-        print("Aborting launch due to build only...")
-        exit(1)
+        sys.exit("Aborting launch due to build only...")
 
     quotas = None
     if quotas_filename != "" and reuse:
@@ -560,23 +554,40 @@ def main():
             if CPU_QUOTA_KEY in quotas:
                 print(f"{CPU_QUOTA_KEY} set to {quotas[CPU_QUOTA_KEY]}")
 
-    pool = Pool(processes=os.cpu_count())
+    pool = Pool(4)
     if not reuse:
         start = time.time()
+        launch_args = []
+        setup_tc_args = []
         for info in dummy_infos:
-            launch_dummy(info, quotas, landmarks, network, swarm, clients)
+            launch_args.append(
+                (info, quotas, landmarks, network, swarm)
+            )
+            if info[NAME] == fallback_id:
+                bw_limit = bandwidth_limit
+            else:
+                bw_limit = int(bandwidth_limit * edge_bandwidth_multipliter)
+
+            setup_tc_args.append(
+                (info, bw_limit, swarm, cidr_provided)
+            )
+
+        pool.map(launch_dummy, launch_args)
         done = time.time()
         print(f"Took {done - start} seconds to launch dummies")
 
         start = time.time()
-        for info in dummy_infos:
-            setup_tc(info, bandwidth_limit, swarm, clients)
+        pool.map(setup_tc, setup_tc_args)
         done = time.time()
         print(f"Took {done - start} seconds to setup tc")
 
     start = time.time()
+    start_args = []
     for info in dummy_infos:
-        start_services_in_dummy(info, swarm, clients)
+        start_args.append((info, swarm))
+
+    pool.map(start_services_in_dummy, start_args)
+
     done = time.time()
     print(f"Took {done - start} seconds to start services")
 

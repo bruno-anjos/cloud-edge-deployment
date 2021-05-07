@@ -2,10 +2,6 @@
 
 export BUILD_DIR="/tmp/build"
 
-if [[ -z "${CLOUD_EDGE_DEPLOYMENT}" ]]; then
-  export CLOUD_EDGE_DEPLOYMENT="/home/b.anjos/go/src/github.com/bruno-anjos/cloud-edge-deployment"
-fi
-
 [ ! -d "$BUILD_DIR" ] && mkdir -p "$BUILD_DIR"
 [ ! -d /tmp/images ] && mkdir -p /tmp/images
 [ ! -d /tmp/bandwidth_stats ] && mkdir -p /tmp/bandwidth_stats
@@ -62,7 +58,11 @@ cp -r "$CLOUD_EDGE_DEPLOYMENT"/deployments "$BUILD_DIR"/dummy_node/
 cp $CLOUD_EDGE_DEPLOYMENT/scripts/clean_dummy.sh "$BUILD_DIR"/dummy_node/clean_dummy.sh
 
 echo "Copying NOVAPokemon images to /tmp..."
-cp /home/b.anjos/go/src/github.com/NOVAPokemon/images/* /tmp/images/
+for image in ~/go/src/github.com/NOVAPokemon/images/*; do
+  if [[ ! $image =~ "client" ]]; then
+    cp $image /tmp/images/
+  fi
+done
 
 if [[ $1 == "--skip-final" ]]; then
   exit 0

@@ -5,14 +5,16 @@ import sys
 import time
 from multiprocessing import Pool
 
-project_path = os.getenv("CLOUD_EDGE_DEPLOYMENT")
+project_path = os.path.expanduser('~/go/src/github.com/bruno-anjos/cloud-edge-deployment')
+nova_path = os.path.expanduser(
+    '~/go/src/github.com/NOVAPokemon')
 
 NUM = "number_of_clients"
 REGION = "region"
 DURATION = "duration"
 WAIT_TIME = "wait_time"
 
-NUM_ARGS = 4
+NUM_ARGS = 5
 
 
 def deploy_clients(wait_time, num, region, logs_dir, network, duration,
@@ -73,7 +75,7 @@ def main():
     args = sys.argv[1:]
     if len(args) != NUM_ARGS:
         print("usage: python3 scripts/deploy_novapokemon_clients.py "\
-            "<clients_scenario.json> <fallback> <timeout> <counts>")
+            "<clients_scenario.json> <fallback> <timeout> <counts> <experiment_duration>")
         exit(1)
 
     clients_scenarios = f"{os.path.expanduser('~')}/ced-client-scenarios/"
@@ -81,8 +83,11 @@ def main():
     fallback = args[1]
     timeout = args[2]
     counts = args[3]
+    experiment_duration = args[4]
 
     clean_services()
+
+    subprocess.run(f'docker load < {nova_path}/images/client.tar', shell=True)
 
     top_dir = '/tmp/client_logs'
 
@@ -112,8 +117,7 @@ def main():
                 )
             )
 
-    for w in async_waits:
-        w.get()
+    time.sleep(process_time_string(experiment_duration))
 
     pool.terminate()
     pool.close()

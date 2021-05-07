@@ -143,7 +143,7 @@ func (e *Environment) installNeighborLocationQuery(demmonCli *client.DemmonClien
 
 	ISID, _, errChan := retryInstallCustomSet(demmonCli, set)
 
-	go internalUtils.PanicOnErrFromChan(errChan)
+	go internalUtils.RetryFuncOnErr(errChan, func() { e.installNeighborLocationQuery(demmonCli) })
 
 	log.Debugf("got vicinity interest set %d", ISID)
 
@@ -166,21 +166,7 @@ func exportLocationPeriodically(demmonCli *client.DemmonClient, myself *utils.No
 	installedChan chan<- interface{}) {
 	ticker := time.NewTicker(locationExportFrequency)
 
-	var (
-		err   error
-		retry = true
-	)
-
-	for retry {
-		err = demmonCli.InstallBucket(MetricLocation, locationExportFrequency, defaultBucketSize)
-		if err != nil {
-			if !strings.Contains(err.Error(), errTimedOut) {
-				log.Panic(err)
-			}
-		} else {
-			retry = false
-		}
-	}
+	retryInstallBucket(demmonCli, MetricLocation, locationExportFrequency, defaultBucketSize)
 
 	close(installedChan)
 
@@ -209,10 +195,7 @@ func exportLocationPeriodically(demmonCli *client.DemmonClient, myself *utils.No
 }
 
 func SetupClientCentroidsExport(demmCli *client.DemmonClient) {
-	err := demmCli.InstallBucket(MetricCentroids, locationExportFrequency, defaultBucketSize)
-	if err != nil {
-		log.Panic(err)
-	}
+	retryInstallBucket(demmCli, MetricCentroids, locationExportFrequency, defaultBucketSize)
 }
 
 func (e *Environment) AddDeploymentInterestSet(deploymentID, query, outputMetricID string) {
@@ -243,10 +226,7 @@ func (e *Environment) AddDeploymentInterestSet(deploymentID, query, outputMetric
 	log.Debugf("added custom interest set for deployment %s with query %s -> %s", deploymentID, query,
 		outputMetricID)
 
-	go func() {
-		ISErr := <-errChan
-		log.Panicf("interest set: %s, err: %s", deploymentID, ISErr)
-	}()
+	go internalUtils.RetryFuncOnErr(errChan, func() { e.AddDeploymentInterestSet(deploymentID, query, outputMetricID) })
 
 	e.interestSets.Store(auxID, &typeInterestSetsValue{
 		ISID:   ISID,
@@ -258,7 +238,7 @@ func (e *Environment) UpdateDeploymentInterestSet(deploymentID, outputMetricID s
 	auxID := getDeploymentIDMetricString(deploymentID, outputMetricID)
 
 	if value, ok := e.interestSets.Load(auxID); !ok {
-		log.Warn("no interest set for deployment %s - %s", deploymentID, outputMetricID)
+		log.Warnf("no interest set for deployment %s - %s", deploymentID, outputMetricID)
 
 		return
 	} else {
@@ -284,7 +264,7 @@ func (e *Environment) UpdateDeploymentInterestSet(deploymentID, outputMetricID s
 		for retry {
 			err = e.DemmonCli.UpdateCustomInterestSet(setReq)
 			if err != nil {
-				if !strings.Contains(err.Error(), errTimedOut) {
+				if !strings.Contains(err.Error(), internalUtils.ErrTimedOut) {
 					log.Error(err)
 					retry = false
 				}
@@ -363,7 +343,7 @@ func (e *Environment) announceMyselfPeriodically() {
 		for retry {
 			err = e.DemmonCli.BroadcastMessage(msg)
 			if err != nil {
-				if !strings.Contains(err.Error(), errTimedOut) {
+				if !strings.Contains(err.Error(), internalUtils.ErrTimedOut) {
 					log.Panic(err)
 				}
 			} else {
@@ -385,7 +365,7 @@ func (e *Environment) handleAnnouncements() {
 	for retry {
 		msgChan, _, err = e.DemmonCli.InstallBroadcastMessageHandler(demmonAPI.NodeAnnouncement)
 		if err != nil {
-			if !strings.Contains(err.Error(), errTimedOut) {
+			if !strings.Contains(err.Error(), internalUtils.ErrTimedOut) {
 				log.Panic(err)
 			}
 		} else {
@@ -450,7 +430,7 @@ func (e *Environment) updateVicinityInterestSet() {
 	for retry {
 		err = e.DemmonCli.UpdateCustomInterestSet(set)
 		if err != nil {
-			if !strings.Contains(err.Error(), errTimedOut) {
+			if !strings.Contains(err.Error(), internalUtils.ErrTimedOut) {
 				log.Error(err)
 				retry = false
 			}
@@ -498,8 +478,6 @@ const (
 	LocationQuery          = `SelectLast("%s", "*")`
 	loadPerDeploymentQuery = `Avg(Select("%s", {"host": "%s", "deployment": "%s"}), "value")`
 	centroidsQuery         = `SelectLast("%s", {"host": "%s", "deployment": "%s"})`
-
-	errTimedOut = "timed out"
 )
 
 func GetLocation(demmonCli *client.DemmonClient, host *utils.Node) s2.CellID {
@@ -510,7 +488,7 @@ func GetLocation(demmonCli *client.DemmonClient, host *utils.Node) s2.CellID {
 	if len(timeseries) == 0 || len(timeseries[0].Values) == 0 {
 		value, ok := knownLocations.Load(host.ID)
 		if !ok {
-			log.Panic("no location for %s", host.ID)
+			log.Panicf("no location for %s", host.ID)
 		}
 
 		return value.(s2.CellID)
@@ -582,7 +560,7 @@ func retryQuery(demmonCli *client.DemmonClient, query string) (timeseries []body
 	for retry {
 		timeseries, err = demmonCli.Query(query, queryTimeout)
 		if err != nil {
-			if !strings.Contains(err.Error(), errTimedOut) {
+			if !strings.Contains(err.Error(), internalUtils.ErrTimedOut) {
 				log.Warn(err)
 				retry = false
 			}
@@ -603,7 +581,7 @@ func retryPushMetric(demmonCli *client.DemmonClient, timeseriesDTO []body_types.
 	for retry {
 		err = demmonCli.PushMetricBlob(timeseriesDTO)
 		if err != nil {
-			if !strings.Contains(err.Error(), errTimedOut) {
+			if !strings.Contains(err.Error(), internalUtils.ErrTimedOut) {
 				log.Error(err)
 				retry = false
 			}
@@ -622,7 +600,7 @@ func retryInstallCustomSet(demmonCli *client.DemmonClient, set body_types.Custom
 		ISID, errChan, finishChan, err = demmonCli.InstallCustomInterestSet(set)
 
 		if err != nil {
-			if !strings.Contains(err.Error(), errTimedOut) {
+			if !strings.Contains(err.Error(), internalUtils.ErrTimedOut) {
 				log.Panic(err)
 			}
 		} else {
@@ -642,7 +620,7 @@ func RetryConnect(demmonCli *client.DemmonClient) (connectErrChan chan error) {
 	for retry {
 		err, connectErrChan = demmonCli.ConnectTimeout(connectTimeout)
 		if err != nil {
-			if !strings.Contains(err.Error(), errTimedOut) {
+			if !strings.Contains(err.Error(), internalUtils.ErrTimedOut) {
 				log.Panic(err)
 			}
 		} else {
@@ -651,4 +629,22 @@ func RetryConnect(demmonCli *client.DemmonClient) (connectErrChan chan error) {
 	}
 
 	return
+}
+
+func retryInstallBucket(demmonCli *client.DemmonClient, name string, frequency time.Duration, sampleCount int) {
+	var (
+		err   error
+		retry = true
+	)
+
+	for retry {
+		err = demmonCli.InstallBucket(name, frequency, sampleCount)
+		if err != nil {
+			if !strings.Contains(err.Error(), internalUtils.ErrTimedOut) {
+				log.Panic(err)
+			}
+		} else {
+			retry = false
+		}
+	}
 }

@@ -304,8 +304,8 @@ func startContainerAsync(containerInstance *api.ContainerInstanceDTO) {
 				log.Error(err)
 			}
 
-			log.Warn("got status code %d while adding instances for deployment %d to deployer",
-				containerInstance.DeploymentName, status)
+			log.Warnf("got status code %d while adding instances for deployment %s to deployer",
+				status, containerInstance.DeploymentName)
 
 			return
 		}
@@ -352,9 +352,9 @@ func stopContainerAsync(instanceID, contID, url, removePath string) {
 		httpClient := http.Client{}
 		req := internalUtils.BuildRequest(http.MethodGet, url, removePath, nil)
 
-		_, err := httpClient.Do(req)
-		if err != nil {
-			log.Error(err)
+		status, timedOut := internalUtils.DoRequest(&httpClient, req, nil)
+		if timedOut || status != http.StatusOK {
+			log.Errorf("failed request to remove path:, %d, %t", status, timedOut)
 		}
 	}
 

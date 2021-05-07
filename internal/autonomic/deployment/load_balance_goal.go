@@ -18,7 +18,7 @@ import (
 
 const (
 	maximumLoad            = 300
-	staleCyclesNumToRemove = int((float64(archimedesHTTPClient.ResetToFallbackTimeout) * 3.) /
+	staleCyclesNumToRemove = int((float64(archimedesHTTPClient.ResetToFallbackTimeout) * (3. / 2.)) /
 		float64(autonomicUtils.DefaultGoalCycleTimeout))
 
 	loadBalanceGoalID          = "GOAL_LOAD_BALANCE"

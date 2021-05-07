@@ -4,6 +4,7 @@ import subprocess
 import sys
 from multiprocessing import Pool
 
+CLOUD_EDGE_DIR=os.getenv('CLOUD_EDGE_DEPLOYMENT')
 
 def run_cmd_with_try(cmd):
     print(f"Running | {cmd} | LOCAL")
@@ -25,6 +26,11 @@ def start_recording_in_dummy(info):
 
     print(f"Starting recording in {info['name']}")
     exec_cmd_on_node(node, cmd)
+
+
+def start_recording(interval, duration, experiment_dir):
+    cmd = f'python3 {CLOUD_EDGE_DIR}/scripts/record_stats.py {interval} {duration} {experiment_dir}'
+
 
 
 def process_time_string(time_string):
@@ -60,6 +66,8 @@ timeout_in_seconds = process_time_string(timeout)
 duration_in_seconds = process_time_string(duration)
 
 measurement_counts = duration_in_seconds // timeout_in_seconds
+
+
 
 pool = Pool(processes=os.cpu_count())
 pool.map(start_recording_in_dummy, dummy_infos)

@@ -3,9 +3,10 @@ import json
 import os
 import socket
 import subprocess
+
 import sys
 
-repoDir = "/home/b.anjos/go/src/github.com/bruno-anjos/cloud-edge-deployment"
+repoDir = os.path.expanduser("~/go/src/github.com/bruno-anjos/cloud-edge-deployment")
 cdToDir = f"cd {repoDir}"
 runServiceFormat = "go run cmd/deployer-cli/main.go add static %s deployments/%s.yaml"
 exportVars = "export GO111MODULE=on"
@@ -37,7 +38,7 @@ if args_count != min_args or len(args) < min_args or len(args) > max_args:
 def deploy_service_in_node(s, node):
     run_service = runServiceFormat % s
     try:
-        subprocess.run(["ssh", node, f"{exportVars} && {cdToDir} && {run_service}"], check=True)
+        subprocess.run(["oarsh", node, f"{exportVars} && {cdToDir} && {run_service}"], check=True)
     except subprocess.CalledProcessError as e:
         print(f"ssh returned {e}")
 

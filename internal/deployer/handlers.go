@@ -307,15 +307,15 @@ func getDeploymentsHandler(w http.ResponseWriter, _ *http.Request) {
 	internalUtils.SendJSONReplyOK(w, deployments)
 }
 
-func checkIfShouldTakeChildren(parent *utils.Node,
+func checkIfShouldTakeChildren(myParent *utils.Node,
 	deploymentDTO *api.DeploymentDTO) (shouldTakeChildren, conflict bool) {
-	parentsMatch := parent != nil && deploymentDTO.Parent != nil && parent.ID == deploymentDTO.Parent.ID
-	parentDead := parent != nil && !pTable.hasParent(parent.ID)
+	parentsMatch := myParent != nil && deploymentDTO.Parent != nil && myParent.ID == deploymentDTO.Parent.ID
+	parentDead := myParent != nil && !pTable.hasParent(myParent.ID)
 
 	log.Debugf("conditions: %t, %t", parentsMatch, parentDead)
 
 	if !parentsMatch && !parentDead {
-		shouldTakeChildren = len(deploymentDTO.Children) > 0 && checkChildren(parent, deploymentDTO.Children...)
+		shouldTakeChildren = len(deploymentDTO.Children) > 0 && checkChildren(myParent, deploymentDTO.Children...)
 		if !shouldTakeChildren {
 			// case where i have the deployment, its not my parent speaking to me, my parent is not dead
 			// and i should not take the children
@@ -389,7 +389,7 @@ func registerDeploymentHandler(w http.ResponseWriter, r *http.Request) {
 	logParentReceivedAndDeploymentParent(parent, deploymentDTO)
 
 	alreadyHadDeployment := false
-	if hTable.hasDeployment(deploymentDTO.DeploymentID) {
+	if hTable.hasDeployment(deploymentID) {
 		alreadyHadDeployment = true
 
 		shouldTakeChildren, conflict := checkIfShouldTakeChildren(parent, deploymentDTO)

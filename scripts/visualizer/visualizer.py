@@ -1,16 +1,16 @@
 import json
 import os
-import sys
 
+import sys
 from graph_tool.all import Graph, graph_draw, find_vertex
 
-archimedes_tex_filename = "/home/b.anjos/archimedes_tables.tex"
+archimedes_tex_filename = os.path.expanduser("~/archimedes_tables.tex")
 archimedes_tex_local_path = "/Users/banjos/Desktop/archimedes_tables/archimedes_tables.tex"
 archimedes_pdf_local_path = "/Users/banjos/Desktop/archimedes_tables/archimedes_tables.pdf"
 archimedes_out_local_path = "/Users/banjos/Desktop/archimedes_tables/"
 archimedes_png_local_path = "/Users/banjos/Desktop/archimedes_tables/archimedes_tables.png"
 
-results_tree_filename = "dicluster:/home/b.anjos/results/results.json"
+results_tree_filename = "dicluster:~/results/results.json"
 results_tree_local_path = "/Users/banjos/Desktop/deployer_pngs/results.json"
 graph_json_local_path = "/Users/banjos/Desktop/deployer_pngs/graph.json"
 
@@ -54,12 +54,13 @@ def transform_loc_to_range(loc):
 
 
 def graph_combined_deployments(dir):
-    files = [file for file in os.listdir(dir) if "graph" in file]
+    stats_dir = f'{dir}/stats'
+    files = [file for file in os.listdir(stats_dir) if "graph" in file]
 
     for file in files:
         graph = Graph(directed=True)
 
-        with open(f"{dir}/{file}", 'r') as graph_fp:
+        with open(f"{stats_dir}/{file}", 'r') as graph_fp:
             graph_json = json.load(graph_fp)
 
         node_tables = graph_json["node_tables"]

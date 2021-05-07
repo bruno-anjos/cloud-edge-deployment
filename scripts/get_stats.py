@@ -3,15 +3,12 @@ import json
 import os
 import socket
 import subprocess
-import sys
-import pandas
-import os
 
 import matplotlib.pyplot as plt
+import pandas
+import sys
 
 client_logs_dirname = "client_logs"
-
-timetook_regex = r"took (\d+)"
 
 TIMESTAMP = "TIMESTAMP"
 BITS_OUT = "BYTES_OUT"
@@ -85,6 +82,104 @@ def read_csvs(stats_dir):
     return pandas.concat(values_list)
 
 
+def get_nodes():
+    cmd = f'oarprint host'
+    return subprocess.getoutput(cmd).strip().split('\n')
+
+
+def plot_bandwidths(output_dir, dummy_infos):
+    values = read_csvs(f'{output_dir}/stats/bandwidths/')
+    print(values)
+
+    timestamp_header = 'timestamp'
+    dummy_header = 'dummy'
+    bits_total_header = 'bits_total/s'
+    iface_header = 'iface_name'
+    bits_out_s = 'bits_out/s'
+    bits_in_s = 'bits_in/s'
+
+    min_timestamp = values[timestamp_header].min()
+    to_keep = values[iface_header].str.match(r'eth0')
+    values = values[to_keep]
+    to_keep = values[bits_total_header] < 100_000_000
+    values = values[to_keep]
+    dummies = values.groupby(dummy_header)
+
+    bandwidths_dir = f'{output_dir}/plots/bandwidths'
+    if not os.path.exists(bandwidths_dir):
+        os.mkdir(bandwidths_dir)
+
+    for dummy in dummy_infos:
+        fig = plt.figure(figsize=(25, 15))
+
+        name = dummy['name']
+        try:
+            dummy_stats = dummies.get_group(name)
+        except KeyError:
+            print(f'Missing group for {name}')
+            continue
+
+        ifaces_stats = dummy_stats.groupby(iface_header)
+
+        plt.ylabel("Mb/s")
+        for iface_name, stats in ifaces_stats:
+            plt.plot(stats[timestamp_header] - min_timestamp,
+                     stats[bits_total_header] / 1_000_000, label=f'{iface_name} {bits_total_header}')
+            plt.plot(stats[timestamp_header] - min_timestamp,
+                     stats[bits_out_s] / 1_000_000, label=f'{iface_name} {bits_out_s}')
+            plt.plot(stats[timestamp_header] - min_timestamp,
+                     stats[bits_in_s] / 1_000_000, label=f'{iface_name} {bits_in_s}')
+
+        plt.grid()
+        plt.legend()
+        plt.savefig(f'{bandwidths_dir}/{name}.png')
+        plt.close(fig)
+
+
+def plot_cpu_mem_stats(output_dir, nodes, prefix):
+    server_results = {}
+    for node in nodes:
+        results = pandas.read_csv(
+            f'{output_dir}/stats/{node}_cpu_mem.csv', delimiter=';')
+        server_results[node] = results
+
+    plt.figure(figsize=(25, 15))
+    plt.xlabel('seconds')
+    plt.ylabel('CPU (%)')
+
+    min_timestamp = 0
+    for node, results in server_results.items():
+        timestamp = results['timestamp'].min()
+        if timestamp < min_timestamp or min_timestamp == 0:
+            min_timestamp = timestamp
+
+    for node, results in server_results.items():
+        plt.plot(results['timestamp'].apply(lambda x: x -
+                                                      min_timestamp), results['cpu'], label=node)
+
+    prefix_dir = f'{output_dir}/plots/{prefix}'
+    if not os.path.exists(prefix_dir):
+        os.mkdir(prefix_dir)
+
+    plt.ylim([0, 100])
+    plt.legend()
+    plt.grid()
+    plt.savefig(f'{prefix_dir}/cpu_stats.png')
+
+    plt.figure(figsize=(25, 15))
+    plt.xlabel('seconds')
+    plt.ylabel('MEMORY (%)')
+
+    for node, results in server_results.items():
+        plt.plot(results['timestamp'].apply(lambda x: x -
+                                                      min_timestamp), results['mem'], label=node)
+
+    plt.ylim([0, 100])
+    plt.legend()
+    plt.grid()
+    plt.savefig(f'{prefix_dir}/mem_stats.png')
+
+
 def main():
     args = sys.argv[1:]
 
@@ -109,46 +204,8 @@ def main():
         print("Will sync stats to NAS...")
         sync_stats_to_nas(dummy_infos, output_dir)
 
-    values = read_csvs(f'{output_dir}/stats/bandwidths/')
-    print(values)
-
-    timestamp_header = 'timestamp'
-    dummy_header = 'dummy'
-    bits_total_header = 'bits_total/s'
-    iface_header = 'iface_name'
-
-    min_timestamp = values[timestamp_header].min()
-    to_keep = values[iface_header].str.contains(
-        r'eth0', regex=True)
-    values = values[to_keep]
-    to_keep = values[bits_total_header] < 100_000_000
-    values = values[to_keep]
-    dummies = values.groupby(dummy_header)
-
-    bandwidths_dir = f'{output_dir}/plots/bandwidths'
-    if not os.path.exists(bandwidths_dir):
-        os.mkdir(bandwidths_dir)
-
-    for dummy in dummy_infos:
-        fig = plt.figure(figsize=(25, 15))
-
-        name = dummy['name']
-        try:
-            dummy_stats = dummies.get_group(name)
-        except KeyError:
-            print(f'Missing group for {name}')
-            continue
-
-        ifaces_stats = dummy_stats.groupby(iface_header)
-
-        plt.ylabel("Mb/s")
-        for iface_name, stats in ifaces_stats:
-            plt.plot(stats[timestamp_header]-min_timestamp,
-                     stats[bits_total_header]/1_000_000, label=iface_name)
-
-        plt.legend()
-        plt.savefig(f'{bandwidths_dir}/{name}.png')
-        plt.close(fig)
+    plot_bandwidths(output_dir, dummy_infos)
+    plot_cpu_mem_stats(output_dir, get_nodes(), '')
 
 
 if __name__ == '__main__':

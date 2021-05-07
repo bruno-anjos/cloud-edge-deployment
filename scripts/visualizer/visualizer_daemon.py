@@ -1,10 +1,12 @@
 #!/usr/bin/python3
 import json
 import os
+import re
 import subprocess
+from multiprocessing import pool
+
 import sys
 import time
-from multiprocessing import Pool
 
 
 def run_cmd_with_try(cmd):
@@ -19,7 +21,7 @@ def run_cmd_with_try(cmd):
         failed = True
         print(f"RetCode: {cp.returncode}")
     if failed:
-        exit(1)
+        sys.exit(f'failed running cmd: {cmd}')
 
 
 def exec_cmd_on_host(node, cmd):
@@ -38,16 +40,29 @@ def get_all_hierarchy_tables(count):
     return tables
 
 
-def collect_recordings(aux_output_dir, aux_duration, timeout):
-    cycles = int(aux_duration[:-1]) // int(timeout[:-1])
+def collect_recordings(aux_output_dir, aux_duration, timeout, clients_node):
+    cycles = process_time_string(aux_duration) // process_time_string(timeout)
     snapshots_path = aux_output_dir
+    services_sync_nas_dir = os.path.expanduser('~/services')
+    if not os.path.exists(services_sync_nas_dir):
+        os.mkdir(services_sync_nas_dir)
 
-    services = [file_name for file_name in os.listdir(services_path)]
+    clean_services_sync_dir_cmd = f'rm -f {services_sync_nas_dir}/*'
+    run_cmd_with_try(clean_services_sync_dir_cmd)
+
+    sync_clients_coords_to_NAS_cmd = f'cp {services_path}/* {services_sync_nas_dir}/'
+    exec_cmd_on_host(clients_node, sync_clients_coords_to_NAS_cmd)
+
+    services = [file_name for file_name in os.listdir(services_sync_nas_dir)]
     service_locs = {}
 
     for service in services:
-        with open(f"{services_path}/{service}", 'r') as service_fp:
-            service_loc = json.load(service_fp)
+        with open(f"{services_sync_nas_dir}/{service}", 'r') as service_fp:
+            try:
+                service_loc = json.load(service_fp)
+            except json.decoder.JSONDecodeError:
+                print(f'could not load file {service}')
+                continue
             service_locs[service] = service_loc
 
     for count in range(cycles):
@@ -148,6 +163,19 @@ def process_time_string(time_string):
     return time_in_seconds
 
 
+def atoi(text):
+    return int(text) if text.isdigit() else text
+
+
+def natural_keys(text):
+    return [atoi(c) for c in re.split(r'(\d+)', text)]
+
+
+def create_dir_if_missing(dir_path):
+    if not os.path.exists(os.path.expanduser(dir_path)):
+        os.mkdir(dir_path)
+
+
 print("Removing old entrypoint...")
 remove_visualizer_entrypoint()
 print("Done!")
@@ -164,16 +192,18 @@ services_path = "/tmp/services"
 
 args = sys.argv[1:]
 
-if len(args) > 5:
-    print("usage: python3 visualizer_daemon.py <scenario_filename> <time_between_snapshots> <duration_in_seconds> ["
-          "--output_dir=] [--collect_only]")
-    exit(1)
+if len(args) > 6 or len(args) < 4:
+    print(
+        "usage: python3 visualizer_daemon.py <scenario_filename> <time_between_snapshots> <duration_in_seconds> "
+        "<clients_node> [--output_dir=] [--collect_only]")
+    sys.exit('too few arguments')
 
 scenario_filename = ""
 time_between = ""
 duration = ""
 output_dir = os.path.expanduser('~/snapshots')
 collect_only = False
+clients_node = ''
 
 for arg in args:
     if "--output_dir=" in arg:
@@ -186,6 +216,8 @@ for arg in args:
         time_between = arg
     elif duration == "":
         duration = arg
+    elif clients_node == '':
+        clients_node = arg
 
 with open(f"{os.path.expanduser('~/ced-scenarios')}/{scenario_filename}", 'r') as scenario_fp:
     scenario = json.load(scenario_fp)
@@ -194,11 +226,14 @@ nodes = scenario["locations"].keys()
 
 print("Got nodes: ", nodes)
 
-if os.path.exists("/home/b.anjos/results/results.json"):
-    os.remove("/home/b.anjos/results/results.json")
+if os.path.exists(os.path.expanduser("~/results/results.json")):
+    os.remove(os.path.expanduser("~/results/results.json"))
 
-for f in os.listdir("/home/b.anjos/deployer_pngs/"):
-    os.remove(os.path.join("/home/b.anjos/deployer_pngs/", f))
+deploy_pngs_dir = os.path.expanduser("~/deployer_pngs/")
+create_dir_if_missing(deploy_pngs_dir)
+
+for f in os.listdir(deploy_pngs_dir):
+    os.remove(os.path.join(deploy_pngs_dir, f))
 
 fallback = scenario["fallback"]
 locations = {"services": {}, "nodes": scenario["locations"]}
@@ -223,21 +258,28 @@ node_id_field_id = "Id"
 orphan_field_id = "IsOrphan"
 
 # GRAPH PROPERTIES
-colors = ["blue", "pink", "green", "orange", "dark blue", "brown", "dark green"]
-arrow_width_dict = {attr_grandparent: 3, attr_parent: 1, attr_child: 1, attr_neigh: 0.5}
-edge_width_dict = {attr_grandparent: 1, attr_parent: 1, attr_child: 3, attr_neigh: 0.5}
+colors = ["blue", "pink", "green", "orange",
+          "dark blue", "brown", "dark green"]
+arrow_width_dict = {attr_grandparent: 3,
+                    attr_parent: 1, attr_child: 1, attr_neigh: 0.5}
+edge_width_dict = {attr_grandparent: 1,
+                   attr_parent: 1, attr_child: 3, attr_neigh: 0.5}
 
-pool = Pool(os.cpu_count())
+pool = pool.Pool(os.cpu_count())
 
 if not collect_only:
     start_recording(duration, time_between)
 
     time.sleep(process_time_string(duration))
 
-recordings_path = os.path.expanduser("~/tables/")
+recordings_path = os.path.expanduser("~/tables")
+create_dir_if_missing(recordings_path)
+subprocess.run(f'rm -rf {recordings_path}/*', shell=True)
 
 hosts = subprocess.getoutput("oarprint host").strip().split("\n")
-for host in hosts:
-    exec_cmd_on_host(host, f'cp -R /tmp/tables/* {recordings_path}')
+hosts.sort(key=natural_keys)
+for host in hosts[:-1]:
+    exec_cmd_on_host(
+        host, f'[ ! -d "/tmp/tables" ] || cp -R /tmp/tables/* {recordings_path}')
 
-collect_recordings(output_dir, duration, time_between)
+collect_recordings(output_dir, duration, time_between, clients_node)

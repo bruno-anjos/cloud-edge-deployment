@@ -89,8 +89,6 @@ def main():
     if len(args) != num_args:
         sys.exit('Usage: python3 record_stats.py <interval> <duration> <experiment_dir>')
 
-    print(f'Recording stats at {HOSTNAME}')
-
     interval = process_time_string_in_sec(args[0])
     duration = process_time_string_in_sec(args[1])
     experiment_dir = os.path.expanduser(args[2])
